@@ -1,0 +1,21 @@
+{
+  "name": "wallos",
+  "version": "1.0.0",
+  "description": "A modular smart display dashboard for a Raspberry Pi wall-mounted monitor.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
