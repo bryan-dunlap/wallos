@@ -1,0 +1,32 @@
+:root {
+
+    /* Colors */
+
+    --background: #101214;
+    --surface: #1B1E22;
+    --surface-light: #252A30;
+
+    --text-primary: #FFFFFF;
+    --text-secondary: #A7ADB5;
+
+    --accent: #4DA3FF;
+    --success: #4CAF50;
+    --warning: #FFB020;
+    --danger: #F44336;
+
+    /* Spacing */
+
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+
+    /* Radius */
+
+    --radius: 18px;
+
+    /* Animation */
+
+    --transition: 250ms ease;
+}
