@@ -1,38 +1,133 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>Project Mosaic</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
 
     <link rel="stylesheet" href="css/variables.css">
     <link rel="stylesheet" href="css/main.css">
+
 </head>
 
 <body>
 
-    <main class="mosaic-shell">
+    <main class="mosaic-dashboard">
 
-        <section class="status-card">
+        <!-- =========================
+             Planning Zone
+        ========================== -->
 
-            <p class="project-name">Project Mosaic</p>
+        <header class="dashboard-zone planning-zone">
 
-            <h1>System Online</h1>
+            <div class="zone-content">
+        
+                <div class="zone-header">
+        
+                    <div>
+        
+                        <p class="zone-label">
+                            Planning Zone
+                        </p>
+        
+                        <h1>
+                            Rolling 7-Day View
+                        </h1>
+        
+                    </div>
+        
+                    <p class="zone-description">
+                        Past 3 Days • Today • Next 3 Days
+                    </p>
+        
+                </div>
+        
+                <div class="week-navigation">
 
-            <p class="version">
-                Version 0.1.0-alpha
-            </p>
+                    <button id="prev-week" class="nav-arrow">
+                        &#10094;
+                    </button>
+                
+                    <div id="week-grid" class="week-grid"></div>
+                
+                    <button id="next-week" class="nav-arrow">
+                        &#10095;
+                    </button>
+                
+                </div>
+        
+                <div id="today-detail-panel" class="today-detail-panel">
+        
+                    <!-- Today's expanded details will go here -->
+        
+                </div>
+        
+            </div>
+        
+        </header>
 
-            <p id="clock" class="clock">
-                Loading...
-            </p>
+        <!-- =========================
+             Live Zone
+        ========================== -->
+
+        <section class="dashboard-zone live-zone">
+
+            <div>
+
+                <p class="zone-label">
+                    Live Zone
+                </p>
+
+                <h2>
+                    Live Information
+                </h2>
+
+                <p class="zone-description">
+                    Rotating cards for music, sports, RSS, package tracking,
+                    reminders and time-sensitive information.
+                </p>
+
+            </div>
 
         </section>
 
+        <!-- =========================
+             Discovery Zone
+        ========================== -->
+
+        <footer class="dashboard-zone discovery-zone">
+
+            <div>
+
+                <p class="zone-label">
+                    Discovery Zone
+                </p>
+
+                <h2>
+                    Reddit & Discovery
+                </h2>
+
+                <p class="zone-description">
+                    Images, animated GIFs, interesting Reddit posts,
+                    photos, famous birthdays, daily facts and other
+                    enjoyable content.
+                </p>
+
+            </div>
+
+        </footer>
+
     </main>
 
-    <script src="js/clock.js"></script>
     <script src="js/app.js"></script>
 
 </body>
+
 </html>
