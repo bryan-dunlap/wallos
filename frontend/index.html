@@ -21,58 +21,41 @@
 
     <main class="mosaic-dashboard">
 
-        <!-- =========================
-             Planning Zone
-        ========================== -->
+  <!-- =========================
+     Timeline
+========================== -->
 
-        <header class="dashboard-zone planning-zone">
+<header class="dashboard-zone planning-zone">
 
-            <div class="zone-content">
-        
-                <div class="zone-header">
-        
-                    <div>
-        
-                        <p class="zone-label">
-                            Planning Zone
-                        </p>
-        
-                        <h1>
-                            Rolling 7-Day View
-                        </h1>
-        
-                    </div>
-        
-                    <p class="zone-description">
-                        Past 3 Days • Today • Next 3 Days
-                    </p>
-        
-                </div>
-        
-                <div class="week-navigation">
+    <div class="zone-content">
 
-                    <button id="prev-week" class="nav-arrow">
-                        &#10094;
-                    </button>
-                
-                    <div id="week-grid" class="week-grid"></div>
-                
-                    <button id="next-week" class="nav-arrow">
-                        &#10095;
-                    </button>
-                
-                </div>
-        
-                <div id="today-detail-panel" class="today-detail-panel">
-        
-                    <!-- Today's expanded details will go here -->
-        
-                </div>
-        
+        <div class="week-navigation">
+
+            <button id="prev-week" class="nav-arrow">
+                &#10094;
+            </button>
+
+            <div class="timeline-center">
+
+                <button id="home-day" class="home-day-button">
+                    Home
+                </button>
+
+                <div id="week-grid" class="week-grid"></div>
+
             </div>
-        
-        </header>
 
+            <button id="next-week" class="nav-arrow">
+                &#10095;
+            </button>
+
+        </div>
+
+        <div id="today-detail-panel" class="today-detail-panel"></div>
+
+    </div>
+
+</header>
         <!-- =========================
              Live Zone
         ========================== -->
