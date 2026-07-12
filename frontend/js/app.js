@@ -5,56 +5,193 @@ const nextButton = document.getElementById("next-week");
 const homeButton = document.getElementById("home-day");
 
 const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-
 
 let selectedOffset = 0;
 
+let weatherByDate = {};
+let weatherLoaded = false;
+
+let marinersByDate = {};
+let marinersLoaded = false;
+
+/* ==========================
+   Date Helpers
+========================== */
+
 function getDateFromOffset(offset) {
   const date = new Date();
+
+  date.setHours(12, 0, 0, 0);
   date.setDate(date.getDate() + offset);
+
   return date;
 }
 
-function getPlaceholderData(offset) {
+function getDateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+/* ==========================
+   Placeholder Calendar Data
+========================== */
+
+function getCalendarData(offset) {
   const samples = [
-    { weather: "☁️ 68° / 55°", condition: "Cloudy", calendar: "1 Event" },
-    { weather: "🌧️ 64° / 52°", condition: "Light Rain", calendar: "No Events" },
-    { weather: "☀️ 72° / 58°", condition: "Mostly Sunny", calendar: "2 Events" },
-    { weather: "🌤️ 74° / 57°", condition: "Partly Cloudy", calendar: "1 Event" },
-    { weather: "☀️ 78° / 60°", condition: "Sunny", calendar: "3 Events" }
+    { calendar: "1 Event" },
+    { calendar: "No Events" },
+    { calendar: "2 Events" },
+    { calendar: "1 Event" },
+    { calendar: "3 Events" }
   ];
 
   return samples[Math.abs(offset) % samples.length];
 }
-const marinersSchedule = {
-  "2026-07-08": { opponent: "@ Marlins", time: "3:40 PM" },
-  "2026-07-09": { opponent: "@ Marlins", time: "3:40 PM" },
-  "2026-07-10": { opponent: "@ Rays", time: "4:10 PM" },
-  "2026-07-11": { opponent: "@ Rays", time: "1:10 PM" },
-  "2026-07-12": { opponent: "@ Rays", time: "10:40 AM" },
-  "2026-07-17": { opponent: "vs Giants", time: "7:10 PM" },
-  "2026-07-18": { opponent: "vs Giants", time: "5:08 PM" },
-  "2026-07-19": { opponent: "vs Giants", time: "1:10 PM" },
-  "2026-07-20": { opponent: "vs Reds", time: "6:40 PM" },
-  "2026-07-21": { opponent: "vs Reds", time: "6:40 PM" }
-};
 
-function getDateKey(date) {
-  return date.toISOString().split("T")[0];
+function getEventCount(calendarText) {
+  if (calendarText === "No Events") {
+    return "0";
+  }
+
+  return calendarText
+    .replace(" Events", "")
+    .replace(" Event", "");
 }
+
+/* ==========================
+   Weather
+========================== */
+
+function getWeatherDescription(code) {
+  const descriptions = {
+    0: "Clear",
+    1: "Mostly Clear",
+    2: "Partly Cloudy",
+    3: "Cloudy",
+    45: "Fog",
+    48: "Freezing Fog",
+    51: "Light Drizzle",
+    53: "Drizzle",
+    55: "Heavy Drizzle",
+    56: "Freezing Drizzle",
+    57: "Heavy Freezing Drizzle",
+    61: "Light Rain",
+    63: "Rain",
+    65: "Heavy Rain",
+    66: "Freezing Rain",
+    67: "Heavy Freezing Rain",
+    71: "Light Snow",
+    73: "Snow",
+    75: "Heavy Snow",
+    77: "Snow Grains",
+    80: "Light Showers",
+    81: "Showers",
+    82: "Heavy Showers",
+    85: "Light Snow Showers",
+    86: "Heavy Snow Showers",
+    95: "Thunderstorms",
+    96: "Thunderstorms with Hail",
+    99: "Severe Thunderstorms"
+  };
+
+  return descriptions[code] || "Weather Unavailable";
+}
+
+function getWeatherIcon(code) {
+  if (code === 0) return "☀️";
+  if (code === 1 || code === 2) return "🌤️";
+  if (code === 3) return "☁️";
+  if (code === 45 || code === 48) return "🌫️";
+  if (code >= 51 && code <= 67) return "🌧️";
+  if (code >= 71 && code <= 77) return "❄️";
+  if (code >= 80 && code <= 82) return "🌦️";
+  if (code >= 85 && code <= 86) return "🌨️";
+  if (code >= 95) return "⛈️";
+
+  return "";
+}
+
+function getWeatherForDate(date) {
+  return weatherByDate[getDateKey(date)] || null;
+}
+
+async function loadWeather() {
+  try {
+    const response = await fetch("/api/weather");
+
+    if (!response.ok) {
+      throw new Error(`Weather request failed: ${response.status}`);
+    }
+
+    const weatherData = await response.json();
+
+    weatherByDate = {};
+
+    weatherData.daily.forEach((day) => {
+      weatherByDate[day.date] = day;
+    });
+
+    weatherLoaded = true;
+  } catch (error) {
+    console.error("Unable to load weather:", error);
+    weatherLoaded = false;
+  }
+
+  updatePlanningZone();
+}
+
+/* ==========================
+   Mariners Schedule
+========================== */
 
 function getMarinersGame(date) {
-  const key = getDateKey(date);
-  return marinersSchedule[key] || null;
+  return marinersByDate[getDateKey(date)] || null;
 }
+
+async function loadMarinersSchedule() {
+  try {
+    const response = await fetch("/api/sports/mlb/sea");
+
+    if (!response.ok) {
+      throw new Error(`Mariners request failed: ${response.status}`);
+    }
+
+    const scheduleData = await response.json();
+
+    marinersByDate = {};
+
+    scheduleData.games.forEach((game) => {
+      marinersByDate[game.date] = game;
+    });
+
+    marinersLoaded = true;
+  } catch (error) {
+    console.error("Unable to load Mariners schedule:", error);
+    marinersLoaded = false;
+  }
+
+  updatePlanningZone();
+}
+
+/* ==========================
+   Timeline
+========================== */
 
 function buildRollingWeek() {
   weekGrid.innerHTML = "";
 
-  for (let offset = selectedOffset - 3; offset <= selectedOffset + 3; offset++) {
+  for (
+    let offset = selectedOffset - 3;
+    offset <= selectedOffset + 3;
+    offset++
+  ) {
     const date = getDateFromOffset(offset);
+    const weather = getWeatherForDate(date);
+    const calendar = getCalendarData(offset);
+
     const column = document.createElement("div");
 
     if (offset === selectedOffset) {
@@ -69,33 +206,48 @@ function buildRollingWeek() {
       column.classList.add("today");
     }
 
-    const data = getPlaceholderData(offset);
+    const temperatureText = weather
+      ? `${weather.high}°`
+      : weatherLoaded
+        ? "—"
+        : "...";
 
-column.innerHTML = `
-  <div class="day-top">
-    <div class="day-name">${dayLabels[date.getDay()]}</div>
-    <div class="day-date">${date.getDate()}</div>
-  </div>
+    column.innerHTML = `
+      <div class="day-top">
 
-  <div class="day-glance">
-
-    <div class="day-glance-item">
-        ${data.weather.split(" ")[1]}
-    </div>
-
-    <div class="day-glance-item">
-
-        <div class="event-dots">
-            <span></span>
-            <span></span>
+        <div class="day-name ${
+          offset === selectedOffset ? "current-day-name" : ""
+        }">
+          ${
+            offset === selectedOffset
+              ? date.toLocaleDateString("en-US", { weekday: "long" })
+              : dayLabels[date.getDay()]
+          }
         </div>
 
-        ${data.calendar.replace(" Events","").replace(" Event","").replace("No","0")}
+        <div class="day-date">${date.getDate()}</div>
 
-    </div>
+      </div>
 
-</div>
-`;
+      <div class="day-glance">
+
+        <div class="day-glance-item">
+          ${temperatureText}
+        </div>
+
+        <div class="day-glance-item">
+
+          <div class="event-dots">
+            <span></span>
+            <span></span>
+          </div>
+
+          ${getEventCount(calendar.calendar)}
+
+        </div>
+
+      </div>
+    `;
 
     column.addEventListener("click", () => {
       selectedOffset = offset;
@@ -106,38 +258,91 @@ column.innerHTML = `
   }
 }
 
+/* ==========================
+   Selected-Day Details
+========================== */
+
 function buildTodayDetailPanel() {
   const selectedDate = getDateFromOffset(selectedOffset);
   const isToday = selectedOffset === 0;
-  const data = getPlaceholderData(selectedOffset);
+
+  const weather = getWeatherForDate(selectedDate);
+  const calendar = getCalendarData(selectedOffset);
   const marinersGame = getMarinersGame(selectedDate);
 
+  const weatherMain = weather
+    ? `${getWeatherIcon(weather.weatherCode)} ${weather.high}° / ${weather.low}°`
+    : weatherLoaded
+      ? "Forecast Unavailable"
+      : "Loading Weather";
+
+  const weatherSub = weather
+    ? getWeatherDescription(weather.weatherCode)
+    : weatherLoaded
+      ? "Outside forecast range"
+      : "Please wait";
+
+  let marinersMain = "Loading Schedule";
+  let marinersSub = "Please wait";
+
+  if (marinersLoaded) {
+    if (marinersGame) {
+      marinersMain =
+        `${marinersGame.matchupPrefix} ${marinersGame.opponent}`;
+
+      marinersSub = marinersGame.startTime;
+    } else {
+      marinersMain = "Off Day";
+      marinersSub = "No game scheduled";
+    }
+  }
+
   todayDetailPanel.innerHTML = `
-  <div class="today-panel-content">
+    <div class="today-panel-content">
 
-  <div class="today-panel-item">
-  <div class="today-panel-label">Mariners</div>
-  <div class="today-panel-main">${marinersGame ? marinersGame.opponent : "Off Day"}</div>
-  <div class="today-panel-sub">${marinersGame ? marinersGame.time : "No game scheduled"}</div>
-</div> 
-  
-  <div class="today-panel-item">
-      <div class="today-panel-label">Weather</div>
-      <div class="today-panel-main">${data.weather}</div>
-      <div class="today-panel-sub">${data.condition}</div>
+      <div class="today-panel-item">
+        <div class="today-panel-label">Mariners</div>
+
+        <div class="today-panel-main">
+          ${marinersMain}
+        </div>
+
+        <div class="today-panel-sub">
+          ${marinersSub}
+        </div>
+      </div>
+
+      <div class="today-panel-item">
+        <div class="today-panel-label">Weather</div>
+
+        <div class="today-panel-main">
+          ${weatherMain}
+        </div>
+
+        <div class="today-panel-sub">
+          ${weatherSub}
+        </div>
+      </div>
+
+      <div class="today-panel-item">
+        <div class="today-panel-label">Schedule</div>
+
+        <div class="today-panel-main">
+          ${calendar.calendar}
+        </div>
+
+        <div class="today-panel-sub">
+          ${isToday ? "Current day" : "Selected day"}
+        </div>
+      </div>
+
     </div>
-
-    <div class="today-panel-item">
-      <div class="today-panel-label">Schedule</div>
-      <div class="today-panel-main">${data.calendar}</div>
-      <div class="today-panel-sub">${isToday ? "Current day" : "Selected day"}</div>
-    </div>
-
-    
-
-  </div>
-`;
+  `;
 }
+
+/* ==========================
+   Navigation
+========================== */
 
 function updateHomeButton() {
   if (selectedOffset === 0) {
@@ -169,4 +374,32 @@ homeButton.addEventListener("click", () => {
   updatePlanningZone();
 });
 
+/* ==========================
+   Clock
+========================== */
+
+function updateClock() {
+  const now = new Date();
+
+  const time = now.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit"
+  });
+
+  document.getElementById("clock-time").textContent = time;
+}
+
+updateClock();
+setInterval(updateClock, 30000);
+
+/* ==========================
+   Startup
+========================== */
+
 updatePlanningZone();
+
+loadWeather();
+loadMarinersSchedule();
+
+setInterval(loadWeather, 30 * 60 * 1000);
+setInterval(loadMarinersSchedule, 6 * 60 * 60 * 1000);
