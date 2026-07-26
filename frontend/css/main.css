@@ -1,40 +1,4 @@
 /* ==========================
-   Design Tokens
-========================== */
-
-:root {
-    /* Core colors */
-    --color-background: #090b10;
-    --color-text: #f4f4f4;
-    --color-text-soft: #eef4ff;
-    --color-text-muted: #8e98a4;
-    --color-text-secondary: #c8cdd4;
-
-    /* Accent */
-    --color-accent: rgb(108, 183, 255);
-
-    /* Accent transparencies */
-    --accent-04: rgba(108, 183, 255, .04);
-    --accent-08: rgba(108, 183, 255, .08);
-    --accent-10: rgba(108, 183, 255, .10);
-    --accent-18: rgba(108, 183, 255, .18);
-    --accent-22: rgba(108, 183, 255, .22);
-    --accent-38: rgba(108, 183, 255, .38);
-
-    /* Surfaces */
-    --surface-top: rgba(255, 255, 255, .035);
-    --surface-bottom: rgba(255, 255, 255, .015);
-    --surface-highlight: rgba(255, 255, 255, .025);
-
-    /* Shadows */
-    --shadow-zone: 0 18px 50px rgba(0, 0, 0, .35);
-
-    /* Shape */
-    --zone-radius: 32px;
-}
-
-
-/* ==========================
    Reset
 ========================== */
 
@@ -42,6 +6,15 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+
+    cursor: none !important;
+}
+
+html,
+body {
+
+    cursor: none !important;
+
 }
 
 
@@ -588,4 +561,78 @@ button:focus-visible,
 .day-column:focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 4px;
+}
+/* ==========================
+   Temporary Reddit Feed
+========================== */
+
+.discovery-zone {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    overflow: hidden;
+}
+
+.reddit-feed {
+    width: 100%;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    text-align: center;
+}
+
+.reddit-post {
+    width: 100%;
+    max-width: 1100px;
+
+    animation: reddit-fade-in .45s ease;
+}
+
+.reddit-source {
+    margin-bottom: 10px;
+
+    color: var(--color-accent);
+
+    font-size: .9rem;
+    font-weight: 600;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+}
+
+.reddit-headline {
+    color: var(--color-text-soft);
+
+    font-family: "Outfit", sans-serif;
+
+    font-size: clamp(1.3rem, 2vw, 2rem);
+    font-weight: 500;
+    line-height: 1.3;
+    letter-spacing: -.01em;
+
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.reddit-position {
+    margin-top: 14px;
+
+    color: var(--color-text-muted);
+
+    font-size: .75rem;
+    letter-spacing: .18em;
+}
+
+@keyframes reddit-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }

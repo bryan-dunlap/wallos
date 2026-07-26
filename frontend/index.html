@@ -14,6 +14,7 @@
 
     <link rel="stylesheet" href="css/variables.css">
     <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="widgets/widgets.css">
 
 </head>
 
@@ -22,14 +23,13 @@
 
 
     <main class="mosaic-dashboard">
-
-  <!-- =========================
-     Timeline
-========================== -->
 <div class="mosaic-clock">
     <div id="clock-time" class="clock-time"></div>
     <div id="clock-day" class="clock-day"></div>
-</div>
+</div> <!-- =========================
+     Timeline
+========================== -->
+
 <header class="dashboard-zone planning-zone">
 
     <div class="zone-content">
@@ -61,60 +61,125 @@
     </div>
 
 </header>
-        <!-- =========================
-             Live Zone
-        ========================== -->
+<!-- =========================
+     Live Zone
+========================== -->
 
-        <section class="dashboard-zone live-zone">
+<section class="dashboard-zone live-zone">
 
-            <div>
+    <div class="widget-grid">
+    
 
-                <p class="zone-label">
-                    Live Zone
-                </p>
+        <section class="widget small weather-widget">
 
-                <h2>
-                    Live Information
-                </h2>
+    <div class="widget-header">
 
-                <p class="zone-description">
-                    Rotating cards for music, sports, RSS, package tracking,
-                    reminders and time-sensitive information.
-                </p>
+        <div class="widget-title">
+            Weather
+        </div>
 
+        <div class="widget-status">
+            LIVE
+        </div>
+
+    </div>
+
+
+    <div class="weather-content">
+
+    <div class="weather-location">
+        Tacoma
+    </div>
+
+    <div class="weather-main">
+
+        <div class="weather-icon">
+            ☀️
+        </div>
+
+        <div class="weather-temperature">
+            72°
+        </div>
+
+    </div>
+
+    <div class="weather-rotating">
+        Clear Sky
+    </div>
+
+</div>
+
+
+   
+
+</section>
+
+        <section class="widget hero music-widget">
+
+            <div class="widget-header">
+                <div class="widget-title">Now Playing</div>
+                <div class="widget-status">Waiting</div>
+            </div>
+
+            <div class="widget-body">
+                Nothing Playing
+            </div>
+
+            <div class="widget-footer">
+                <span>Apple Music</span>
+                <span>--</span>
             </div>
 
         </section>
 
-        <!-- =========================
-             Discovery Zone
-        ========================== -->
+        <section class="widget small sports-widget">
 
-        <footer class="dashboard-zone discovery-zone">
-
-            <div>
-
-                <p class="zone-label">
-                    Discovery Zone
-                </p>
-
-                <h2>
-                    Reddit & Discovery
-                </h2>
-
-                <p class="zone-description">
-                    Images, animated GIFs, interesting Reddit posts,
-                    photos, famous birthdays, daily facts and other
-                    enjoyable content.
-                </p>
-
+            <div class="widget-header">
+                <div class="widget-title">Mariners</div>
+                <div class="widget-status">Idle</div>
             </div>
 
-        </footer>
+            <div class="widget-body">
+                No Game
+            </div>
 
-    </main>
+            <div class="widget-footer">
+                <span>MLB</span>
+                <span>--</span>
+            </div>
 
-    <script src="js/app.js"></script>
+        </section>
+
+    </div>
+
+</section>
+        <!-- =========================
+     Discovery Zone
+========================== -->
+
+<footer class="dashboard-zone discovery-zone">
+
+    <div id="reddit-feed" class="reddit-feed">
+
+        <div class="reddit-source">
+            Loading Reddit
+        </div>
+
+        <div class="reddit-headline">
+            Fetching top posts…
+        </div>
+
+    </div>
+
+</footer>
+
+            </main>
+
+    <script src="widgets/widget-core.js"></script>
+  
+
+    <script src="js/app.js?v=2"></script>
+    <script src="js/discovery.js?v=2"></script>
 
 </body>
 

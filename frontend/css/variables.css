@@ -1,32 +1,76 @@
 :root {
 
-    /* Colors */
+    /* ==========================
+       Core Colors
+    ========================== */
 
-    --background: #101214;
-    --surface: #1B1E22;
-    --surface-light: #252A30;
+    --color-background: #090b10;
 
-    --text-primary: #FFFFFF;
-    --text-secondary: #A7ADB5;
+    --color-text: #f4f4f4;
+    --color-text-soft: #eef4ff;
+    --color-text-secondary: #c8cdd4;
+    --color-text-muted: #8e98a4;
 
-    --accent: #4DA3FF;
-    --success: #4CAF50;
-    --warning: #FFB020;
-    --danger: #F44336;
+    /* ==========================
+       Accent
+    ========================== */
 
-    /* Spacing */
+    --color-accent: rgb(108,183,255);
+
+    --accent-04: rgba(108,183,255,.04);
+    --accent-08: rgba(108,183,255,.08);
+    --accent-10: rgba(108,183,255,.10);
+    --accent-18: rgba(108,183,255,.18);
+    --accent-22: rgba(108,183,255,.22);
+    --accent-38: rgba(108,183,255,.38);
+
+    /* ==========================
+       Surfaces
+    ========================== */
+
+    --surface-top: rgba(255,255,255,.035);
+    --surface-bottom: rgba(255,255,255,.015);
+    --surface-highlight: rgba(255,255,255,.025);
+
+    /* ==========================
+       Borders
+    ========================== */
+
+    --border-subtle: rgba(255,255,255,.06);
+
+    /* ==========================
+       Shadows
+    ========================== */
+
+    --shadow-zone: 0 18px 50px rgba(0,0,0,.35);
+    --shadow-soft: 0 6px 18px rgba(0,0,0,.25);
+
+    /* ==========================
+       Radius
+    ========================== */
+
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 18px;
+    --zone-radius: 32px;
+
+    /* ==========================
+       Spacing
+    ========================== */
 
     --space-xs: 4px;
     --space-sm: 8px;
     --space-md: 16px;
     --space-lg: 24px;
     --space-xl: 32px;
+    --space-2xl: 48px;
 
-    /* Radius */
+    /* ==========================
+       Animation
+    ========================== */
 
-    --radius: 18px;
-
-    /* Animation */
-
+    --transition-fast: 150ms ease;
     --transition: 250ms ease;
+    --transition-slow: 400ms ease;
+
 }

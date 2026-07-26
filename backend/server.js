@@ -16,6 +16,11 @@ const WEATHER_CACHE_MS = 30 * 60 * 1000;
 const MARINERS_TEAM_ID = 136;
 const SPORTS_CACHE_MS = 6 * 60 * 60 * 1000;
 
+const REDDIT_FEED_URL =
+  "https://www.reddit.com/r/news+nottheonion+WeirdNews+OutOFTheLoop+onthisday/.rss?sort=hot";
+
+const REDDIT_CACHE_MS = 15 * 60 * 1000;
+
 const DISPLAY_TIME_ZONE = "America/Los_Angeles";
 
 /* ==========================
@@ -32,6 +37,11 @@ let marinersCache = {
   data: null
 };
 
+let redditCache = {
+  timestamp: 0,
+  data: null
+};
+
 /* ==========================
    Static Frontend
 ========================== */
@@ -43,7 +53,7 @@ app.get("/", (req, res) => {
 });
 
 /* ==========================
-   Helpers
+   General Helpers
 ========================== */
 
 function formatLocalDate(dateValue) {
@@ -64,6 +74,113 @@ function formatLocalTime(dateValue) {
 }
 
 /* ==========================
+   Reddit RSS Helpers
+========================== */
+
+function decodeEntities(value = "") {
+  return value
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+function stripTags(value = "") {
+  return decodeEntities(value)
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getXmlTag(block, tagName) {
+  const pattern = new RegExp(
+    `<${tagName}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tagName}>`,
+    "i"
+  );
+
+  const match = block.match(pattern);
+
+  return match ? decodeEntities(match[1]).trim() : "";
+}
+
+function getEntryLink(entry) {
+  const alternateLink = entry.match(
+    /<link[^>]*rel=["']alternate["'][^>]*href=["']([^"']+)["']/i
+  );
+
+  if (alternateLink) {
+    return decodeEntities(alternateLink[1]);
+  }
+
+  const anyLink = entry.match(
+    /<link[^>]*href=["']([^"']+)["']/i
+  );
+
+  return anyLink ? decodeEntities(anyLink[1]) : "";
+}
+
+function getImageFromContent(content) {
+  const decodedContent = decodeEntities(content);
+
+  const imageMatch = decodedContent.match(
+    /<img[^>]+src=["']([^"']+)["']/i
+  );
+
+  if (!imageMatch) {
+    return null;
+  }
+
+  const imageUrl = decodeEntities(imageMatch[1]);
+
+  if (
+    imageUrl.includes("redditstatic.com/icon") ||
+    imageUrl.includes("redditstatic.com/avatars")
+  ) {
+    return null;
+  }
+
+  return imageUrl;
+}
+
+function getSubredditFromLink(link) {
+  const match = link.match(/reddit\.com\/r\/([^/]+)/i);
+
+  return match ? `r/${match[1]}` : "Reddit";
+}
+
+function parseRedditFeed(xml) {
+  const entries =
+    xml.match(/<entry\b[\s\S]*?<\/entry>/gi) || [];
+
+  return entries
+    .map((entry) => {
+      const title = stripTags(getXmlTag(entry, "title"));
+      const link = getEntryLink(entry);
+      const authorBlock = getXmlTag(entry, "author");
+      const author = stripTags(
+        getXmlTag(authorBlock, "name")
+      );
+      const published = getXmlTag(entry, "published");
+      const updated = getXmlTag(entry, "updated");
+      const content = getXmlTag(entry, "content");
+
+      return {
+        title,
+        link,
+        subreddit: getSubredditFromLink(link),
+        author,
+        publishedAt: published || updated || null,
+        image: getImageFromContent(content)
+      };
+    })
+    .filter((post) => post.title && post.link)
+    .slice(0, 25);
+}
+
+/* ==========================
    Weather API
 ========================== */
 
@@ -71,7 +188,8 @@ app.get("/api/weather", async (req, res) => {
   try {
     const cacheIsValid =
       weatherCache.data &&
-      Date.now() - weatherCache.timestamp < WEATHER_CACHE_MS;
+      Date.now() - weatherCache.timestamp <
+        WEATHER_CACHE_MS;
 
     if (cacheIsValid) {
       return res.json(weatherCache.data);
@@ -90,14 +208,18 @@ app.get("/api/weather", async (req, res) => {
     );
 
     if (!locationResponse.ok) {
-      throw new Error(`Location lookup failed: ${locationResponse.status}`);
+      throw new Error(
+        `Location lookup failed: ${locationResponse.status}`
+      );
     }
 
     const locationData = await locationResponse.json();
     const location = locationData.results?.[0];
 
     if (!location) {
-      throw new Error(`No location found for ZIP code ${WEATHER_LOCATION}`);
+      throw new Error(
+        `No location found for ZIP code ${WEATHER_LOCATION}`
+      );
     }
 
     const forecastParams = new URLSearchParams({
@@ -122,7 +244,9 @@ app.get("/api/weather", async (req, res) => {
     );
 
     if (!forecastResponse.ok) {
-      throw new Error(`Weather request failed: ${forecastResponse.status}`);
+      throw new Error(
+        `Weather request failed: ${forecastResponse.status}`
+      );
     }
 
     const forecastData = await forecastResponse.json();
@@ -137,14 +261,22 @@ app.get("/api/weather", async (req, res) => {
         timezone: forecastData.timezone
       },
 
-      daily: forecastData.daily.time.map((date, index) => ({
-        date,
-        weatherCode: forecastData.daily.weather_code[index],
-        high: Math.round(forecastData.daily.temperature_2m_max[index]),
-        low: Math.round(forecastData.daily.temperature_2m_min[index]),
-        precipitationChance:
-          forecastData.daily.precipitation_probability_max[index]
-      })),
+      daily: forecastData.daily.time.map(
+        (date, index) => ({
+          date,
+          weatherCode:
+            forecastData.daily.weather_code[index],
+          high: Math.round(
+            forecastData.daily.temperature_2m_max[index]
+          ),
+          low: Math.round(
+            forecastData.daily.temperature_2m_min[index]
+          ),
+          precipitationChance:
+            forecastData.daily
+              .precipitation_probability_max[index]
+        })
+      ),
 
       updatedAt: new Date().toISOString()
     };
@@ -166,7 +298,8 @@ app.get("/api/weather", async (req, res) => {
     }
 
     res.status(500).json({
-      error: "Weather data is temporarily unavailable."
+      error:
+        "Weather data is temporarily unavailable."
     });
   }
 });
@@ -179,7 +312,8 @@ app.get("/api/sports/mlb/sea", async (req, res) => {
   try {
     const cacheIsValid =
       marinersCache.data &&
-      Date.now() - marinersCache.timestamp < SPORTS_CACHE_MS;
+      Date.now() - marinersCache.timestamp <
+        SPORTS_CACHE_MS;
 
     if (cacheIsValid) {
       return res.json(marinersCache.data);
@@ -205,13 +339,13 @@ app.get("/api/sports/mlb/sea", async (req, res) => {
     }
 
     const scheduleData = await scheduleResponse.json();
-
     const games = [];
 
     for (const dateGroup of scheduleData.dates || []) {
       for (const game of dateGroup.games || []) {
         const isHome =
-          game.teams?.home?.team?.id === MARINERS_TEAM_ID;
+          game.teams?.home?.team?.id ===
+          MARINERS_TEAM_ID;
 
         const opponentTeam = isHome
           ? game.teams?.away?.team
@@ -222,7 +356,9 @@ app.get("/api/sports/mlb/sea", async (req, res) => {
           date: formatLocalDate(game.gameDate),
           startTime: formatLocalTime(game.gameDate),
 
-          opponent: opponentTeam?.name || "Opponent TBD",
+          opponent:
+            opponentTeam?.name || "Opponent TBD",
+
           opponentAbbreviation:
             opponentTeam?.abbreviation ||
             opponentTeam?.teamCode ||
@@ -263,7 +399,10 @@ app.get("/api/sports/mlb/sea", async (req, res) => {
 
     res.json(responseData);
   } catch (error) {
-    console.error("Mariners schedule API error:", error);
+    console.error(
+      "Mariners schedule API error:",
+      error
+    );
 
     if (marinersCache.data) {
       return res.json({
@@ -273,7 +412,79 @@ app.get("/api/sports/mlb/sea", async (req, res) => {
     }
 
     res.status(500).json({
-      error: "Mariners schedule is temporarily unavailable."
+      error:
+        "Mariners schedule is temporarily unavailable."
+    });
+  }
+});
+
+/* ==========================
+   Reddit RSS API
+========================== */
+
+app.get("/api/reddit", async (req, res) => {
+  try {
+    const cacheIsValid =
+      redditCache.data &&
+      Date.now() - redditCache.timestamp <
+        REDDIT_CACHE_MS;
+
+    if (cacheIsValid) {
+      return res.json(redditCache.data);
+    }
+
+    const redditResponse = await fetch(
+      REDDIT_FEED_URL,
+      {
+        headers: {
+          "User-Agent":
+            "ProjectMosaic/0.1 RaspberryPiDashboard",
+          Accept:
+            "application/atom+xml, application/xml, text/xml"
+        }
+      }
+    );
+
+    if (!redditResponse.ok) {
+      throw new Error(
+        `Reddit RSS request failed: ${redditResponse.status}`
+      );
+    }
+
+    const xml = await redditResponse.text();
+    const posts = parseRedditFeed(xml);
+
+    if (posts.length === 0) {
+      throw new Error(
+        "Reddit RSS feed returned no usable posts."
+      );
+    }
+
+    const responseData = {
+      feed: REDDIT_FEED_URL,
+      posts,
+      updatedAt: new Date().toISOString()
+    };
+
+    redditCache = {
+      timestamp: Date.now(),
+      data: responseData
+    };
+
+    res.json(responseData);
+  } catch (error) {
+    console.error("Reddit RSS error:", error);
+
+    if (redditCache.data) {
+      return res.json({
+        ...redditCache.data,
+        stale: true
+      });
+    }
+
+    res.status(500).json({
+      error:
+        "Reddit content is temporarily unavailable."
     });
   }
 });
@@ -283,5 +494,7 @@ app.get("/api/sports/mlb/sea", async (req, res) => {
 ========================== */
 
 app.listen(PORT, () => {
-  console.log(`Project Mosaic running at http://localhost:${PORT}`);
+  console.log(
+    `Project Mosaic running at http://localhost:${PORT}`
+  );
 });

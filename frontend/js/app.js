@@ -403,3 +403,17 @@ loadMarinersSchedule();
 
 setInterval(loadWeather, 30 * 60 * 1000);
 setInterval(loadMarinersSchedule, 6 * 60 * 60 * 1000);
+
+/* ==========================
+   Widget Startup
+========================== */
+
+const testWidgetContainer = document.getElementById(
+    "test-widget-container"
+);
+
+if (testWidgetContainer) {
+
+    TestWidget.mount(testWidgetContainer);
+
+}
