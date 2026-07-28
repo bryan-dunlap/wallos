@@ -21,12 +21,10 @@
 <body>
 
 
+<main class="mosaic-dashboard">
 
-    <main class="mosaic-dashboard">
-<div class="mosaic-clock">
-    <div id="clock-time" class="clock-time"></div>
-    <div id="clock-day" class="clock-day"></div>
-</div> <!-- =========================
+
+<!-- =========================
      Timeline
 ========================== -->
 
@@ -34,31 +32,55 @@
 
     <div class="zone-content">
 
-        <div class="week-navigation">
+        <div class="planning-layout">
 
-            <button id="prev-week" class="nav-arrow">
-                &#10094;
-            </button>
+            <div class="planning-clock">
 
-            <div class="timeline-center">
+                <div class="mosaic-clock">
+                    <div class="clock-display">
 
-                <button id="home-day" class="home-day-button">
-                    Home
-                </button>
+                        <div id="clock-time" class="clock-time"></div>
 
-                <div id="week-grid" class="week-grid"></div>
+                        <div id="clock-period" class="clock-period"></div>
+
+                    </div>
+                    <div id="clock-day" class="clock-day"></div>
+                </div>
 
             </div>
 
-            <button id="next-week" class="nav-arrow">
-                &#10095;
-            </button>
+            <div class="planning-calendar">
+
+                <div class="week-navigation">
+
+                    <button id="prev-week" class="nav-arrow">
+                        &#10094;
+                    </button>
+
+                    <div class="timeline-center">
+
+                        <button id="home-day" class="home-day-button">
+                            Return To Today
+                        </button>
+
+                        <div id="week-grid" class="week-grid"></div>
+
+                    </div>
+
+                    <button id="next-week" class="nav-arrow">
+                        &#10095;
+                    </button>
+
+                </div>
+
+            </div>
 
         </div>
 
-        <div id="today-detail-panel" class="today-detail-panel"></div>
+        <!-- <div id="today-detail-panel" class="today-detail-panel"></div> -->
 
     </div>
+
 
 </header>
 <!-- =========================

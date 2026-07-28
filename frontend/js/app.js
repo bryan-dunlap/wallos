@@ -7,6 +7,7 @@ const homeButton = document.getElementById("home-day");
 const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 let selectedOffset = 0;
+let timelineStartOffset = 0;
 
 let weatherByDate = {};
 let weatherLoaded = false;
@@ -176,28 +177,23 @@ async function loadMarinersSchedule() {
   updatePlanningZone();
 }
 
-/* ==========================
-   Timeline
-========================== */
-
 function buildRollingWeek() {
   weekGrid.innerHTML = "";
 
   for (
-    let offset = selectedOffset - 3;
-    offset <= selectedOffset + 3;
+    let offset = timelineStartOffset;
+    offset < timelineStartOffset + 5;
     offset++
   ) {
+
     const date = getDateFromOffset(offset);
     const weather = getWeatherForDate(date);
     const calendar = getCalendarData(offset);
 
     const column = document.createElement("div");
 
-    if (offset === selectedOffset) {
+    if (offset === timelineStartOffset) {
       column.className = "day-column selected";
-    } else if (offset < selectedOffset) {
-      column.className = "day-column past";
     } else {
       column.className = "day-column future";
     }
@@ -212,20 +208,26 @@ function buildRollingWeek() {
         ? "—"
         : "...";
 
+    let dayLabel;
+
+    if (offset === 0) {
+      dayLabel = "TODAY";
+    } else if (offset === 1) {
+      dayLabel = "TOMORROW";
+    } else {
+      dayLabel = dayLabels[date.getDay()].toUpperCase();
+    }
+
     column.innerHTML = `
       <div class="day-top">
 
-        <div class="day-name ${
-          offset === selectedOffset ? "current-day-name" : ""
-        }">
-          ${
-            offset === selectedOffset
-              ? date.toLocaleDateString("en-US", { weekday: "long" })
-              : dayLabels[date.getDay()]
-          }
+        <div class="day-name">
+          ${dayLabel}
         </div>
 
-        <div class="day-date">${date.getDate()}</div>
+        <div class="day-date">
+          ${date.getDate()}
+        </div>
 
       </div>
 
@@ -249,108 +251,46 @@ function buildRollingWeek() {
       </div>
     `;
 
+
     column.addEventListener("click", () => {
+
       selectedOffset = offset;
+
       updatePlanningZone();
+
     });
 
+
     weekGrid.appendChild(column);
+
   }
 }
-
-/* ==========================
-   Selected-Day Details
-========================== */
+//* ==========================
+//   Selected-Day Details
+//========================== */
 
 function buildTodayDetailPanel() {
-  const selectedDate = getDateFromOffset(selectedOffset);
-  const isToday = selectedOffset === 0;
-
-  const weather = getWeatherForDate(selectedDate);
-  const calendar = getCalendarData(selectedOffset);
-  const marinersGame = getMarinersGame(selectedDate);
-
-  const weatherMain = weather
-    ? `${getWeatherIcon(weather.weatherCode)} ${weather.high}° / ${weather.low}°`
-    : weatherLoaded
-      ? "Forecast Unavailable"
-      : "Loading Weather";
-
-  const weatherSub = weather
-    ? getWeatherDescription(weather.weatherCode)
-    : weatherLoaded
-      ? "Outside forecast range"
-      : "Please wait";
-
-  let marinersMain = "Loading Schedule";
-  let marinersSub = "Please wait";
-
-  if (marinersLoaded) {
-    if (marinersGame) {
-      marinersMain =
-        `${marinersGame.matchupPrefix} ${marinersGame.opponent}`;
-
-      marinersSub = marinersGame.startTime;
-    } else {
-      marinersMain = "Off Day";
-      marinersSub = "No game scheduled";
-    }
-  }
-
-  todayDetailPanel.innerHTML = `
-    <div class="today-panel-content">
-
-      <div class="today-panel-item">
-        <div class="today-panel-label">Mariners</div>
-
-        <div class="today-panel-main">
-          ${marinersMain}
-        </div>
-
-        <div class="today-panel-sub">
-          ${marinersSub}
-        </div>
-      </div>
-
-      <div class="today-panel-item">
-        <div class="today-panel-label">Weather</div>
-
-        <div class="today-panel-main">
-          ${weatherMain}
-        </div>
-
-        <div class="today-panel-sub">
-          ${weatherSub}
-        </div>
-      </div>
-
-      <div class="today-panel-item">
-        <div class="today-panel-label">Schedule</div>
-
-        <div class="today-panel-main">
-          ${calendar.calendar}
-        </div>
-
-        <div class="today-panel-sub">
-          ${isToday ? "Current day" : "Selected day"}
-        </div>
-      </div>
-
-    </div>
-  `;
+  // Detail panel intentionally removed.
+  // The Live Zone now owns all date-specific information.
+  return;
 }
-
 /* ==========================
    Navigation
 ========================== */
 
 function updateHomeButton() {
-  if (selectedOffset === 0) {
+
+  if (timelineStartOffset === 0) {
+
     homeButton.classList.remove("visible");
+
   } else {
-    homeButton.textContent = "Home";
+
+    homeButton.textContent = "RETURN TO TODAY";
     homeButton.classList.add("visible");
+
   }
+
 }
 
 function updatePlanningZone() {
@@ -360,18 +300,29 @@ function updatePlanningZone() {
 }
 
 prevButton.addEventListener("click", () => {
-  selectedOffset -= 1;
+
+  timelineStartOffset -= 1;
+
   updatePlanningZone();
+
 });
 
+
 nextButton.addEventListener("click", () => {
-  selectedOffset += 1;
+
+  timelineStartOffset += 1;
+
   updatePlanningZone();
+
 });
 
 homeButton.addEventListener("click", () => {
+
   selectedOffset = 0;
+  timelineStartOffset = 0;
+
   updatePlanningZone();
+
 });
 
 /* ==========================
@@ -381,12 +332,17 @@ homeButton.addEventListener("click", () => {
 function updateClock() {
   const now = new Date();
 
-  const time = now.toLocaleTimeString("en-US", {
+  const timeParts = now.toLocaleTimeString("en-US", {
     hour: "numeric",
-    minute: "2-digit"
+    minute: "2-digit",
+    hour12: true
   });
 
+  const [time, period] = timeParts.split(" ");
+
   document.getElementById("clock-time").textContent = time;
+
+  document.getElementById("clock-period").textContent = period;
 }
 
 updateClock();
