@@ -15,6 +15,9 @@ const WEATHER_CACHE_MS = 30 * 60 * 1000;
 
 const MARINERS_TEAM_ID = 136;
 const SPORTS_CACHE_MS = 6 * 60 * 60 * 1000;
+const MLB_LIVE_CACHE_MS = 15 * 1000;
+const MLB_SCHEDULED_CACHE_MS = 5 * 60 * 1000;
+const MLB_FINAL_CACHE_MS = 6 * 60 * 60 * 1000;
 
 const REDDIT_FEED_URL =
   "https://www.reddit.com/r/news+nottheonion+WeirdNews+OutOFTheLoop+onthisday/.rss?sort=hot";
@@ -36,6 +39,8 @@ let marinersCache = {
   timestamp: 0,
   data: null
 };
+
+const mlbDailyScheduleCache = new Map();
 
 let redditCache = {
   timestamp: 0,
@@ -71,6 +76,157 @@ function formatLocalTime(dateValue) {
     hour: "numeric",
     minute: "2-digit"
   }).format(new Date(dateValue));
+}
+
+function isValidDateKey(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const [year, month, day] =
+    value.split("-").map(Number);
+  const date = new Date(
+    Date.UTC(year, month - 1, day)
+  );
+
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
+function normalizeMlbTeam(teamData, linescoreData) {
+  const teamId = teamData?.team?.id ?? null;
+  const runs =
+    linescoreData?.runs ??
+    teamData?.score ??
+    null;
+
+  return {
+    id: teamId,
+    abbreviation:
+      teamData?.team?.abbreviation || "",
+    name: teamData?.team?.name || "Team TBD",
+    logo: teamId
+      ? `https://www.mlbstatic.com/team-logos/${teamId}.svg`
+      : null,
+
+    record: {
+      wins: teamData?.leagueRecord?.wins ?? null,
+      losses: teamData?.leagueRecord?.losses ?? null,
+      ties: teamData?.leagueRecord?.ties ?? null,
+      percentage:
+        teamData?.leagueRecord?.pct ?? null
+    },
+
+    score: runs,
+    runs,
+    hits: linescoreData?.hits ?? null,
+    errors: linescoreData?.errors ?? null
+  };
+}
+
+function normalizeMlbRunner(runner) {
+  if (!runner) {
+    return {
+      occupied: false,
+      runner: null
+    };
+  }
+
+  return {
+    occupied: true,
+    runner: {
+      id: runner.id ?? null,
+      name: runner.fullName || ""
+    }
+  };
+}
+
+function normalizeMlbEvent(game) {
+  const linescore = game.linescore;
+
+  return {
+    eventId: game.gamePk,
+    sport: "MLB",
+    date:
+      game.officialDate ||
+      formatLocalDate(game.gameDate),
+    scheduledAt: game.gameDate,
+    scheduledTime: formatLocalTime(game.gameDate),
+
+    status: {
+      state:
+        game.status?.abstractGameState ||
+        "Preview",
+      detail:
+        game.status?.detailedState ||
+        game.status?.abstractGameState ||
+        "Scheduled"
+    },
+
+    awayTeam: normalizeMlbTeam(
+      game.teams?.away,
+      linescore?.teams?.away
+    ),
+    homeTeam: normalizeMlbTeam(
+      game.teams?.home,
+      linescore?.teams?.home
+    ),
+
+    linescore: linescore
+      ? {
+          inning: {
+            number:
+              linescore.currentInning ?? null,
+            half:
+              linescore.inningHalf || null
+          },
+          outs: linescore.outs ?? null,
+          count: {
+            balls: linescore.balls ?? null,
+            strikes: linescore.strikes ?? null
+          },
+          bases: {
+            first: normalizeMlbRunner(
+              linescore.offense?.first
+            ),
+            second: normalizeMlbRunner(
+              linescore.offense?.second
+            ),
+            third: normalizeMlbRunner(
+              linescore.offense?.third
+            )
+          }
+        }
+      : null,
+
+    venue: {
+      id: game.venue?.id ?? null,
+      name: game.venue?.name || ""
+    }
+  };
+}
+
+function getMlbScheduleCacheTtl(sportsEvents) {
+  const hasLiveGame = sportsEvents.some(
+    (event) => event.status.state === "Live"
+  );
+
+  if (hasLiveGame) {
+    return MLB_LIVE_CACHE_MS;
+  }
+
+  const allGamesFinal =
+    sportsEvents.length > 0 &&
+    sportsEvents.every(
+      (event) => event.status.state === "Final"
+    );
+
+  return allGamesFinal
+    ? MLB_FINAL_CACHE_MS
+    : MLB_SCHEDULED_CACHE_MS;
 }
 
 /* ==========================
@@ -226,6 +382,11 @@ app.get("/api/weather", async (req, res) => {
       latitude: String(location.latitude),
       longitude: String(location.longitude),
 
+      current: [
+        "temperature_2m",
+        "weather_code"
+      ].join(","),
+
       daily: [
         "weather_code",
         "temperature_2m_max",
@@ -259,6 +420,14 @@ app.get("/api/weather", async (req, res) => {
         latitude: location.latitude,
         longitude: location.longitude,
         timezone: forecastData.timezone
+      },
+
+      current: {
+        temperature: Math.round(
+          forecastData.current.temperature_2m
+        ),
+        weatherCode:
+          forecastData.current.weather_code
       },
 
       daily: forecastData.daily.time.map(
@@ -300,6 +469,101 @@ app.get("/api/weather", async (req, res) => {
     res.status(500).json({
       error:
         "Weather data is temporarily unavailable."
+    });
+  }
+});
+
+/* ==========================
+   MLB Daily Schedule API
+========================== */
+
+app.get("/api/sports/mlb", async (req, res) => {
+  const requestedDate =
+    typeof req.query.date === "string"
+      ? req.query.date
+      : formatLocalDate(new Date());
+
+  if (!isValidDateKey(requestedDate)) {
+    return res.status(400).json({
+      error: "Date must use YYYY-MM-DD format."
+    });
+  }
+
+  const cachedSchedule =
+    mlbDailyScheduleCache.get(requestedDate);
+
+  try {
+    const cacheIsValid =
+      cachedSchedule &&
+      Date.now() - cachedSchedule.timestamp <
+        cachedSchedule.ttl;
+
+    if (cacheIsValid) {
+      return res.json(cachedSchedule.data);
+    }
+
+    const scheduleParams = new URLSearchParams({
+      sportId: "1",
+      date: requestedDate,
+      gameType: "R",
+      hydrate: "team,linescore"
+    });
+
+    const scheduleResponse = await fetch(
+      `https://statsapi.mlb.com/api/v1/schedule?${scheduleParams}`
+    );
+
+    if (!scheduleResponse.ok) {
+      throw new Error(
+        `MLB daily schedule request failed: ${scheduleResponse.status}`
+      );
+    }
+
+    const scheduleData = await scheduleResponse.json();
+    const sportsEvents = [];
+
+    for (const dateGroup of scheduleData.dates || []) {
+      for (const game of dateGroup.games || []) {
+        sportsEvents.push(normalizeMlbEvent(game));
+      }
+    }
+
+    sportsEvents.sort(
+      (firstEvent, secondEvent) =>
+        new Date(firstEvent.scheduledAt) -
+        new Date(secondEvent.scheduledAt)
+    );
+
+    const responseData = {
+      sport: "MLB",
+      date: requestedDate,
+      sportsEvents,
+      updatedAt: new Date().toISOString()
+    };
+
+    mlbDailyScheduleCache.set(requestedDate, {
+      timestamp: Date.now(),
+      ttl: getMlbScheduleCacheTtl(sportsEvents),
+      data: responseData
+    });
+
+    res.json(responseData);
+  } catch (error) {
+    console.error(
+      "MLB daily schedule API error:",
+      error
+    );
+
+    if (cachedSchedule?.data) {
+      return res.json({
+        ...cachedSchedule.data,
+        stale: true
+      });
+    }
+
+    res.status(500).json({
+      error:
+        "MLB daily schedule is temporarily unavailable."
     });
   }
 });
@@ -350,6 +614,12 @@ app.get("/api/sports/mlb/sea", async (req, res) => {
         const opponentTeam = isHome
           ? game.teams?.away?.team
           : game.teams?.home?.team;
+        const teamGameData = isHome
+          ? game.teams?.home
+          : game.teams?.away;
+        const opponentGameData = isHome
+          ? game.teams?.away
+          : game.teams?.home;
 
         games.push({
           gameId: game.gamePk,
@@ -373,6 +643,28 @@ app.get("/api/sports/mlb/sea", async (req, res) => {
             game.status?.detailedState ||
             game.status?.abstractGameState ||
             "Scheduled",
+
+          state:
+            game.status?.abstractGameState ||
+            "Preview",
+
+          teamScore:
+            teamGameData?.score ?? null,
+          opponentScore:
+            opponentGameData?.score ?? null,
+
+          teamRecord: {
+            wins:
+              teamGameData?.leagueRecord?.wins ?? null,
+            losses:
+              teamGameData?.leagueRecord?.losses ?? null
+          },
+          opponentRecord: {
+            wins:
+              opponentGameData?.leagueRecord?.wins ?? null,
+            losses:
+              opponentGameData?.leagueRecord?.losses ?? null
+          },
 
           gameDateTime: game.gameDate
         });

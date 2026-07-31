@@ -4,46 +4,49 @@
        Core Colors
     ========================== */
 
-    --color-background: #090b10;
+    --color-background: #080d14;
 
-    --color-text: #f4f4f4;
-    --color-text-soft: #eef4ff;
-    --color-text-secondary: #c8cdd4;
-    --color-text-muted: #8e98a4;
+    --color-text: #dbeafe;
+    --color-text-soft: #cbdcf3;
+    --color-text-secondary: #a9bed8;
+    --color-text-muted: #8fa6c1;
 
     /* ==========================
        Accent
     ========================== */
 
-    --color-accent: rgb(108,183,255);
+    --color-accent: rgb(120,183,245);
 
-    --accent-04: rgba(108,183,255,.04);
-    --accent-08: rgba(108,183,255,.08);
-    --accent-10: rgba(108,183,255,.10);
-    --accent-18: rgba(108,183,255,.18);
-    --accent-22: rgba(108,183,255,.22);
-    --accent-38: rgba(108,183,255,.38);
+    --accent-04: rgba(120,183,245,.04);
+    --accent-08: rgba(120,183,245,.08);
+    --accent-10: rgba(120,183,245,.10);
+    --accent-18: rgba(120,183,245,.18);
+    --accent-22: rgba(120,183,245,.22);
+    --accent-38: rgba(120,183,245,.38);
 
     /* ==========================
        Surfaces
     ========================== */
 
-    --surface-top: rgba(255,255,255,.035);
-    --surface-bottom: rgba(255,255,255,.015);
-    --surface-highlight: rgba(255,255,255,.025);
+    --surface-top: rgba(143,166,193,.05);
+    --surface-bottom: rgba(80,105,135,.025);
+    --surface-highlight: rgba(203,220,243,.04);
 
     /* ==========================
        Borders
     ========================== */
 
-    --border-subtle: rgba(255,255,255,.06);
+    --border-subtle: rgba(143,166,193,.10);
 
     /* ==========================
        Shadows
     ========================== */
 
-    --shadow-zone: 0 18px 50px rgba(0,0,0,.35);
-    --shadow-soft: 0 6px 18px rgba(0,0,0,.25);
+    --shadow-color-zone: rgba(2,8,18,.42);
+    --shadow-color-soft: rgba(2,8,18,.30);
+
+    --shadow-zone: 0 18px 50px var(--shadow-color-zone);
+    --shadow-soft: 0 6px 18px var(--shadow-color-soft);
 
     /* ==========================
        Radius

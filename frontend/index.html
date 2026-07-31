@@ -109,24 +109,32 @@
 
     <div class="weather-content">
 
-    <div class="weather-location">
-        Tacoma
+    <div id="weather-location" class="weather-location">
+        —
     </div>
 
     <div class="weather-main">
 
-        <div class="weather-icon">
-            ☀️
+        <div id="weather-icon" class="weather-icon">
+            —
         </div>
 
-        <div class="weather-temperature">
-            72°
+        <div id="weather-temperature" class="weather-temperature">
+            —°
         </div>
 
     </div>
 
-    <div class="weather-rotating">
-        Clear Sky
+    <div id="weather-condition" class="weather-rotating">
+        Loading weather
+    </div>
+
+    <div class="weather-details">
+        H <span id="weather-high">—</span>°
+        · L <span id="weather-low">—</span>°
+        <span id="weather-precipitation-detail" hidden>
+            · Rain <span id="weather-precipitation">—</span>%
+        </span>
     </div>
 
 </div>
@@ -157,17 +165,16 @@
         <section class="widget small sports-widget">
 
             <div class="widget-header">
-                <div class="widget-title">Mariners</div>
-                <div class="widget-status">Idle</div>
+                <div id="sports-category" class="widget-title" data-sports-field="category">Sports</div>
+                <div id="sports-status" class="widget-status" data-sports-field="status">Loading</div>
             </div>
 
-            <div class="widget-body">
+            <div id="sports-matchup" class="widget-body" data-sports-field="matchup">
                 No Game
             </div>
 
             <div class="widget-footer">
-                <span>MLB</span>
-                <span>--</span>
+                <span id="sports-details" data-sports-field="details">—</span>
             </div>
 
         </section>

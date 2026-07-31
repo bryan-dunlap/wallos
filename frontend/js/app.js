@@ -3,8 +3,30 @@ const todayDetailPanel = document.getElementById("today-detail-panel");
 const prevButton = document.getElementById("prev-week");
 const nextButton = document.getElementById("next-week");
 const homeButton = document.getElementById("home-day");
+const weatherLocation = document.getElementById("weather-location");
+const weatherIcon = document.getElementById("weather-icon");
+const weatherTemperature = document.getElementById("weather-temperature");
+const weatherCondition = document.getElementById("weather-condition");
+const weatherHigh = document.getElementById("weather-high");
+const weatherLow = document.getElementById("weather-low");
+const weatherPrecipitationDetail = document.getElementById(
+  "weather-precipitation-detail"
+);
+const weatherPrecipitation = document.getElementById("weather-precipitation");
+const sportsCategory = document.getElementById("sports-category");
+const sportsStatus = document.getElementById("sports-status");
+const sportsMatchup = document.getElementById("sports-matchup");
+const sportsDetails = document.getElementById("sports-details");
 
-const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const compactWeekdayFormatter = new Intl.DateTimeFormat(undefined, {
+  weekday: "short"
+});
+const fullWeekdayFormatter = new Intl.DateTimeFormat(undefined, {
+  weekday: "long"
+});
+const monthFormatter = new Intl.DateTimeFormat(undefined, {
+  month: "long"
+});
 
 let selectedOffset = 0;
 let timelineStartOffset = 0;
@@ -12,8 +34,12 @@ let timelineStartOffset = 0;
 let weatherByDate = {};
 let weatherLoaded = false;
 
-let marinersByDate = {};
-let marinersLoaded = false;
+let sportsEvents = [];
+let sportsLoaded = false;
+let sportsScheduleData = null;
+let sportsRotationIndex = 0;
+
+const SPORTS_ROTATION_MS = 15 * 1000;
 
 /* ==========================
    Date Helpers
@@ -119,6 +145,38 @@ function getWeatherForDate(date) {
   return weatherByDate[getDateKey(date)] || null;
 }
 
+function renderWeatherWidget(weatherData) {
+  const today = getWeatherForDate(getDateFromOffset(0));
+  const current = weatherData?.current;
+
+  if (!current || !today) {
+    weatherLocation.textContent = "Weather unavailable";
+    weatherIcon.textContent = "—";
+    weatherTemperature.textContent = "—°";
+    weatherCondition.textContent = "Unable to load conditions";
+    weatherHigh.textContent = "—";
+    weatherLow.textContent = "—";
+    weatherPrecipitation.textContent = "—";
+    weatherPrecipitationDetail.hidden = true;
+    return;
+  }
+
+  weatherLocation.textContent = weatherData.location.name;
+  weatherIcon.textContent = getWeatherIcon(current.weatherCode);
+  weatherTemperature.textContent = `${current.temperature}°`;
+  weatherCondition.textContent =
+    getWeatherDescription(current.weatherCode);
+  weatherHigh.textContent = today.high;
+  weatherLow.textContent = today.low;
+  weatherPrecipitationDetail.hidden =
+    today.precipitationChance <= 0;
+
+  if (today.precipitationChance > 0) {
+    weatherPrecipitation.textContent =
+      today.precipitationChance;
+  }
+}
+
 async function loadWeather() {
   try {
     const response = await fetch("/api/weather");
@@ -136,42 +194,342 @@ async function loadWeather() {
     });
 
     weatherLoaded = true;
+    renderWeatherWidget(weatherData);
   } catch (error) {
     console.error("Unable to load weather:", error);
     weatherLoaded = false;
+    renderWeatherWidget(null);
   }
 
   updatePlanningZone();
 }
 
 /* ==========================
-   Mariners Schedule
+   Sports Schedule
 ========================== */
 
-function getMarinersGame(date) {
-  return marinersByDate[getDateKey(date)] || null;
+function getTeamDisplayName(teamName) {
+  const nameParts = teamName.trim().split(/\s+/);
+  const compoundName = nameParts.slice(-2).join(" ");
+
+  if (
+    compoundName === "Blue Jays" ||
+    compoundName === "Red Sox" ||
+    compoundName === "White Sox"
+  ) {
+    return compoundName;
+  }
+
+  return nameParts.at(-1);
 }
 
-async function loadMarinersSchedule() {
+function createSportsTickerText(className, text) {
+  const element = document.createElement("span");
+
+  element.className = className;
+  element.textContent = text;
+
+  return element;
+}
+
+function formatTeamRecord(record) {
+  if (
+    record?.wins == null ||
+    record?.losses == null
+  ) {
+    return "";
+  }
+
+  return `(${record.wins}-${record.losses})`;
+}
+
+function formatInningNumber(inningNumber) {
+  const remainder = inningNumber % 100;
+
+  if (remainder >= 11 && remainder <= 13) {
+    return `${inningNumber}th`;
+  }
+
+  const suffixes = {
+    1: "st",
+    2: "nd",
+    3: "rd"
+  };
+
+  return `${inningNumber}${
+    suffixes[inningNumber % 10] || "th"
+  }`;
+}
+
+function getLiveGameStatus(event) {
+  const inningNumber =
+    event.linescore?.inning?.number;
+  const inningHalf =
+    event.linescore?.inning?.half;
+  const outs = event.linescore?.outs;
+  const statusParts = [];
+
+  if (inningNumber != null) {
+    statusParts.push(
+      [
+        inningHalf,
+        formatInningNumber(inningNumber)
+      ]
+        .filter(Boolean)
+        .join(" ")
+    );
+  }
+
+  if (outs != null) {
+    statusParts.push(
+      `${outs} ${outs === 1 ? "out" : "outs"}`
+    );
+  }
+
+  return (
+    statusParts.join(" · ") ||
+    event.status.detail ||
+    "Live"
+  );
+}
+
+function createTeamIdentity(
+  team,
+  {
+    className = "",
+    displayName = team?.name || "Team TBD",
+    showRecord = false
+  } = {}
+) {
+  const identity = document.createElement("span");
+  const logo = document.createElement("img");
+  const text = document.createElement("span");
+  const name = document.createElement("span");
+
+  identity.className =
+    `team-identity ${className}`.trim();
+  identity.dataset.teamId = team?.id ?? "";
+  identity.dataset.teamAbbreviation =
+    team?.abbreviation || "";
+
+  logo.className = "team-identity-logo";
+  logo.alt = "";
+  logo.src = team?.logo || "";
+  logo.width = 26;
+  logo.height = 26;
+  logo.addEventListener("error", () => {
+    logo.hidden = true;
+  });
+
+  text.className = "team-identity-text";
+  name.className = "team-identity-name";
+  name.textContent = displayName;
+  text.appendChild(name);
+
+  if (showRecord) {
+    const formattedRecord =
+      formatTeamRecord(team?.record);
+
+    if (formattedRecord) {
+      const record = document.createElement("span");
+
+      record.className = "team-identity-record";
+      record.textContent = formattedRecord;
+      text.appendChild(record);
+    }
+  }
+
+  if (team?.logo) {
+    identity.appendChild(logo);
+  }
+
+  identity.appendChild(text);
+
+  return identity;
+}
+
+function renderSportsTicker(scheduleData) {
+  if (!scheduleData) {
+    sportsCategory.textContent = "Sports";
+    sportsStatus.textContent = "Unavailable";
+    sportsMatchup.classList.remove("sports-matchup-layout");
+    sportsMatchup.textContent = "No Data";
+    sportsDetails.textContent = "—";
+    return;
+  }
+
+  const event =
+    scheduleData.sportsEvents[sportsRotationIndex] ||
+    null;
+
+  sportsCategory.textContent =
+    scheduleData.sport;
+
+  if (!event) {
+    sportsStatus.textContent = "Idle";
+    sportsMatchup.classList.remove("sports-matchup-layout");
+    sportsMatchup.textContent = "No games scheduled";
+    sportsDetails.textContent = scheduleData.date;
+    return;
+  }
+
+  const awayTeamDisplayName =
+    getTeamDisplayName(event.awayTeam.name);
+  const homeTeamDisplayName =
+    getTeamDisplayName(event.homeTeam.name);
+  const isActive =
+    event.status.state === "Live";
+  const isFinal =
+    event.status.state === "Final";
+
+  if (isActive) {
+    sportsStatus.textContent =
+      getLiveGameStatus(event);
+  } else if (isFinal) {
+    sportsStatus.textContent = "Final";
+  } else {
+    sportsStatus.textContent = event.scheduledTime;
+  }
+
+  sportsDetails.textContent = "";
+  sportsMatchup.classList.add("sports-matchup-layout");
+
+  if (!isActive && !isFinal) {
+    const scheduledMatchup = document.createElement("span");
+
+    scheduledMatchup.className = "sports-matchup-line";
+    scheduledMatchup.append(
+      createTeamIdentity(event.awayTeam, {
+        className: "sports-matchup-name",
+        displayName: awayTeamDisplayName,
+        showRecord: true
+      }),
+      createSportsTickerText(
+        "sports-matchup-separator",
+        "@"
+      ),
+      createTeamIdentity(event.homeTeam, {
+        className: "sports-matchup-name",
+        displayName: homeTeamDisplayName,
+        showRecord: true
+      })
+    );
+
+    sportsMatchup.replaceChildren(scheduledMatchup);
+    return;
+  }
+
+  const scoreboard = document.createElement("span");
+  const scoreboardCells = [
+    ["sports-scoreboard-corner", ""],
+    ["sports-scoreboard-heading", "R"],
+    ["sports-scoreboard-heading", "H"],
+    ["sports-scoreboard-heading", "E"],
+    [
+      "sports-scoreboard-value",
+      event.awayTeam.runs ??
+        event.awayTeam.score
+    ],
+    ["sports-scoreboard-value", event.awayTeam.hits],
+    ["sports-scoreboard-value", event.awayTeam.errors],
+    [
+      "sports-scoreboard-value",
+      event.homeTeam.runs ??
+        event.homeTeam.score
+    ],
+    ["sports-scoreboard-value", event.homeTeam.hits],
+    ["sports-scoreboard-value", event.homeTeam.errors]
+  ];
+
+  scoreboard.className = "sports-scoreboard";
+
+  for (const [className, value] of scoreboardCells.slice(0, 4)) {
+    scoreboard.appendChild(
+      createSportsTickerText(className, value)
+    );
+  }
+
+  scoreboard.appendChild(
+    createTeamIdentity(event.awayTeam, {
+      className: "sports-scoreboard-team",
+      displayName: awayTeamDisplayName,
+      showRecord: true
+    })
+  );
+
+  for (const [className, value] of scoreboardCells.slice(4, 7)) {
+    scoreboard.appendChild(
+      createSportsTickerText(
+        className,
+        value ?? "—"
+      )
+    );
+  }
+
+  scoreboard.appendChild(
+    createTeamIdentity(event.homeTeam, {
+      className: "sports-scoreboard-team",
+      displayName: homeTeamDisplayName,
+      showRecord: true
+    })
+  );
+
+  for (const [className, value] of scoreboardCells.slice(7)) {
+    scoreboard.appendChild(
+      createSportsTickerText(
+        className,
+        value ?? "—"
+      )
+    );
+  }
+
+  sportsMatchup.replaceChildren(scoreboard);
+}
+
+function advanceSportsTicker() {
+  if (
+    !sportsScheduleData ||
+    sportsEvents.length < 2
+  ) {
+    return;
+  }
+
+  sportsRotationIndex =
+    (sportsRotationIndex + 1) %
+    sportsEvents.length;
+
+  renderSportsTicker(sportsScheduleData);
+}
+
+async function loadSportsSchedule() {
   try {
-    const response = await fetch("/api/sports/mlb/sea");
+    const date = getDateKey(getDateFromOffset(0));
+    const response = await fetch(
+      `/api/sports/mlb?date=${encodeURIComponent(date)}`
+    );
 
     if (!response.ok) {
-      throw new Error(`Mariners request failed: ${response.status}`);
+      throw new Error(`Sports request failed: ${response.status}`);
     }
 
     const scheduleData = await response.json();
 
-    marinersByDate = {};
+    sportsEvents = scheduleData.sportsEvents;
+    sportsRotationIndex = 0;
+    sportsScheduleData = {
+      ...scheduleData,
+      sportsEvents
+    };
 
-    scheduleData.games.forEach((game) => {
-      marinersByDate[game.date] = game;
-    });
-
-    marinersLoaded = true;
+    sportsLoaded = true;
+    renderSportsTicker(sportsScheduleData);
   } catch (error) {
-    console.error("Unable to load Mariners schedule:", error);
-    marinersLoaded = false;
+    console.error("Unable to load sports schedule:", error);
+    sportsEvents = [];
+    sportsLoaded = false;
+    sportsScheduleData = null;
+    sportsRotationIndex = 0;
+    renderSportsTicker(null);
   }
 
   updatePlanningZone();
@@ -191,8 +549,9 @@ function buildRollingWeek() {
     const calendar = getCalendarData(offset);
 
     const column = document.createElement("div");
+    const isAnchored = offset === timelineStartOffset;
 
-    if (offset === timelineStartOffset) {
+    if (isAnchored) {
       column.className = "day-column selected";
     } else {
       column.className = "day-column future";
@@ -210,13 +569,15 @@ function buildRollingWeek() {
 
     let dayLabel;
 
-    if (offset === 0) {
-      dayLabel = "TODAY";
-    } else if (offset === 1) {
-      dayLabel = "TOMORROW";
+    if (isAnchored) {
+      dayLabel = fullWeekdayFormatter.format(date).toUpperCase();
     } else {
-      dayLabel = dayLabels[date.getDay()].toUpperCase();
+      dayLabel = compactWeekdayFormatter.format(date).toUpperCase();
     }
+
+    const monthMarkup = isAnchored
+      ? `<div class="day-month">${monthFormatter.format(date).toUpperCase()}</div>`
+      : "";
 
     column.innerHTML = `
       <div class="day-top">
@@ -224,6 +585,8 @@ function buildRollingWeek() {
         <div class="day-name">
           ${dayLabel}
         </div>
+
+        ${monthMarkup}
 
         <div class="day-date">
           ${date.getDate()}
@@ -355,10 +718,11 @@ setInterval(updateClock, 30000);
 updatePlanningZone();
 
 loadWeather();
-loadMarinersSchedule();
+loadSportsSchedule();
 
 setInterval(loadWeather, 30 * 60 * 1000);
-setInterval(loadMarinersSchedule, 6 * 60 * 60 * 1000);
+setInterval(loadSportsSchedule, 6 * 60 * 60 * 1000);
+setInterval(advanceSportsTicker, SPORTS_ROTATION_MS);
 
 /* ==========================
    Widget Startup
