@@ -35,3 +35,4 @@ class MosaicEventBus {
     }
 
 }
+window.MosaicEventBus = MosaicEventBus;
