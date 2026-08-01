@@ -3,4 +3,9 @@ function registerMosaicProviders(registry) {
         "calendar",
         CalendarProvider
     );
+
+    registry.register(
+        "weather",
+        WeatherProvider
+    );
 }
