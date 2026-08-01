@@ -4,6 +4,12 @@ class ProviderManager {
         this.providers = [];
     }
 
+    loadFromRegistry(registry) {
+        registry.providers.forEach((Provider) => {
+            this.register(new Provider());
+        });
+    }
+
     register(provider) {
         this.providers.push(provider);
     }
