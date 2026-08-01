@@ -394,32 +394,8 @@ function renderSportsTicker(scheduleData) {
   sportsDetails.textContent = "";
   sportsMatchup.classList.add("sports-matchup-layout");
 
-  if (!isActive && !isFinal) {
-    const scheduledMatchup = document.createElement("span");
-
-    scheduledMatchup.className = "sports-matchup-line";
-    scheduledMatchup.append(
-      createTeamIdentity(event.awayTeam, {
-        className: "sports-matchup-name",
-        displayName: awayTeamDisplayName,
-        showRecord: true
-      }),
-      createSportsTickerText(
-        "sports-matchup-separator",
-        "@"
-      ),
-      createTeamIdentity(event.homeTeam, {
-        className: "sports-matchup-name",
-        displayName: homeTeamDisplayName,
-        showRecord: true
-      })
-    );
-
-    sportsMatchup.replaceChildren(scheduledMatchup);
-    return;
-  }
-
   const scoreboard = document.createElement("span");
+  const showGameStats = isActive || isFinal;
   const scoreboardCells = [
     ["sports-scoreboard-corner", ""],
     ["sports-scoreboard-heading", "R"],
@@ -443,44 +419,50 @@ function renderSportsTicker(scheduleData) {
 
   scoreboard.className = "sports-scoreboard";
 
-  for (const [className, value] of scoreboardCells.slice(0, 4)) {
-    scoreboard.appendChild(
-      createSportsTickerText(className, value)
-    );
+  if (showGameStats) {
+    for (const [className, value] of scoreboardCells.slice(0, 4)) {
+      scoreboard.appendChild(
+        createSportsTickerText(className, value)
+      );
+    }
   }
 
   scoreboard.appendChild(
     createTeamIdentity(event.awayTeam, {
-      className: "sports-scoreboard-team",
+      className: "sports-scoreboard-team sports-scoreboard-team-away",
       displayName: awayTeamDisplayName,
       showRecord: true
     })
   );
 
-  for (const [className, value] of scoreboardCells.slice(4, 7)) {
-    scoreboard.appendChild(
-      createSportsTickerText(
-        className,
-        value ?? "—"
-      )
-    );
+  if (showGameStats) {
+    for (const [className, value] of scoreboardCells.slice(4, 7)) {
+      scoreboard.appendChild(
+        createSportsTickerText(
+          className,
+          value ?? "—"
+        )
+      );
+    }
   }
 
   scoreboard.appendChild(
     createTeamIdentity(event.homeTeam, {
-      className: "sports-scoreboard-team",
+      className: "sports-scoreboard-team sports-scoreboard-team-home",
       displayName: homeTeamDisplayName,
       showRecord: true
     })
   );
 
-  for (const [className, value] of scoreboardCells.slice(7)) {
-    scoreboard.appendChild(
-      createSportsTickerText(
-        className,
-        value ?? "—"
-      )
-    );
+  if (showGameStats) {
+    for (const [className, value] of scoreboardCells.slice(7)) {
+      scoreboard.appendChild(
+        createSportsTickerText(
+          className,
+          value ?? "—"
+        )
+      );
+    }
   }
 
   sportsMatchup.replaceChildren(scoreboard);

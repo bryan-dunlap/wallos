@@ -14,14 +14,34 @@ class MosaicHero {
 
 
     render(){
+        const templates = {
+            default: () => this.renderTemplate("default"),
+            weather: () => this.renderTemplate("weather"),
+            sports: () => this.renderTemplate("sports"),
+            calendar: () => this.renderTemplate("calendar")
+        };
+        const template =
+            templates[this.state.type] ||
+            templates.default;
 
-        this.element.innerHTML = `
+        this.element.innerHTML = template();
 
-            <div class="hero-title">
+    }
+
+
+    renderTemplate(type){
+        const typeClass =
+            type === "default"
+                ? ""
+                : ` hero-${type}`;
+
+        return `
+
+            <div class="hero-title${typeClass}">
                 ${this.state.title}
             </div>
 
-            <div class="hero-subtitle">
+            <div class="hero-subtitle${typeClass}">
                 ${this.state.subtitle}
             </div>
 
@@ -64,10 +84,10 @@ const heroContainer = document.querySelector(
 
 if (heroContainer) {
 
-    const mosaicHero = new MosaicHero(
+    window.mosaicHero = new MosaicHero(
         heroContainer
     );
 
-    mosaicHero.render();
+    window.mosaicHero.render();
 
 }

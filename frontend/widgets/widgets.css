@@ -153,25 +153,6 @@
 
 }
 
-.sports-matchup-line {
-
-    display: flex;
-    align-items: baseline;
-    justify-content: center;
-
-    gap: 10px;
-
-    white-space: nowrap;
-
-}
-
-.sports-matchup-name {
-
-    white-space: nowrap;
-    text-transform: uppercase;
-
-}
-
 .team-identity {
 
     min-width: 0;
@@ -233,17 +214,12 @@
 
 }
 
-.sports-matchup-name {
-
-    gap: 6px;
-
-}
-
 .sports-scoreboard {
 
     display: grid;
 
     grid-template-columns: minmax(0, 1fr) repeat(3, 2.25ch);
+    grid-template-rows: .8rem repeat(2, 26px);
 
     width: 100%;
 
@@ -253,6 +229,20 @@
     font-size: 1rem;
 
     margin-inline: auto;
+
+}
+
+.sports-scoreboard-team-away {
+
+    grid-column: 1;
+    grid-row: 2;
+
+}
+
+.sports-scoreboard-team-home {
+
+    grid-column: 1;
+    grid-row: 3;
 
 }
 
