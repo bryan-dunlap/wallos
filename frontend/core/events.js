@@ -5,7 +5,9 @@
 function createMosaicEvent({
     type,
     title,
-    subtitle = ""
+    subtitle = "",
+    source = "",
+    payload = {}
 }) {
 
     return {
@@ -14,7 +16,11 @@ function createMosaicEvent({
 
         title,
 
-        subtitle
+        subtitle,
+
+        source,
+
+        payload
 
     };
 

@@ -8,7 +8,8 @@ class CalendarProvider {
         const event = createMosaicEvent({
             type: "calendar",
             title: "Calendar Event",
-            subtitle: "Test event"
+            subtitle: "Test event",
+            source: "calendar"
         });
 
         window.mosaicApp.eventBus.publish(event);
