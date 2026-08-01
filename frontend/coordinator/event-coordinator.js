@@ -4,6 +4,7 @@ class EventCoordinator {
         this.eventBus = eventBus;
         this.subscribers = new Map();
         this.activeEvents = new Map();
+        this.currentDisplay = null;
 
         [
             "default",
@@ -40,6 +41,10 @@ class EventCoordinator {
 
     getActiveEvents() {
         return this.activeEvents;
+    }
+
+    getCurrentDisplay() {
+        return this.currentDisplay;
     }
 
     forward(event) {
