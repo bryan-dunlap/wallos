@@ -207,6 +207,165 @@ It updates configuration only.
 
 ---
 
+# Hero System
+
+The Hero is Mosaic's primary attention layer.
+
+Unlike standard widgets, which provide persistent awareness, the Hero temporarily elevates information that is timely, relevant, and meaningful.
+
+The Hero exists to answer:
+
+> What is the most important thing to know right now?
+
+The Hero does not replace widgets.
+
+Widgets provide consistent access to information, while the Hero provides temporary focus when an event deserves additional attention.
+
+---
+
+# Hero Architecture
+
+The Hero receives normalized events from Mosaic's event system and evaluates whether they should receive priority display.
+
+The Hero does not retrieve data directly.
+
+Its flow is:
+
+```
+Data Providers
+
+      │
+
+      ▼
+
+Normalized Events
+
+      │
+
+      ▼
+
+Preference Evaluation
+
+      │
+
+      ▼
+
+Hero Decision Engine
+
+      │
+
+      ▼
+
+Hero Display State
+
+      │
+
+      ▼
+
+Renderer
+```
+
+---
+
+# Hero Responsibilities
+
+The Hero is responsible for:
+
+• Evaluating event priority  
+• Applying user preferences  
+• Managing display ownership  
+• Handling event conflicts  
+• Managing temporary interruptions  
+• Returning to the previous state when events expire  
+
+The Hero does not:
+
+• Retrieve external data  
+• Communicate directly with providers  
+• Replace standard widgets  
+• Store user preferences  
+
+---
+
+# Hero Priority Model
+
+Events are evaluated based on importance.
+
+Initial priority levels:
+
+| Priority | Category | Example |
+|---|---|---|
+| 100 | Critical | Security or emergency alerts |
+| 90 | Major Live Event | Playoffs or major events |
+| 80 | Live Event | Active sports |
+| 70 | Time Sensitive | Weather alerts |
+| 60 | Upcoming | Calendar reminders |
+| 50 | Default | Daily briefing |
+| 20 | Discovery | Reddit, facts |
+
+Priority determines eligibility, while user preferences determine final behavior.
+
+---
+
+# Hero Default State
+
+When no event requires attention, the Hero displays a user-configured default experience.
+
+Possible default states include:
+
+• Daily Briefing  
+• Calendar  
+• Weather Summary  
+• Custom User Selection  
+
+The default state exists to provide useful information without requiring an active event.
+
+---
+
+# Hero and Widgets
+
+The Hero and widgets share the same event sources but serve different purposes.
+
+Example:
+
+```
+                Weather Event
+
+                      │
+
+          ┌───────────┴───────────┐
+
+          ▼                       ▼
+
+ Weather Widget              Hero Section
+
+ Current Conditions           Weather Alert
+```
+
+Widgets provide awareness.
+
+The Hero provides focus.
+
+---
+
+# User Preferences
+
+Hero behavior is controlled through user preferences rather than hard-coded schedules.
+
+Preferences may include:
+
+• Default Hero experience  
+• Interruption level  
+• Category priorities  
+• Favorite teams  
+• Weather alert sensitivity  
+• Calendar reminder sensitivity  
+• Display timing  
+
+This allows Mosaic to adapt to different users while maintaining a consistent underlying architecture.
+
+---
+
 # Design Philosophy
 
 Each subsystem has one responsibility.

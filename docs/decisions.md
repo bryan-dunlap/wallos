@@ -51,3 +51,45 @@ Pinned regions only exist while active.
 
 Reason:
 Avoids permanently wasting dashboard space.
+
+---
+
+## 2026-08-01
+
+### Hero as an Attention Layer
+
+Decision:
+The Hero will function as a priority-based attention layer rather than a standard widget.
+
+Reason:
+Widgets provide persistent awareness, while the Hero provides temporary focus for information that is timely, relevant, and meaningful.
+
+---
+
+### User Preferences Control Behavior
+
+Decision:
+Hero behavior will be controlled through user preferences rather than hard-coded schedules or priorities.
+
+Reason:
+Different users have different routines and priorities. Mosaic should provide a consistent framework while allowing each user to customize how information is presented.
+
+---
+
+### Shared Event Sources
+
+Decision:
+Widgets and the Hero will consume the same normalized event sources rather than maintaining separate data systems.
+
+Reason:
+A shared event architecture prevents duplicate logic, improves consistency, and allows new features to integrate into multiple areas of Mosaic without significant redesign.
+
+---
+
+### Hardware Independence
+
+Decision:
+Mosaic will remain independent from any specific display hardware or hosting platform.
+
+Reason:
+The display environment is a deployment choice. The application architecture should support different devices and hosting methods without requiring changes to core functionality.
