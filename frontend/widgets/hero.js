@@ -13,6 +13,28 @@ class MosaicHero {
     }
 
 
+    mount(element){
+        this.element = element;
+        this.subscribeToEvents();
+        this.render();
+    }
+
+
+    subscribeToEvents(){
+        [
+            "default",
+            "weather",
+            "sports",
+            "calendar"
+        ].forEach((type) => {
+            window.mosaicApp.eventCoordinator.subscribe(
+                type,
+                (event) => this.showEvent(event)
+            );
+        });
+    }
+
+
     render(){
         const templates = {
             default: () => this.renderTemplate("default"),
@@ -70,36 +92,5 @@ class MosaicHero {
         this.render();
 
     }
-
-}
-
-
-/* ==========================
-   Hero Startup
-========================== */
-
-const heroContainer = document.querySelector(
-    ".hero-container"
-);
-
-if (heroContainer) {
-
-    window.mosaicHero = new MosaicHero(
-        heroContainer
-    );
-
-    [
-        "default",
-        "weather",
-        "sports",
-        "calendar"
-    ].forEach((type) => {
-        window.mosaicApp.eventCoordinator.subscribe(
-            type,
-            (event) => window.mosaicHero.showEvent(event)
-        );
-    });
-
-    window.mosaicHero.render();
 
 }

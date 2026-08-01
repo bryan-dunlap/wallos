@@ -7,9 +7,15 @@ class MosaicApp {
         );
         this.providerManager = new ProviderManager();
         this.providerRegistry = new ProviderRegistry();
+        this.widgetRegistry = new WidgetRegistry();
+        this.widgetManager = new WidgetManager(
+            this.widgetRegistry
+        );
     }
 
     start() {
+        registerMosaicWidgets(this.widgetRegistry);
+        initializeMosaicLayout(this);
         registerMosaicProviders(this.providerRegistry);
         this.providerManager.loadFromRegistry(
             this.providerRegistry
