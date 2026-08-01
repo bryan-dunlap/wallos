@@ -2,6 +2,9 @@ class MosaicApp {
 
     constructor() {
         this.eventBus = new MosaicEventBus();
+        this.eventCoordinator = new EventCoordinator(
+            this.eventBus
+        );
         this.providerManager = new ProviderManager();
         this.providerRegistry = new ProviderRegistry();
     }

@@ -94,7 +94,7 @@ if (heroContainer) {
         "sports",
         "calendar"
     ].forEach((type) => {
-        window.mosaicApp.eventBus.subscribe(
+        window.mosaicApp.eventCoordinator.subscribe(
             type,
             (event) => window.mosaicHero.showEvent(event)
         );
