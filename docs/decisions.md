@@ -1,3 +1,15 @@
+# Mosaic Decisions
+
+Version: 1.0 Draft
+
+Status: Active Development
+
+Author: Bryan Dunlap
+
+Last Updated: 2026-08-01
+
+---
+
 # Project Decisions
 
 ## 2026-07-19

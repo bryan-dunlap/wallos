@@ -1,4 +1,4 @@
-# Project Mosaic
+# Mosaic
 
 Version: 1.0 Draft
 
@@ -6,7 +6,7 @@ Status: Active Development
 
 Author: Bryan Dunlap
 
-Last Updated: 2026-07-19
+Last Updated: 2026-08-01
 
 ---
 
@@ -14,7 +14,7 @@ Last Updated: 2026-07-19
 
 ## Purpose
 
-These principles define how Project Mosaic should evolve over time.
+These principles define how Mosaic should evolve as a platform over time.
 
 Every feature, animation, integration, and interface decision should be evaluated against these principles before implementation.
 
@@ -70,16 +70,19 @@ Mosaic should prioritize information based on relevance.
 Examples:
 
 Critical
+
 - Weather warnings
 - Active timers
 - Live sporting events
 
 Normal
+
 - Music
 - Package tracking
 - Home Assistant updates
 
 Passive
+
 - Reddit
 - Astronomy
 - Today in History
@@ -133,7 +136,7 @@ Mosaic is designed for viewing from across the room.
 
 Information should be understandable without interaction.
 
-Keyboard, mouse, or touch input should never be required for normal operation.
+Direct interaction should never be required for normal operation.
 
 ---
 
@@ -194,6 +197,6 @@ If most answers are "No," the feature should be reconsidered.
 
 # Final Principle
 
-Every feature should support the mission of Project Mosaic:
+Every feature should support the mission of Mosaic:
 
 > Present meaningful information at the moment it becomes meaningful.

@@ -1,4 +1,4 @@
-# Project Mosaic
+# Mosaic
 
 Version: 1.0 Draft
 
@@ -6,7 +6,7 @@ Status: Active Development
 
 Author: Bryan Dunlap
 
-Last Updated: 2026-07-19
+Last Updated: 2026-08-01
 
 ---
 
@@ -14,7 +14,7 @@ Last Updated: 2026-07-19
 
 ## Purpose
 
-Project Mosaic is an ambient information system designed to quietly enhance everyday life.
+Mosaic is an ambient information platform designed to quietly enhance everyday life.
 
 Unlike traditional dashboards that continuously compete for attention, Mosaic presents meaningful information only when it becomes meaningful. It exists in the background, allowing the user to remain informed without requiring interaction.
 
@@ -51,7 +51,7 @@ Potential integrations include:
 - Companion Website
 - Companion Hardware Controls
 
-The display should remain clean and predictable regardless of how many integrations are added.
+The experience should remain clean and predictable regardless of how many integrations are added.
 
 ---
 
@@ -77,7 +77,7 @@ Users should feel that Mosaic quietly understands their day instead of demanding
 
 Mosaic is built around ambient awareness rather than active interaction.
 
-The display exists to answer questions before the user asks them.
+Mosaic exists to answer questions before the user asks them.
 
 Examples include:
 
@@ -93,10 +93,10 @@ The information should be available with a glance.
 
 # Success Criteria
 
-Project Mosaic is successful when:
+Mosaic is successful when:
 
 - Important information can be understood within seconds.
-- The display naturally becomes part of the home.
+- Mosaic naturally becomes part of the user's environment.
 - Users rarely need to interact with it.
 - The information presented is timely and relevant.
 - Additional features improve the experience without increasing complexity.

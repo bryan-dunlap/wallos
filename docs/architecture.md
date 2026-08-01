@@ -1,4 +1,4 @@
-# Project Mosaic
+# Mosaic
 
 Version: 1.0 Draft
 
@@ -6,17 +6,38 @@ Status: Active Development
 
 Author: Bryan Dunlap
 
-Last Updated: 2026-07-19
+Last Updated: 2026-08-01
 
 ---
 
 # Architecture Overview
 
-Project Mosaic is built around a modular architecture.
+Mosaic is built around a modular architecture.
 
 Every subsystem has a single responsibility and communicates through shared events rather than direct dependencies.
 
 This allows new features to be added without requiring major changes to existing systems.
+
+---
+
+# Deployment Model
+
+Mosaic is a web-based application designed to operate independently from its hosting environment.
+
+The backend provides data services, integrations, and application logic. The frontend presents the user interface through a standard web browser.
+
+The hosting environment and display device are separate components.
+
+Potential deployment targets include:
+
+- Desktop computers
+- Tablets
+- Dedicated displays
+- Kiosk systems
+- Raspberry Pi devices
+- Servers or containers
+
+The display hardware is a deployment choice, not a requirement.
 
 ---
 
@@ -116,7 +137,7 @@ It only displays content.
                        ▼
 
 ────────────────────────────────────────────────
-               Display Zones
+               Interface Zones
 ────────────────────────────────────────────────
 
 Planning
