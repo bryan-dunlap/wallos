@@ -88,6 +88,18 @@ if (heroContainer) {
         heroContainer
     );
 
+    [
+        "default",
+        "weather",
+        "sports",
+        "calendar"
+    ].forEach((type) => {
+        window.mosaicApp.eventBus.subscribe(
+            type,
+            (event) => window.mosaicHero.showEvent(event)
+        );
+    });
+
     window.mosaicHero.render();
 
 }
