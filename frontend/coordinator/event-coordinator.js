@@ -3,6 +3,7 @@ class EventCoordinator {
     constructor(eventBus) {
         this.eventBus = eventBus;
         this.subscribers = new Map();
+        this.activeEvents = new Map();
 
         [
             "default",
@@ -37,7 +38,16 @@ class EventCoordinator {
         };
     }
 
+    getActiveEvents() {
+        return this.activeEvents;
+    }
+
     forward(event) {
+        this.activeEvents.set(
+            event.type,
+            event
+        );
+
         const callbacks =
             this.subscribers.get(event.type);
 
