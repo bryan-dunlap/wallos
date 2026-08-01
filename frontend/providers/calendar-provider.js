@@ -1,5 +1,9 @@
 class CalendarProvider {
 
+    start() {
+        this.publishTestEvent();
+    }
+
     publishTestEvent() {
         const event = createMosaicEvent({
             type: "calendar",
