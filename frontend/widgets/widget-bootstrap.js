@@ -3,4 +3,14 @@ function registerMosaicWidgets(registry) {
         "hero",
         MosaicHero
     );
+
+    registry.register(
+        "weather",
+        WeatherWidget
+    );
+
+    registry.register(
+        "sports",
+        SportsWidget
+    );
 }

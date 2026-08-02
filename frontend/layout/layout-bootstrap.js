@@ -10,4 +10,28 @@ function initializeMosaicLayout(app) {
     );
 
     hero.mount(heroSlot);
+
+    const weatherSlot = document.querySelector(
+        ".weather-widget"
+    );
+
+    if (!weatherSlot) return;
+
+    const weather = app.widgetManager.create(
+        "weather"
+    );
+
+    weather.mount(weatherSlot);
+
+    const sportsSlot = document.querySelector(
+        ".sports-widget"
+    );
+
+    if (!sportsSlot) return;
+
+    const sports = app.widgetManager.create(
+        "sports"
+    );
+
+    sports.mount(sportsSlot);
 }
