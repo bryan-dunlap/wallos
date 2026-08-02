@@ -13,4 +13,9 @@ function registerMosaicProviders(registry) {
         "sports",
         SportsProvider
     );
+
+    registry.register(
+        "daily-summary",
+        DailySummaryProvider
+    );
 }
