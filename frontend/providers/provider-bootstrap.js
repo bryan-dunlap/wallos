@@ -8,4 +8,9 @@ function registerMosaicProviders(registry) {
         "weather",
         WeatherProvider
     );
+
+    registry.register(
+        "sports",
+        SportsProvider
+    );
 }
