@@ -137,6 +137,18 @@
 
     grid-row: 1;
 
+    display: flex;
+    flex-direction: column;
+
+    position: relative;
+
+}
+
+.weather-widget > .widget-header {
+
+    position: relative;
+    z-index: 1;
+
 }
 
 .sports-widget {
@@ -144,6 +156,22 @@
     grid-column: 2;
 
     grid-row: 2;
+
+    position: relative;
+
+}
+
+.sports-widget > .widget-header {
+
+    position: relative;
+    z-index: 1;
+
+}
+
+.sports-widget > .widget-body {
+
+    position: absolute;
+    inset: 16px;
 
 }
 
@@ -214,17 +242,32 @@
 
 }
 
+.sports-widget .team-identity-logo {
+
+    width: 36px;
+    height: 36px;
+
+    flex: 0 0 36px;
+
+}
+
+.sports-widget .team-identity-record {
+
+    font-size: .75rem;
+
+}
+
 .sports-scoreboard {
 
     display: grid;
 
     grid-template-columns: minmax(0, 1fr) repeat(3, 2.25ch);
-    grid-template-rows: .8rem repeat(2, 26px);
+    grid-template-rows: .8rem repeat(2, 36px);
 
     width: 100%;
 
     column-gap: 12px;
-    row-gap: 2px;
+    row-gap: 12px;
 
     font-size: 1rem;
 
@@ -264,7 +307,7 @@
 
     color: var(--color-text);
 
-    font-size: 1.15rem;
+    font-size: 1.3rem;
     font-weight: 700;
 
     white-space: nowrap;
@@ -291,7 +334,10 @@
    Weather Widget
 ========================== */
 
-.weather-content {
+.weather-widget > .weather-content {
+
+    position: absolute;
+    inset: 16px;
 
     flex: 1;
 
@@ -303,7 +349,7 @@
 
     justify-content: center;
 
-    transform: translateY(-15px);
+    transform: none;
 
     gap: 4px;
 
@@ -314,7 +360,7 @@
 
     color: var(--color-text-secondary);
 
-    font-size: .7rem;
+    font-size: .8rem;
 
     letter-spacing: .15em;
 
@@ -325,7 +371,7 @@
 
 .weather-icon {
 
-    font-size: 2rem;
+    font-size: 4rem;
 
     line-height: 1;
 
@@ -336,7 +382,7 @@
 
     font-family: "Outfit", sans-serif;
 
-    font-size: 3rem;
+    font-size: 5rem;
 
     font-weight: 600;
 
@@ -367,7 +413,7 @@
 
 .weather-icon {
 
-    font-size: 2rem;
+    font-size: 4rem;
 
     line-height: 1;
 
@@ -380,7 +426,7 @@
 
     color: var(--color-text);
 
-    font-size: 3rem;
+    font-size: 5rem;
 
     font-weight: 600;
 
@@ -391,7 +437,7 @@
 
     color: var(--color-text-secondary);
 
-    font-size: .85rem;
+    font-size: 1.2rem;
 
     min-height: 1.2em;
 
@@ -401,6 +447,6 @@
 
     color: var(--color-text-muted);
 
-    font-size: .72rem;
+    font-size: .9rem;
 
 }
