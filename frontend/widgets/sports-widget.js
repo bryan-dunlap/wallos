@@ -9,54 +9,166 @@ class SportsWidget {
                 availability: "loading"
             }
         };
+        this.games = [];
+        this.currentGameIndex = 0;
+        this.rotationTimer = null;
+        this.unsubscribe = null;
     }
 
     mount(element) {
+        this.stopRotation();
+
+        if (this.unsubscribe) {
+            this.unsubscribe();
+        }
+
         this.element = element;
         this.subscribeToEvents();
         this.render();
     }
 
     subscribeToEvents() {
-        window.mosaicApp.eventCoordinator.subscribe(
+        this.unsubscribe =
+            window.mosaicApp.eventCoordinator.subscribe(
             "sports",
             (event) => this.showEvent(event)
         );
     }
 
     showEvent(event) {
+        this.stopRotation();
         this.state = event;
+        const games = Array.isArray(event.payload?.games)
+            ? event.payload.games
+            : [];
+        this.games = this.selectRotatingGames(games);
+        this.currentGameIndex = 0;
         this.render();
+
+        if (this.games.length > 1) {
+            this.startRotation();
+        }
+    }
+
+    selectRotatingGames(games) {
+        return games.filter(
+            (game) =>
+                !this.isCancelled(game) &&
+                this.hasUsableMatchup(game)
+        );
+    }
+
+    isInterrupted(game) {
+        return /delayed|postponed|suspended/i.test(
+            game.status?.detail || ""
+        );
+    }
+
+    isCancelled(game) {
+        const status = [
+            game.status?.state,
+            game.status?.detail
+        ].filter(Boolean).join(" ");
+
+        return /cancelled|canceled/i.test(status);
+    }
+
+    hasUsableMatchup(game) {
+        return [game.awayTeam, game.homeTeam].every(
+            (team) =>
+                team &&
+                typeof team.name === "string" &&
+                team.name.trim() !== "" &&
+                team.name !== "Team TBD"
+        );
+    }
+
+    startRotation() {
+        this.stopRotation();
+
+        if (this.games.length < 2) return;
+
+        this.rotationTimer = setInterval(
+            () => this.advanceGame(),
+            8000
+        );
+    }
+
+    stopRotation() {
+        if (!this.rotationTimer) return;
+
+        clearInterval(this.rotationTimer);
+        this.rotationTimer = null;
+    }
+
+    advanceGame() {
+        if (this.games.length < 2) return;
+
+        this.currentGameIndex =
+            (this.currentGameIndex + 1) %
+            this.games.length;
+
+        this.render();
+    }
+
+    unmount() {
+        this.stopRotation();
+
+        if (this.unsubscribe) {
+            this.unsubscribe();
+            this.unsubscribe = null;
+        }
+
+        this.element = null;
     }
 
     render() {
         const payload = this.state.payload || {};
+        const game =
+            this.games[this.currentGameIndex] || {};
         const isLoading =
             payload.availability === "loading";
         const isAvailable =
             payload.availability === "available";
         const statusState =
-            payload.status?.state || "";
+            game.status?.state || "";
+        const statusDetail =
+            game.status?.detail || "";
         const showStats =
             statusState === "Live" ||
             statusState === "Final";
         const sport = payload.sport || "Sports";
+        const interrupted = this.isInterrupted(game);
+        const liveStatus =
+            this.formatInning(game.linescore?.inning);
         const status = isLoading
             ? "Loading"
             : !isAvailable
                 ? "Unavailable"
-                : statusState === "Scheduled"
-                    ? payload.scheduledTime
-                    : statusState;
+                : this.games.length === 0
+                    ? "Idle"
+                    : interrupted
+                        ? statusDetail
+                        : statusState === "Scheduled"
+                            ? game.scheduledTime || "—"
+                            : statusState === "Live"
+                                ? liveStatus
+                                : statusState === "Final"
+                                    ? "Final"
+                                    : statusDetail || statusState;
 
-        if (!isAvailable) {
+        if (!isAvailable || this.games.length === 0) {
             this.element.innerHTML = `
                 <div class="widget-header">
                     <div class="widget-title">${sport}</div>
                     <div class="widget-status">${status}</div>
                 </div>
                 <div class="widget-body">
-                    ${isLoading ? "Loading game" : "No Data"}
+                    ${isLoading
+                        ? "Loading game"
+                        : isAvailable
+                            ? "No games scheduled"
+                            : "No Data"}
                 </div>
                 <div class="widget-footer">
                     <span>—</span>
@@ -97,8 +209,8 @@ class SportsWidget {
                 ${value ?? "—"}
             </span>
         `;
-        const awayTeam = payload.awayTeam || {};
-        const homeTeam = payload.homeTeam || {};
+        const awayTeam = game.awayTeam || {};
+        const homeTeam = game.homeTeam || {};
 
         this.element.innerHTML = `
             <div class="widget-header">
@@ -133,6 +245,26 @@ class SportsWidget {
                 <span></span>
             </div>
         `;
+    }
+
+    formatInning(inning = {}) {
+        const number = inning.number;
+
+        if (number == null) return "—";
+
+        const remainder = number % 100;
+        const suffix = remainder >= 11 && remainder <= 13
+            ? "th"
+            : number % 10 === 1
+                ? "st"
+                : number % 10 === 2
+                    ? "nd"
+                    : number % 10 === 3
+                        ? "rd"
+                        : "th";
+        const half = inning.half || "";
+
+        return `${half} ${number}${suffix}`.trim();
     }
 
 }
