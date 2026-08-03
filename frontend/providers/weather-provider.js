@@ -1,6 +1,26 @@
 class WeatherProvider {
 
-    async start() {
+    constructor() {
+        this.refreshTimer = null;
+    }
+
+    start() {
+        this.stop();
+        this.refresh();
+        this.refreshTimer = setInterval(
+            () => this.refresh(),
+            30 * 60 * 1000
+        );
+    }
+
+    stop() {
+        if (!this.refreshTimer) return;
+
+        clearInterval(this.refreshTimer);
+        this.refreshTimer = null;
+    }
+
+    async refresh() {
         try {
             const response = await fetch("/api/weather");
 

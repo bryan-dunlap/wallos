@@ -1,6 +1,26 @@
 class SportsProvider {
 
-    async start() {
+    constructor() {
+        this.refreshTimer = null;
+    }
+
+    start() {
+        this.stop();
+        this.refresh();
+        this.refreshTimer = setInterval(
+            () => this.refresh(),
+            5 * 60 * 1000
+        );
+    }
+
+    stop() {
+        if (!this.refreshTimer) return;
+
+        clearInterval(this.refreshTimer);
+        this.refreshTimer = null;
+    }
+
+    async refresh() {
         try {
             const date = this.getDateKey(new Date());
             const response = await fetch(

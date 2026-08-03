@@ -134,13 +134,18 @@ class SportsWidget {
             game.status?.state || "";
         const statusDetail =
             game.status?.detail || "";
-        const showStats =
-            statusState === "Live" ||
-            statusState === "Final";
         const sport = payload.sport || "Sports";
         const interrupted = this.isInterrupted(game);
         const liveStatus =
             this.formatInning(game.linescore?.inning);
+        const hasReachedScheduledStart =
+            this.hasReachedScheduledStart(game);
+        const hasGameStarted =
+            hasReachedScheduledStart &&
+            game.linescore?.inning?.number != null;
+        const showStats =
+            statusState === "Final" ||
+            hasGameStarted;
         const status = isLoading
             ? "Loading"
             : !isAvailable
@@ -152,7 +157,9 @@ class SportsWidget {
                         : statusState === "Scheduled"
                             ? game.scheduledTime || "—"
                             : statusState === "Live"
-                                ? liveStatus
+                                ? hasGameStarted
+                                    ? liveStatus
+                                    : game.scheduledTime || "—"
                                 : statusState === "Final"
                                     ? "Final"
                                     : statusDetail || statusState;
@@ -245,6 +252,38 @@ class SportsWidget {
                 <span></span>
             </div>
         `;
+    }
+
+    hasReachedScheduledStart(game) {
+        const scheduledAt = Date.parse(
+            game.scheduledAt
+        );
+
+        if (!Number.isNaN(scheduledAt)) {
+            return Date.now() >= scheduledAt;
+        }
+
+        const timeMatch = String(
+            game.scheduledTime || ""
+        ).match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+
+        if (!timeMatch) return false;
+
+        const scheduledTime = new Date();
+        let hours = Number(timeMatch[1]) % 12;
+
+        if (timeMatch[3].toUpperCase() === "PM") {
+            hours += 12;
+        }
+
+        scheduledTime.setHours(
+            hours,
+            Number(timeMatch[2]),
+            0,
+            0
+        );
+
+        return Date.now() >= scheduledTime.getTime();
     }
 
     formatInning(inning = {}) {
