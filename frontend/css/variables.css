@@ -4,7 +4,19 @@
        Core Colors
     ========================== */
 
-    --color-background: #080d14;
+    /* Slate Blue */
+    /* #101827 */
+
+    /* Charcoal Navy */
+    /* #12171f */
+
+    /* Deep Indigo */
+    /* #0f1528 */
+
+    /* Graphite */
+    /* #14181d */
+
+    --color-background: #101827;
 
     --color-text: #dbeafe;
     --color-text-soft: #cbdcf3;
