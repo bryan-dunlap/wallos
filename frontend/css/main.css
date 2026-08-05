@@ -22,19 +22,19 @@ body {
     background-image:
         linear-gradient(
             135deg,
-            rgba(143, 143, 143, .018) 0 22%,
+            rgba(143, 143, 143, .030) 0 22%,
             transparent 22% 72%,
-            rgba(80, 80, 80, .014) 72% 100%
+            rgba(80, 80, 80, .023) 72% 100%
         ),
         linear-gradient(
             45deg,
             transparent 0 38%,
-            rgba(143, 143, 143, .012) 38% 56%,
+            rgba(143, 143, 143, .020) 38% 56%,
             transparent 56% 100%
         ),
         radial-gradient(
             ellipse at 72% 28%,
-            rgba(80, 80, 80, .022),
+            rgba(80, 80, 80, .036),
             transparent 58%
         );
     background-size:
@@ -71,7 +71,7 @@ body {
         minmax(260px, 1.2fr)
         minmax(240px, 1fr);
 
-    gap: 28px;
+    gap: 16px;
     padding: 28px;
 }
 
@@ -125,7 +125,7 @@ body {
     font-weight: 600;
     line-height: 1;
 
-    letter-spacing: -.055em;
+    letter-spacing: -.015em;
     font-variant-numeric: tabular-nums;
 
     color: var(--color-text-soft);
