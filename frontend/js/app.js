@@ -194,11 +194,9 @@ async function loadWeather() {
     });
 
     weatherLoaded = true;
-    renderWeatherWidget(weatherData);
   } catch (error) {
     console.error("Unable to load weather:", error);
     weatherLoaded = false;
-    renderWeatherWidget(null);
   }
 
   updatePlanningZone();
