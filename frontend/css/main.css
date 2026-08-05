@@ -71,8 +71,8 @@ body {
         minmax(260px, 1.2fr)
         minmax(240px, 1fr);
 
-    gap: 16px;
-    padding: 28px;
+    gap: var(--space-zone-gap);
+    padding: var(--space-dashboard);
 }
 
 
@@ -170,9 +170,9 @@ body {
 
     min-height: 0;
 
-    padding: 20px;
+    padding: var(--space-zone-padding);
 
-    border-radius: var(--zone-radius);
+    border-radius: var(--radius-zone);
 
     background:
 
@@ -194,9 +194,9 @@ body {
 
     box-shadow:
 
-        inset 0 1px 0 rgba(203,220,243,.055),
+        inset 0 1px 0 var(--glass-highlight-zone),
 
-        inset 0 0 0 1px rgba(203,220,243,.03),
+        inset 0 0 0 1px var(--glass-edge-subtle),
 
         var(--shadow-zone);
 
@@ -229,7 +229,7 @@ body {
     width: 100%;
     height: 100%;
 
-    gap: 12px;
+    gap: var(--space-card-gap);
 
     align-items: center;
 }
@@ -388,7 +388,7 @@ body {
 
 .day-column {
     position: relative;
-    border-radius: 18px;
+    border-radius: var(--radius-lg);
 
     display: flex;
     flex-direction: column;
@@ -474,9 +474,9 @@ body {
 
     box-shadow:
 
-        inset 0 1px 0 var(--surface-highlight),
+        inset 0 1px 0 var(--glass-highlight),
 
-        0 8px 18px var(--shadow-color-soft);
+        var(--shadow-inner);
 
 }
 
@@ -785,9 +785,9 @@ button:focus-visible,
 .planning-clock,
 .planning-calendar {
 
-    padding: 20px;
+    padding: var(--space-panel-padding);
 
-    border-radius: var(--zone-radius);
+    border-radius: var(--radius-zone);
 
     background:
 
@@ -799,7 +799,9 @@ button:focus-visible,
 
     box-shadow:
 
-        inset 0 1px 0 var(--surface-highlight),
+        inset 0 1px 0 var(--glass-highlight),
+
+        inset 0 0 0 1px var(--glass-edge),
 
         var(--shadow-zone);
 

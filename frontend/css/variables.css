@@ -42,7 +42,15 @@
 
     --surface-top: rgba(143,166,193,.05);
     --surface-bottom: rgba(80,105,135,.025);
-    --surface-highlight: rgba(203,220,243,.04);
+
+    /* ==========================
+       Glass
+    ========================== */
+
+    --glass-highlight: rgba(203,220,243,.04);
+    --glass-highlight-zone: rgba(203,220,243,.055);
+    --glass-edge: rgba(143,166,193,.12);
+    --glass-edge-subtle: rgba(203,220,243,.03);
 
     /* ==========================
        Borders
@@ -58,6 +66,8 @@
     --shadow-color-soft: rgba(2,8,18,.30);
 
     --shadow-zone: 0 18px 50px var(--shadow-color-zone);
+    --shadow-card: 0 18px 40px var(--shadow-color-zone);
+    --shadow-inner: 0 8px 18px var(--shadow-color-soft);
     --shadow-soft: 0 6px 18px var(--shadow-color-soft);
 
     /* ==========================
@@ -67,7 +77,8 @@
     --radius-sm: 8px;
     --radius-md: 12px;
     --radius-lg: 18px;
-    --zone-radius: 32px;
+    --radius-zone: 32px;
+    --radius-card: 24px;
 
     /* ==========================
        Spacing
@@ -79,6 +90,13 @@
     --space-lg: 24px;
     --space-xl: 32px;
     --space-2xl: 48px;
+
+    --space-dashboard: 28px;
+    --space-zone-gap: 16px;
+    --space-zone-padding: 20px;
+    --space-panel-padding: 20px;
+    --space-card-gap: 12px;
+    --space-card-padding: 16px;
 
     /* ==========================
        Animation
