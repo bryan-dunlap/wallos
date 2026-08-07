@@ -62,7 +62,7 @@ class WeatherWidget {
             : "—";
         const showPrecipitation =
             isAvailable &&
-            payload.precipitation != null;
+            payload.precipitation > 0;
 
         this.element.innerHTML = `
             <div class="widget-header">
@@ -82,12 +82,8 @@ class WeatherWidget {
                     </div>
                 </div>
 
-                <div class="weather-rotating">
-                    ${condition}
-                </div>
-
                 <div class="weather-details">
-                    H ${high}° · L ${low}°
+                    ${condition} · H ${high}° · L ${low}°
                     ${showPrecipitation
                         ? ` · Rain ${payload.precipitation}%`
                         : ""}

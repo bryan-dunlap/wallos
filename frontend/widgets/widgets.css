@@ -1,4 +1,3 @@
-
 /* ==========================
    Widget Base
 ========================== */
@@ -12,14 +11,13 @@
             var(--surface-bottom)
         );
 
-    border-radius: var(--radius-card);
+    border-radius: 24px;
 
-    padding: var(--space-card-padding);
+    padding: 16px;
 
     box-shadow:
-        inset 0 1px 0 var(--glass-highlight),
-        inset 0 0 0 1px var(--glass-edge),
-        var(--shadow-card);
+        inset 0 1px 0 var(--border-subtle),
+        0 18px 40px var(--shadow-color-zone);
 
     overflow: hidden;
 
@@ -98,6 +96,8 @@
     font-size: .7rem;
 
 }
+
+
 /* ==========================
    Widget Grid Layout
 ========================== */
@@ -108,9 +108,9 @@
 
     grid-template-columns: 2fr 1fr;
 
-    grid-template-rows: 1.1fr 0.9fr;
+    grid-template-rows: 1fr 1fr;
 
-    gap: var(--space-card-gap);
+    gap: 12px;
 
     width: 100%;
 
@@ -119,7 +119,9 @@
 }
 
 
-/* Hero Card */
+/* ==========================
+   Hero Card
+========================== */
 
 .hero-container {
 
@@ -130,7 +132,9 @@
 }
 
 
-/* Small Cards */
+/* ==========================
+   Small Cards
+========================== */
 
 .weather-widget {
 
@@ -138,19 +142,8 @@
 
     grid-row: 1;
 
-    display: flex;
-    flex-direction: column;
-
-    position: relative;
-
 }
 
-.weather-widget > .widget-header {
-
-    position: relative;
-    z-index: 1;
-
-}
 
 .sports-widget {
 
@@ -158,23 +151,12 @@
 
     grid-row: 2;
 
-    position: relative;
-
 }
 
-.sports-widget > .widget-header {
 
-    position: relative;
-    z-index: 1;
-
-}
-
-.sports-widget > .widget-body {
-
-    position: absolute;
-    inset: 16px;
-
-}
+/* ==========================
+   Sports Widget
+========================== */
 
 .sports-matchup-layout {
 
@@ -182,14 +164,41 @@
 
 }
 
+
+.sports-matchup-line {
+
+    display: flex;
+
+    align-items: baseline;
+
+    justify-content: center;
+
+    gap: 10px;
+
+    white-space: nowrap;
+
+}
+
+
+.sports-matchup-name {
+
+    white-space: nowrap;
+
+    text-transform: uppercase;
+
+}
+
+
 .team-identity {
 
     min-width: 0;
 
     display: inline-flex;
+
     align-items: center;
 
 }
+
 
 .team-identity-logo {
 
@@ -202,6 +211,7 @@
 
 }
 
+
 .team-identity-text {
 
     min-width: 0;
@@ -209,6 +219,7 @@
     flex: 1 1 auto;
 
     display: flex;
+
     align-items: baseline;
 
     gap: 5px;
@@ -216,6 +227,7 @@
     overflow: hidden;
 
 }
+
 
 .team-identity-name {
 
@@ -226,9 +238,11 @@
     overflow: hidden;
 
     white-space: nowrap;
+
     text-overflow: ellipsis;
 
 }
+
 
 .team-identity-record {
 
@@ -237,38 +251,25 @@
     color: var(--color-text-muted);
 
     font-size: .65rem;
+
     font-weight: 500;
 
     white-space: nowrap;
 
 }
 
-.sports-widget .team-identity-logo {
-
-    width: 32px;
-    height: 32px;
-
-    flex: 0 0 32px;
-
-}
-
-.sports-widget .team-identity-record {
-
-    font-size: .9rem;
-
-}
 
 .sports-scoreboard {
 
     display: grid;
 
     grid-template-columns: minmax(0, 1fr) repeat(3, 2.25ch);
-    grid-template-rows: .8rem repeat(2, 32px);
 
     width: 100%;
 
-    column-gap: 10px;
-    row-gap: 6px;
+    column-gap: 12px;
+
+    row-gap: 8px;
 
     font-size: 1rem;
 
@@ -276,29 +277,37 @@
 
 }
 
+
 .sports-scoreboard-team-away {
 
     grid-column: 1;
+
     grid-row: 2;
 
 }
 
+
 .sports-scoreboard-team-home {
 
     grid-column: 1;
+
     grid-row: 3;
 
 }
+
 
 .sports-scoreboard-heading {
 
     color: var(--color-text-muted);
 
-    font-size: .7rem;
+    font-size: .65rem;
+
     font-weight: 600;
+
     text-align: center;
 
 }
+
 
 .sports-scoreboard-team {
 
@@ -308,37 +317,45 @@
 
     color: var(--color-text);
 
-    font-size: 1.5rem;
+    font-size: 1.45rem;
+
     font-weight: 700;
 
     white-space: nowrap;
+
     text-align: left;
+
     text-overflow: ellipsis;
+
     text-transform: uppercase;
 
 }
+
 
 .sports-scoreboard-value {
 
     color: var(--color-text);
 
     font-family: "Outfit", sans-serif;
-    font-size: 1.25rem;
+
+    font-size: 1.3rem;
+
     font-variant-numeric: tabular-nums;
+
     font-weight: 700;
+
     line-height: normal;
+
     text-align: center;
 
 }
+
 
 /* ==========================
    Weather Widget
 ========================== */
 
-.weather-widget > .weather-content {
-
-    position: absolute;
-    inset: 16px;
+.weather-content {
 
     flex: 1;
 
@@ -350,7 +367,7 @@
 
     justify-content: center;
 
-    transform: none;
+    transform: translateY(-5px);
 
     gap: 4px;
 
@@ -361,7 +378,7 @@
 
     color: var(--color-text-secondary);
 
-    font-size: .8rem;
+    font-size: .7rem;
 
     letter-spacing: .15em;
 
@@ -372,7 +389,7 @@
 
 .weather-icon {
 
-    font-size: 4rem;
+    font-size: 2rem;
 
     line-height: 1;
 
@@ -383,7 +400,7 @@
 
     font-family: "Outfit", sans-serif;
 
-    font-size: 5rem;
+    font-size: 3rem;
 
     font-weight: 600;
 
@@ -399,6 +416,8 @@
     font-size: .8rem;
 
 }
+
+
 .weather-main {
 
     display: flex;
@@ -412,42 +431,94 @@
 }
 
 
-.weather-icon {
-
-    font-size: 4rem;
-
-    line-height: 1;
-
-}
-
-
 .weather-temperature {
 
     font-family: "Outfit", sans-serif;
 
     color: var(--color-text);
 
-    font-size: 5rem;
+    font-size: 4rem;
 
     font-weight: 600;
 
     line-height: 1;
 
 }
+
+
 .weather-rotating {
 
     color: var(--color-text-secondary);
 
-    font-size: 1.2rem;
+    font-size: 1.25rem;
 
     min-height: 1.2em;
 
 }
 
+
 .weather-details {
 
     color: var(--color-text-muted);
 
-    font-size: .9rem;
+    font-size: 1.1rem;
+
+}
+
+
+/* ==========================
+   Hero Styling
+========================== */
+
+.hero-container {
+
+    background:
+        linear-gradient(
+            180deg,
+            var(--surface-top),
+            var(--surface-bottom)
+        );
+
+    border-radius: 24px;
+
+    padding: 16px;
+
+    box-shadow:
+        inset 0 1px 0 var(--border-subtle),
+        0 18px 40px var(--shadow-color-zone);
+
+    overflow: hidden;
+
+    display: flex;
+
+    flex-direction: column;
+
+    justify-content: center;
+
+    align-items: center;
+
+    text-align: center;
+
+}
+
+
+.hero-title {
+
+    font-size: 2rem;
+
+    font-weight: 600;
+
+    color: var(--color-text);
+
+}
+
+
+.hero-subtitle {
+
+    margin-top: 8px;
+
+    font-size: 1rem;
+
+    color: var(--color-text-secondary);
 
 }
