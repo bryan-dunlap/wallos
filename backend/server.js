@@ -1,17 +1,28 @@
 const express = require("express");
+const fs = require("fs");
 const path = require("path");
 
 const app = express();
 const PORT = 3000;
 
 const frontendPath = path.join(__dirname, "..", "frontend");
+const configPath = path.join(__dirname, "..", "config.json");
 
 /* ==========================
    Configuration
 ========================== */
 
-const WEATHER_LOCATION = "98402";
 const WEATHER_CACHE_MS = 30 * 60 * 1000;
+
+const DEFAULT_CONFIG = {
+  location: {
+    query: "98402"
+  },
+  sports: {
+    primaryLeague: "MLB"
+  }
+};
+const SUPPORTED_LEAGUES = ["MLB", "NFL", "NBA", "NHL"];
 
 const MARINERS_TEAM_ID = 136;
 const SPORTS_CACHE_MS = 6 * 60 * 60 * 1000;
@@ -32,6 +43,7 @@ const DISPLAY_TIME_ZONE = "America/Los_Angeles";
 
 let weatherCache = {
   timestamp: 0,
+  locationQuery: null,
   data: null
 };
 
@@ -52,9 +64,145 @@ let redditCache = {
 ========================== */
 
 app.use(express.static(frontendPath));
+app.use(express.urlencoded({ extended: false }));
 
 app.get("/", (req, res) => {
   res.sendFile(path.join(frontendPath, "index.html"));
+});
+
+/* ==========================
+   Mosaic Configuration
+========================== */
+
+function readConfig() {
+  try {
+    const savedConfig = JSON.parse(
+      fs.readFileSync(configPath, "utf8")
+    );
+    const locationQuery = savedConfig?.location?.query;
+    const primaryLeague = savedConfig?.sports?.primaryLeague;
+
+    return {
+      location: {
+        query:
+          typeof locationQuery === "string" &&
+          locationQuery.trim()
+            ? locationQuery
+            : DEFAULT_CONFIG.location.query
+      },
+      sports: {
+        primaryLeague: SUPPORTED_LEAGUES.includes(primaryLeague)
+          ? primaryLeague
+          : DEFAULT_CONFIG.sports.primaryLeague
+      }
+    };
+  } catch (error) {
+    console.error("Unable to read config.json; using defaults:", error);
+    return structuredClone(DEFAULT_CONFIG);
+  }
+}
+
+function validateConfigUpdate(locationQuery, primaryLeague) {
+  if (
+    typeof locationQuery !== "string" ||
+    !locationQuery.trim()
+  ) {
+    throw new Error("Location must not be empty.");
+  }
+
+  if (!SUPPORTED_LEAGUES.includes(primaryLeague)) {
+    throw new Error("League must be MLB, NFL, NBA, or NHL.");
+  }
+
+  return {
+    location: {
+      query: locationQuery
+    },
+    sports: {
+      primaryLeague
+    }
+  };
+}
+
+async function writeConfig(config) {
+  const temporaryPath = `${configPath}.tmp-${process.pid}-${Date.now()}`;
+
+  try {
+    await fs.promises.writeFile(
+      temporaryPath,
+      `${JSON.stringify(config, null, 2)}\n`,
+      "utf8"
+    );
+    await fs.promises.rename(temporaryPath, configPath);
+  } catch (error) {
+    await fs.promises.unlink(temporaryPath).catch(() => {});
+    throw error;
+  }
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+app.get("/control", (req, res) => {
+  const config = readConfig();
+  const leagueOptions = SUPPORTED_LEAGUES.map(
+    (league) =>
+      `<option value="${league}"${
+        league === config.sports.primaryLeague ? " selected" : ""
+      }>${league}</option>`
+  ).join("");
+
+  res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mosaic Control</title>
+</head>
+<body>
+  <h1>Mosaic Control</h1>
+  <form method="post" action="/control">
+    <fieldset>
+      <legend>Where are you?</legend>
+      <label for="location-query">City or ZIP Code</label>
+      <input id="location-query" name="locationQuery" type="text" value="${escapeHtml(config.location.query)}" required>
+    </fieldset>
+    <fieldset>
+      <legend>What sport do you follow?</legend>
+      <select name="primaryLeague">${leagueOptions}</select>
+    </fieldset>
+    <button type="submit">Save</button>
+  </form>
+</body>
+</html>`);
+});
+
+app.post("/control", async (req, res) => {
+  try {
+    const config = validateConfigUpdate(
+      req.body.locationQuery,
+      req.body.primaryLeague
+    );
+    await writeConfig(config);
+    res.redirect(303, "/control");
+  } catch (error) {
+    const isValidationError = error instanceof Error &&
+      (error.message === "Location must not be empty." ||
+        error.message === "League must be MLB, NFL, NBA, or NHL.");
+
+    if (isValidationError) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    console.error("Unable to save configuration:", error);
+    res.status(500).json({ error: "Configuration could not be saved." });
+  }
 });
 
 /* ==========================
@@ -341,9 +489,12 @@ function parseRedditFeed(xml) {
 ========================== */
 
 app.get("/api/weather", async (req, res) => {
+  const weatherLocation = readConfig().location.query;
+
   try {
     const cacheIsValid =
       weatherCache.data &&
+      weatherCache.locationQuery === weatherLocation &&
       Date.now() - weatherCache.timestamp <
         WEATHER_CACHE_MS;
 
@@ -352,7 +503,7 @@ app.get("/api/weather", async (req, res) => {
     }
 
     const locationParams = new URLSearchParams({
-      name: WEATHER_LOCATION,
+      name: weatherLocation,
       count: "1",
       language: "en",
       format: "json",
@@ -374,7 +525,7 @@ app.get("/api/weather", async (req, res) => {
 
     if (!location) {
       throw new Error(
-        `No location found for ZIP code ${WEATHER_LOCATION}`
+        `No location found for ${weatherLocation}`
       );
     }
 
@@ -416,7 +567,7 @@ app.get("/api/weather", async (req, res) => {
       location: {
         name: location.name,
         state: location.admin1,
-        postalCode: WEATHER_LOCATION,
+        query: weatherLocation,
         latitude: location.latitude,
         longitude: location.longitude,
         timezone: forecastData.timezone
@@ -452,6 +603,7 @@ app.get("/api/weather", async (req, res) => {
 
     weatherCache = {
       timestamp: Date.now(),
+      locationQuery: weatherLocation,
       data: responseData
     };
 
@@ -459,7 +611,10 @@ app.get("/api/weather", async (req, res) => {
   } catch (error) {
     console.error("Weather API error:", error);
 
-    if (weatherCache.data) {
+    if (
+      weatherCache.data &&
+      weatherCache.locationQuery === weatherLocation
+    ) {
       return res.json({
         ...weatherCache.data,
         stale: true
@@ -477,7 +632,7 @@ app.get("/api/weather", async (req, res) => {
    MLB Daily Schedule API
 ========================== */
 
-app.get("/api/sports/mlb", async (req, res) => {
+async function handleMlbDailySchedule(req, res) {
   const requestedDate =
     typeof req.query.date === "string"
       ? req.query.date
@@ -566,7 +721,26 @@ app.get("/api/sports/mlb", async (req, res) => {
         "MLB daily schedule is temporarily unavailable."
     });
   }
+}
+
+app.get("/api/sports", (req, res) => {
+  const primaryLeague = readConfig().sports.primaryLeague;
+
+  if (primaryLeague === "MLB") {
+    return handleMlbDailySchedule(req, res);
+  }
+
+  return res.status(501).json({
+    error: {
+      code: "LEAGUE_NOT_IMPLEMENTED",
+      message: `${primaryLeague} data is not yet implemented.`
+    },
+    sport: primaryLeague,
+    sportsEvents: []
+  });
 });
+
+app.get("/api/sports/mlb", handleMlbDailySchedule);
 
 /* ==========================
    Mariners Schedule API

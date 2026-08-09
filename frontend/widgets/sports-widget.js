@@ -130,39 +130,12 @@ class SportsWidget {
             payload.availability === "loading";
         const isAvailable =
             payload.availability === "available";
-        const statusState =
-            game.status?.state || "";
-        const statusDetail =
-            game.status?.detail || "";
         const sport = payload.sport || "Sports";
-        const interrupted = this.isInterrupted(game);
-        const liveStatus =
-            this.formatInning(game.linescore?.inning);
-        const hasReachedScheduledStart =
-            this.hasReachedScheduledStart(game);
-        const hasGameStarted =
-            hasReachedScheduledStart &&
-            game.linescore?.inning?.number != null;
-        const showStats =
-            statusState === "Final" ||
-            hasGameStarted;
         const status = isLoading
             ? "Loading"
             : !isAvailable
                 ? "Unavailable"
-                : this.games.length === 0
-                    ? "Idle"
-                    : interrupted
-                        ? statusDetail
-                        : statusState === "Scheduled"
-                            ? game.scheduledTime || "—"
-                            : statusState === "Live"
-                                ? hasGameStarted
-                                    ? liveStatus
-                                    : game.scheduledTime || "—"
-                                : statusState === "Final"
-                                    ? "Final"
-                                    : statusDetail || statusState;
+                : "Idle";
 
         if (!isAvailable || this.games.length === 0) {
             this.element.innerHTML = `
@@ -184,6 +157,53 @@ class SportsWidget {
             return;
         }
 
+        if (sport === "MLB") {
+            const presentation = this.renderMlbGame(game);
+
+            this.element.innerHTML = `
+                <div class="widget-header">
+                    <div class="widget-title">${sport}</div>
+                    <div class="widget-status">${presentation.status}</div>
+                </div>
+
+                <div class="widget-body sports-matchup-layout">
+                    ${presentation.content}
+                </div>
+
+                <div class="widget-footer">
+                    <span></span>
+                </div>
+            `;
+        }
+    }
+
+    renderMlbGame(game) {
+        const statusState =
+            game.status?.state || "";
+        const statusDetail =
+            game.status?.detail || "";
+        const interrupted = this.isInterrupted(game);
+        const liveStatus =
+            this.formatInning(game.linescore?.inning);
+        const hasReachedScheduledStart =
+            this.hasReachedScheduledStart(game);
+        const hasGameStarted =
+            hasReachedScheduledStart &&
+            game.linescore?.inning?.number != null;
+        const showStats =
+            statusState === "Final" ||
+            hasGameStarted;
+        const status = interrupted
+            ? statusDetail
+            : statusState === "Scheduled"
+                ? game.scheduledTime || "—"
+                : statusState === "Live"
+                    ? hasGameStarted
+                        ? liveStatus
+                        : game.scheduledTime || "—"
+                    : statusState === "Final"
+                        ? "Final"
+                        : statusDetail || statusState;
         const formatRecord = (record) => (
             record?.wins != null &&
             record?.losses != null
@@ -219,13 +239,9 @@ class SportsWidget {
         const awayTeam = game.awayTeam || {};
         const homeTeam = game.homeTeam || {};
 
-        this.element.innerHTML = `
-            <div class="widget-header">
-                <div class="widget-title">${sport}</div>
-                <div class="widget-status">${status}</div>
-            </div>
-
-            <div class="widget-body sports-matchup-layout">
+        return {
+            status,
+            content: `
                 <span class="sports-scoreboard">
                     ${showStats ? `
                         <span class="sports-scoreboard-corner"></span>
@@ -245,13 +261,8 @@ class SportsWidget {
                             renderValue(homeTeam.hits) +
                             renderValue(homeTeam.errors)
                         : ""}
-                </span>
-            </div>
-
-            <div class="widget-footer">
-                <span></span>
-            </div>
-        `;
+                </span>`
+        };
     }
 
     hasReachedScheduledStart(game) {

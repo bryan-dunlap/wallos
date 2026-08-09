@@ -24,16 +24,18 @@ class SportsProvider {
         try {
             const date = this.getDateKey(new Date());
             const response = await fetch(
-                `/api/sports/mlb?date=${encodeURIComponent(date)}`
+                `/api/sports?date=${encodeURIComponent(date)}`
             );
+            const scheduleData = await response.json();
 
             if (!response.ok) {
-                throw new Error(
+                const error = new Error(
                     `Sports request failed: ${response.status}`
                 );
+                error.sport = scheduleData.sport;
+                throw error;
             }
 
-            const scheduleData = await response.json();
             const games = Array.isArray(
                 scheduleData.sportsEvents
             )
@@ -49,7 +51,7 @@ class SportsProvider {
                 error
             );
 
-            this.publishUnavailableEvent();
+            this.publishUnavailableEvent(error.sport);
         }
     }
 
@@ -74,14 +76,14 @@ class SportsProvider {
         window.mosaicApp.eventBus.publish(event);
     }
 
-    publishUnavailableEvent() {
+    publishUnavailableEvent(sport = "MLB") {
         const event = createMosaicEvent({
             type: "sports",
             title: "Sports Update",
             subtitle: "Sports unavailable",
             source: "sports",
             payload: {
-                sport: "MLB",
+                sport,
                 games: [],
                 availability: "unavailable"
             }
