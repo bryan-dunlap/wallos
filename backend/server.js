@@ -535,6 +535,14 @@ app.get("/api/weather", async (req, res) => {
 
       current: [
         "temperature_2m",
+        "apparent_temperature",
+        "weather_code"
+      ].join(","),
+
+      hourly: [
+        "temperature_2m",
+        "apparent_temperature",
+        "precipitation_probability",
         "weather_code"
       ].join(","),
 
@@ -577,9 +585,31 @@ app.get("/api/weather", async (req, res) => {
         temperature: Math.round(
           forecastData.current.temperature_2m
         ),
+        apparentTemperature: Math.round(
+          forecastData.current.apparent_temperature
+        ),
         weatherCode:
           forecastData.current.weather_code
       },
+
+      hourly: forecastData.hourly.time.map(
+        (time, index) => ({
+          time,
+          temperature: Math.round(
+            forecastData.hourly.temperature_2m[index]
+          ),
+          apparentTemperature: Math.round(
+            forecastData.hourly.apparent_temperature[index]
+          ),
+          precipitationChance:
+            forecastData.hourly
+              .precipitation_probability[index],
+          weatherCode:
+            forecastData.hourly.weather_code[index]
+        })
+      ).filter((hour) =>
+        hour.time.startsWith(formatLocalDate(new Date()))
+      ),
 
       daily: forecastData.daily.time.map(
         (date, index) => ({

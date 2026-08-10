@@ -5,6 +5,11 @@ function registerMosaicProviders(registry) {
     );
 
     registry.register(
+        "weather-insights",
+        WeatherInsightGenerator
+    );
+
+    registry.register(
         "weather",
         WeatherProvider
     );

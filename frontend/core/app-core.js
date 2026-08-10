@@ -5,6 +5,9 @@ class MosaicApp {
         this.eventCoordinator = new EventCoordinator(
             this.eventBus
         );
+        this.heroCoordinator = new HeroCoordinator(
+            this.eventBus
+        );
         this.providerManager = new ProviderManager();
         this.providerRegistry = new ProviderRegistry();
         this.widgetRegistry = new WidgetRegistry();
@@ -16,6 +19,7 @@ class MosaicApp {
     start() {
         registerMosaicWidgets(this.widgetRegistry);
         initializeMosaicLayout(this);
+        this.heroCoordinator.start();
         registerMosaicProviders(this.providerRegistry);
         this.providerManager.loadFromRegistry(
             this.providerRegistry

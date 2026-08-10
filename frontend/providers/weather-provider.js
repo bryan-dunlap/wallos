@@ -54,6 +54,10 @@ class WeatherProvider {
                 weatherData,
                 today
             );
+            this.publishWeatherFacts(
+                weatherData,
+                today
+            );
         } catch (error) {
             console.error(
                 "Unable to load weather:",
@@ -61,6 +65,7 @@ class WeatherProvider {
             );
 
             this.publishUnavailableEvent();
+            this.publishUnavailableFacts();
         }
     }
 
@@ -94,6 +99,64 @@ class WeatherProvider {
         window.mosaicApp.eventBus.publish(event);
     }
 
+    publishWeatherFacts(weatherData, today) {
+        const weatherCode =
+            weatherData.current.weatherCode;
+        const facts = {
+            schemaVersion: 1,
+            status: "available",
+            location: {
+                name: weatherData.location.name,
+                region: weatherData.location.state || "",
+                timezone: weatherData.location.timezone
+            },
+            current: {
+                temperature:
+                    weatherData.current.temperature,
+                apparentTemperature:
+                    weatherData.current.apparentTemperature,
+                condition: {
+                    code: weatherCode,
+                    label: this.getCondition(weatherCode),
+                    icon: this.getIcon(weatherCode)
+                }
+            },
+            today: {
+                date: today.date,
+                high: today.high,
+                low: today.low,
+                precipitationChance:
+                    today.precipitationChance
+            },
+            hourly: (weatherData.hourly || [])
+                .filter((hour) =>
+                    hour.time.startsWith(today.date)
+                )
+                .map((hour) => ({
+                    at: hour.time,
+                    temperature: hour.temperature,
+                    apparentTemperature:
+                        hour.apparentTemperature,
+                    precipitationChance:
+                        hour.precipitationChance,
+                    condition: {
+                        code: hour.weatherCode,
+                        label: this.getCondition(
+                            hour.weatherCode
+                        )
+                    }
+                })),
+            updatedAt: weatherData.updatedAt,
+            stale: weatherData.stale === true
+        };
+
+        window.mosaicApp.eventBus.publish({
+            type: "weather-facts",
+            source: "weather",
+            payload: facts
+        });
+    }
+
     publishUnavailableEvent() {
         const event = createMosaicEvent({
             type: "weather",
@@ -113,6 +176,23 @@ class WeatherProvider {
         });
 
         window.mosaicApp.eventBus.publish(event);
+    }
+
+    publishUnavailableFacts() {
+        window.mosaicApp.eventBus.publish({
+            type: "weather-facts",
+            source: "weather",
+            payload: {
+                schemaVersion: 1,
+                status: "unavailable",
+                location: null,
+                current: null,
+                today: null,
+                hourly: [],
+                updatedAt: null,
+                stale: false
+            }
+        });
     }
 
     getCondition(code) {

@@ -21,17 +21,10 @@ class MosaicHero {
 
 
     subscribeToEvents(){
-        [
-            "default",
-            "weather",
-            "sports",
-            "calendar"
-        ].forEach((type) => {
-            window.mosaicApp.eventCoordinator.subscribe(
-                type,
-                (event) => this.showEvent(event)
-            );
-        });
+        window.mosaicApp.eventCoordinator.subscribe(
+            "hero-display",
+            (event) => this.showEvent(event)
+        );
     }
 
 
@@ -73,8 +66,20 @@ class MosaicHero {
 
 
     showEvent(event){
+        const candidate = event.payload?.candidate;
 
-        this.state = event;
+        if (!candidate) {
+            this.reset();
+            return;
+        }
+
+        this.state = {
+            type: candidate.source === "weather"
+                ? "weather"
+                : "default",
+            title: candidate.headline,
+            subtitle: candidate.summary
+        };
 
         this.render();
 

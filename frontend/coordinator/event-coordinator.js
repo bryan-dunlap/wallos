@@ -10,7 +10,8 @@ class EventCoordinator {
             "default",
             "weather",
             "sports",
-            "calendar"
+            "calendar",
+            "hero-display"
         ].forEach((type) => {
             this.eventBus.subscribe(
                 type,
