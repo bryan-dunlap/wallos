@@ -18,33 +18,10 @@ body {
     height: 100vh;
     overflow: hidden;
 
-    background-color: #111315;
-    background-image:
-        linear-gradient(
-            135deg,
-            rgba(143, 143, 143, .030) 0 22%,
-            transparent 22% 72%,
-            rgba(80, 80, 80, .023) 72% 100%
-        ),
-        linear-gradient(
-            45deg,
-            transparent 0 38%,
-            rgba(143, 143, 143, .020) 38% 56%,
-            transparent 56% 100%
-        ),
-        radial-gradient(
-            ellipse at 72% 28%,
-            rgba(80, 80, 80, .036),
-            transparent 58%
-        );
-    background-size:
-        440px 440px,
-        360px 360px,
-        500px 500px;
-    background-position:
-        -120px 70px,
-        180px -90px,
-        40px 160px;
+    background-color: var(--page-background-color);
+    background-image: var(--page-background-image);
+    background-size: var(--page-background-size);
+    background-position: var(--page-background-position);
     color: var(--color-text);
 
     font-family:
@@ -177,20 +154,22 @@ body {
     background:
 
         linear-gradient(
-            rgba(0,0,0,.095),
-            rgba(0,0,0,.095)
+            var(--zone-overlay),
+            var(--zone-overlay)
         ),
 
         linear-gradient(
             180deg,
-            rgba(143,166,193,.062),
-            rgba(80,105,135,.033)
+            var(--zone-surface-top),
+            var(--zone-surface-bottom)
         );
 
     -webkit-backdrop-filter:
-        blur(10px) saturate(1.04);
+        blur(var(--zone-backdrop-blur))
+        saturate(var(--zone-backdrop-saturation));
     backdrop-filter:
-        blur(10px) saturate(1.04);
+        blur(var(--zone-backdrop-blur))
+        saturate(var(--zone-backdrop-saturation));
 
     box-shadow:
 

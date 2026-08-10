@@ -18,6 +18,34 @@
 
     --color-background: #101827;
 
+    --page-background-color: #111315;
+    --page-background-image:
+        linear-gradient(
+            135deg,
+            rgba(143, 143, 143, .030) 0 22%,
+            transparent 22% 72%,
+            rgba(80, 80, 80, .023) 72% 100%
+        ),
+        linear-gradient(
+            45deg,
+            transparent 0 38%,
+            rgba(143, 143, 143, .020) 38% 56%,
+            transparent 56% 100%
+        ),
+        radial-gradient(
+            ellipse at 72% 28%,
+            rgba(80, 80, 80, .036),
+            transparent 58%
+        );
+    --page-background-size:
+        440px 440px,
+        360px 360px,
+        500px 500px;
+    --page-background-position:
+        -120px 70px,
+        180px -90px,
+        40px 160px;
+
     --color-text: #dbeafe;
     --color-text-soft: #cbdcf3;
     --color-text-secondary: #a9bed8;
@@ -42,6 +70,11 @@
 
     --surface-top: rgba(143,166,193,.05);
     --surface-bottom: rgba(80,105,135,.025);
+    --zone-overlay: rgba(0,0,0,.095);
+    --zone-surface-top: rgba(143,166,193,.062);
+    --zone-surface-bottom: rgba(80,105,135,.033);
+    --zone-backdrop-blur: 10px;
+    --zone-backdrop-saturation: 1.04;
 
     /* ==========================
        Glass
@@ -106,4 +139,276 @@
     --transition: 250ms ease;
     --transition-slow: 400ms ease;
 
+}
+
+[data-theme="terminal"] {
+    --color-background: #07100b;
+    --page-background-color: #050906;
+    --page-background-image:
+        linear-gradient(rgba(67,255,125,.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(67,255,125,.018) 1px, transparent 1px);
+    --page-background-size: 32px 32px, 32px 32px;
+    --page-background-position: 0 0, 0 0;
+
+    --color-text: #d8fbe2;
+    --color-text-soft: #bff5ce;
+    --color-text-secondary: #8bcf9e;
+    --color-text-muted: #659a73;
+    --color-accent: rgb(91,238,133);
+
+    --accent-04: rgba(91,238,133,.04);
+    --accent-08: rgba(91,238,133,.08);
+    --accent-10: rgba(91,238,133,.10);
+    --accent-18: rgba(91,238,133,.18);
+    --accent-22: rgba(91,238,133,.22);
+    --accent-38: rgba(91,238,133,.38);
+
+    --surface-top: rgba(91,238,133,.035);
+    --surface-bottom: rgba(22,76,39,.025);
+    --zone-overlay: rgba(0,0,0,.13);
+    --zone-surface-top: rgba(91,238,133,.038);
+    --zone-surface-bottom: rgba(22,76,39,.025);
+    --glass-highlight: rgba(190,255,207,.035);
+    --glass-highlight-zone: rgba(190,255,207,.045);
+    --glass-edge: rgba(91,238,133,.12);
+    --glass-edge-subtle: rgba(91,238,133,.045);
+    --border-subtle: rgba(91,238,133,.10);
+    --shadow-color-zone: rgba(0,8,2,.48);
+    --shadow-color-soft: rgba(0,8,2,.30);
+}
+
+[data-theme="retro-future"] {
+    --color-background: #0b0920;
+    --page-background-color: #080713;
+    --page-background-image:
+        radial-gradient(circle at 18% 15%, rgba(0,229,255,.10), transparent 34%),
+        radial-gradient(circle at 82% 72%, rgba(255,65,190,.11), transparent 38%),
+        linear-gradient(145deg, rgba(72,42,140,.07), transparent 55%);
+    --page-background-size: auto, auto, auto;
+    --page-background-position: 0 0, 0 0, 0 0;
+
+    --color-text: #f3eaff;
+    --color-text-soft: #e5d8ff;
+    --color-text-secondary: #bfb0e3;
+    --color-text-muted: #9182b4;
+    --color-accent: rgb(255,91,205);
+
+    --accent-04: rgba(255,91,205,.04);
+    --accent-08: rgba(255,91,205,.08);
+    --accent-10: rgba(255,91,205,.10);
+    --accent-18: rgba(255,91,205,.18);
+    --accent-22: rgba(255,91,205,.22);
+    --accent-38: rgba(255,91,205,.38);
+
+    --surface-top: rgba(126,93,255,.10);
+    --surface-bottom: rgba(24,203,255,.035);
+    --zone-overlay: rgba(3,0,18,.14);
+    --zone-surface-top: rgba(126,93,255,.10);
+    --zone-surface-bottom: rgba(24,203,255,.035);
+    --glass-highlight: rgba(232,220,255,.09);
+    --glass-highlight-zone: rgba(232,220,255,.11);
+    --glass-edge: rgba(255,91,205,.20);
+    --glass-edge-subtle: rgba(24,203,255,.09);
+    --border-subtle: rgba(255,91,205,.17);
+    --shadow-color-zone: rgba(16,0,40,.62);
+    --shadow-color-soft: rgba(16,0,40,.42);
+    --zone-backdrop-saturation: 1.18;
+}
+
+[data-theme="light"] {
+    --color-background: #edf1f4;
+    --page-background-color: #e8edf0;
+    --page-background-image:
+        radial-gradient(circle at 75% 22%, rgba(58,112,148,.08), transparent 42%),
+        linear-gradient(145deg, rgba(255,255,255,.48), transparent 62%);
+    --page-background-size: auto, auto;
+    --page-background-position: 0 0, 0 0;
+
+    --color-text: #182733;
+    --color-text-soft: #243847;
+    --color-text-secondary: #4e6576;
+    --color-text-muted: #6f8290;
+    --color-accent: rgb(28,105,153);
+
+    --accent-04: rgba(28,105,153,.04);
+    --accent-08: rgba(28,105,153,.08);
+    --accent-10: rgba(28,105,153,.10);
+    --accent-18: rgba(28,105,153,.18);
+    --accent-22: rgba(28,105,153,.22);
+    --accent-38: rgba(28,105,153,.38);
+
+    --surface-top: rgba(255,255,255,.66);
+    --surface-bottom: rgba(219,228,234,.50);
+    --zone-overlay: rgba(255,255,255,.16);
+    --zone-surface-top: rgba(255,255,255,.62);
+    --zone-surface-bottom: rgba(207,219,227,.42);
+    --glass-highlight: rgba(255,255,255,.78);
+    --glass-highlight-zone: rgba(255,255,255,.82);
+    --glass-edge: rgba(65,93,113,.18);
+    --glass-edge-subtle: rgba(65,93,113,.11);
+    --border-subtle: rgba(65,93,113,.15);
+    --shadow-color-zone: rgba(49,70,84,.18);
+    --shadow-color-soft: rgba(49,70,84,.12);
+    --zone-backdrop-saturation: 1;
+}
+
+[data-theme="minimal"] {
+    --color-background: #17191b;
+    --page-background-color: #141618;
+    --page-background-image: none;
+    --page-background-size: auto;
+    --page-background-position: 0 0;
+
+    --color-text: #e4e7ea;
+    --color-text-soft: #d6dadd;
+    --color-text-secondary: #a7adb2;
+    --color-text-muted: #7d858b;
+    --color-accent: rgb(184,194,202);
+
+    --accent-04: rgba(184,194,202,.04);
+    --accent-08: rgba(184,194,202,.08);
+    --accent-10: rgba(184,194,202,.10);
+    --accent-18: rgba(184,194,202,.18);
+    --accent-22: rgba(184,194,202,.22);
+    --accent-38: rgba(184,194,202,.38);
+
+    --surface-top: rgba(255,255,255,.025);
+    --surface-bottom: rgba(255,255,255,.012);
+    --zone-overlay: rgba(0,0,0,.03);
+    --zone-surface-top: rgba(255,255,255,.025);
+    --zone-surface-bottom: rgba(255,255,255,.012);
+    --glass-highlight: rgba(255,255,255,.025);
+    --glass-highlight-zone: rgba(255,255,255,.025);
+    --glass-edge: rgba(255,255,255,.07);
+    --glass-edge-subtle: rgba(255,255,255,.045);
+    --border-subtle: rgba(255,255,255,.07);
+    --shadow-color-zone: rgba(0,0,0,.10);
+    --shadow-color-soft: rgba(0,0,0,.08);
+    --zone-backdrop-blur: 0px;
+    --zone-backdrop-saturation: 1;
+}
+
+[data-theme="90s-remix"] {
+    --color-background: #251044;
+    --page-background-color: #190b35;
+    --page-background-image:
+        linear-gradient(
+            135deg,
+            transparent 0 18%,
+            rgba(255,45,179,.13) 18% 22%,
+            transparent 22% 70%,
+            rgba(255,224,67,.10) 70% 74%,
+            transparent 74% 100%
+        ),
+        linear-gradient(
+            45deg,
+            transparent 0 42%,
+            rgba(30,225,211,.12) 42% 48%,
+            transparent 48% 100%
+        ),
+        radial-gradient(
+            circle at 18% 22%,
+            rgba(255,224,67,.18) 0 3%,
+            transparent 3.5%
+        ),
+        radial-gradient(
+            circle at 82% 76%,
+            rgba(30,225,211,.19) 0 4%,
+            transparent 4.5%
+        );
+    --page-background-size:
+        420px 420px,
+        320px 320px,
+        260px 260px,
+        300px 300px;
+    --page-background-position:
+        -80px 30px,
+        130px -60px,
+        10px 20px,
+        80px 120px;
+
+    --color-text: #fff4ff;
+    --color-text-soft: #eaddff;
+    --color-text-secondary: #c8b6ea;
+    --color-text-muted: #9e8ac5;
+    --color-accent: rgb(34,226,209);
+
+    --accent-04: rgba(34,226,209,.04);
+    --accent-08: rgba(34,226,209,.08);
+    --accent-10: rgba(34,226,209,.10);
+    --accent-18: rgba(34,226,209,.18);
+    --accent-22: rgba(34,226,209,.22);
+    --accent-38: rgba(34,226,209,.38);
+
+    --surface-top: rgba(184,75,255,.12);
+    --surface-bottom: rgba(20,208,203,.045);
+    --zone-overlay: rgba(17,3,40,.13);
+    --zone-surface-top: rgba(184,75,255,.13);
+    --zone-surface-bottom: rgba(20,208,203,.05);
+    --glass-highlight: rgba(255,239,255,.10);
+    --glass-highlight-zone: rgba(255,239,255,.12);
+    --glass-edge: rgba(255,45,179,.24);
+    --glass-edge-subtle: rgba(34,226,209,.11);
+    --border-subtle: rgba(255,224,67,.17);
+    --shadow-color-zone: rgba(9,1,28,.60);
+    --shadow-color-soft: rgba(9,1,28,.40);
+    --zone-backdrop-saturation: 1.2;
+}
+
+[data-theme="steampunk"] {
+    --color-background: #20150e;
+    --page-background-color: #120d09;
+    --page-background-image:
+        radial-gradient(
+            circle at 22px 22px,
+            rgba(218,164,78,.10) 0 2px,
+            transparent 2.5px
+        ),
+        linear-gradient(
+            115deg,
+            rgba(124,72,36,.08),
+            transparent 42%,
+            rgba(196,120,55,.055) 68%,
+            transparent
+        ),
+        repeating-linear-gradient(
+            0deg,
+            rgba(255,222,164,.012) 0 1px,
+            transparent 1px 5px
+        );
+    --page-background-size:
+        44px 44px,
+        auto,
+        100% 5px;
+    --page-background-position:
+        0 0,
+        0 0,
+        0 0;
+
+    --color-text: #f1dfbd;
+    --color-text-soft: #dfc596;
+    --color-text-secondary: #b99a6d;
+    --color-text-muted: #8d704f;
+    --color-accent: rgb(213,157,74);
+
+    --accent-04: rgba(213,157,74,.04);
+    --accent-08: rgba(213,157,74,.08);
+    --accent-10: rgba(213,157,74,.10);
+    --accent-18: rgba(213,157,74,.18);
+    --accent-22: rgba(213,157,74,.22);
+    --accent-38: rgba(213,157,74,.38);
+
+    --surface-top: rgba(151,91,43,.11);
+    --surface-bottom: rgba(49,27,16,.055);
+    --zone-overlay: rgba(13,7,3,.14);
+    --zone-surface-top: rgba(151,91,43,.12);
+    --zone-surface-bottom: rgba(49,27,16,.06);
+    --glass-highlight: rgba(255,220,157,.07);
+    --glass-highlight-zone: rgba(255,220,157,.085);
+    --glass-edge: rgba(190,130,57,.22);
+    --glass-edge-subtle: rgba(223,177,99,.075);
+    --border-subtle: rgba(190,130,57,.19);
+    --shadow-color-zone: rgba(5,2,1,.62);
+    --shadow-color-soft: rgba(5,2,1,.43);
+    --zone-backdrop-saturation: 1.08;
 }

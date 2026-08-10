@@ -4,5 +4,8 @@
   },
   "sports": {
     "primaryLeague": "MLB"
+  },
+  "display": {
+    "theme": "90s-remix"
   }
 }

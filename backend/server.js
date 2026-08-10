@@ -20,9 +20,21 @@ const DEFAULT_CONFIG = {
   },
   sports: {
     primaryLeague: "MLB"
+  },
+  display: {
+    theme: "mosaic"
   }
 };
 const SUPPORTED_LEAGUES = ["MLB", "NFL", "NBA", "NHL"];
+const SUPPORTED_THEMES = [
+  "mosaic",
+  "terminal",
+  "retro-future",
+  "light",
+  "minimal",
+  "90s-remix",
+  "steampunk"
+];
 
 const MARINERS_TEAM_ID = 136;
 const SPORTS_CACHE_MS = 6 * 60 * 60 * 1000;
@@ -81,6 +93,7 @@ function readConfig() {
     );
     const locationQuery = savedConfig?.location?.query;
     const primaryLeague = savedConfig?.sports?.primaryLeague;
+    const theme = savedConfig?.display?.theme;
 
     return {
       location: {
@@ -94,6 +107,11 @@ function readConfig() {
         primaryLeague: SUPPORTED_LEAGUES.includes(primaryLeague)
           ? primaryLeague
           : DEFAULT_CONFIG.sports.primaryLeague
+      },
+      display: {
+        theme: SUPPORTED_THEMES.includes(theme)
+          ? theme
+          : DEFAULT_CONFIG.display.theme
       }
     };
   } catch (error) {
@@ -102,7 +120,11 @@ function readConfig() {
   }
 }
 
-function validateConfigUpdate(locationQuery, primaryLeague) {
+function validateConfigUpdate(
+  locationQuery,
+  primaryLeague,
+  theme
+) {
   if (
     typeof locationQuery !== "string" ||
     !locationQuery.trim()
@@ -114,12 +136,19 @@ function validateConfigUpdate(locationQuery, primaryLeague) {
     throw new Error("League must be MLB, NFL, NBA, or NHL.");
   }
 
+  if (!SUPPORTED_THEMES.includes(theme)) {
+    throw new Error("Theme selection is invalid.");
+  }
+
   return {
     location: {
       query: locationQuery
     },
     sports: {
       primaryLeague
+    },
+    display: {
+      theme
     }
   };
 }
@@ -157,6 +186,21 @@ app.get("/control", (req, res) => {
         league === config.sports.primaryLeague ? " selected" : ""
       }>${league}</option>`
   ).join("");
+  const themeLabels = {
+    mosaic: "Mosaic",
+    terminal: "Terminal",
+    "retro-future": "Retro Future",
+    light: "Light",
+    minimal: "Minimal",
+    "90s-remix": "90s Remix",
+    steampunk: "Steampunk"
+  };
+  const themeOptions = SUPPORTED_THEMES.map(
+    (theme) =>
+      `<option value="${theme}"${
+        theme === config.display.theme ? " selected" : ""
+      }>${themeLabels[theme]}</option>`
+  ).join("");
 
   res.type("html").send(`<!doctype html>
 <html lang="en">
@@ -177,8 +221,41 @@ app.get("/control", (req, res) => {
       <legend>What sport do you follow?</legend>
       <select name="primaryLeague">${leagueOptions}</select>
     </fieldset>
+    <fieldset>
+      <legend>How should Mosaic look?</legend>
+      <label for="display-theme">Theme</label>
+      <select id="display-theme" name="theme">${themeOptions}</select>
+    </fieldset>
     <button type="submit">Save</button>
   </form>
+  <script>
+    (() => {
+      const themeSelect = document.getElementById("display-theme");
+
+      if (
+        !themeSelect ||
+        typeof BroadcastChannel !== "function"
+      ) {
+        return;
+      }
+
+      const channel = new BroadcastChannel(
+        "mosaic-theme-preview"
+      );
+
+      themeSelect.addEventListener("change", () => {
+        channel.postMessage({
+          theme: themeSelect.value
+        });
+      });
+
+      window.addEventListener(
+        "pagehide",
+        () => channel.close(),
+        { once: true }
+      );
+    })();
+  </script>
 </body>
 </html>`);
 });
@@ -187,14 +264,16 @@ app.post("/control", async (req, res) => {
   try {
     const config = validateConfigUpdate(
       req.body.locationQuery,
-      req.body.primaryLeague
+      req.body.primaryLeague,
+      req.body.theme
     );
     await writeConfig(config);
     res.redirect(303, "/control");
   } catch (error) {
     const isValidationError = error instanceof Error &&
       (error.message === "Location must not be empty." ||
-        error.message === "League must be MLB, NFL, NBA, or NHL.");
+        error.message === "League must be MLB, NFL, NBA, or NHL." ||
+        error.message === "Theme selection is invalid.");
 
     if (isValidationError) {
       return res.status(400).json({ error: error.message });
@@ -203,6 +282,14 @@ app.post("/control", async (req, res) => {
     console.error("Unable to save configuration:", error);
     res.status(500).json({ error: "Configuration could not be saved." });
   }
+});
+
+app.get("/api/config", (req, res) => {
+  const config = readConfig();
+
+  res.json({
+    display: config.display
+  });
 });
 
 /* ==========================
