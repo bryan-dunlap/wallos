@@ -11,6 +11,11 @@ function registerMosaicProviders(registry) {
     );
 
     registry.register(
+        "calendar-reminders",
+        CalendarReminderGenerator
+    );
+
+    registry.register(
         "calendar",
         CalendarProvider
     );
