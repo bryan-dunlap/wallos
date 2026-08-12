@@ -167,6 +167,11 @@ class WeatherInsightGenerator {
             id: `weather:rain-arriving:${facts.today.date}`,
             source: "weather",
             type: "weather.rain-arriving",
+            mode: "resting",
+            behavior: {
+                sticky: false,
+                durationSeconds: null
+            },
             priority: 70,
             headline: "Rain arriving later today",
             summary:
@@ -255,6 +260,11 @@ class WeatherInsightGenerator {
             id: `weather:hot-afternoon:${facts.today.date}`,
             source: "weather",
             type: "weather.hot-afternoon",
+            mode: "resting",
+            behavior: {
+                sticky: false,
+                durationSeconds: null
+            },
             priority: 60,
             headline: "Hot afternoon ahead",
             summary:

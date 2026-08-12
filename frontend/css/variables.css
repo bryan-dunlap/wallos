@@ -412,3 +412,149 @@
     --shadow-color-soft: rgba(5,2,1,.43);
     --zone-backdrop-saturation: 1.08;
 }
+
+[data-theme="groovy"] {
+    --color-background: #2b2420;
+    --page-background-color: #211a17;
+    --page-background-image:
+        radial-gradient(
+            ellipse at 76% 18%,
+            rgba(217,107,39,.095),
+            transparent 42%
+        ),
+        radial-gradient(
+            ellipse at 18% 78%,
+            rgba(79,139,130,.07),
+            transparent 38%
+        ),
+        repeating-linear-gradient(
+            96deg,
+            rgba(232,201,139,.018) 0 1px,
+            transparent 1px 9px,
+            rgba(111,143,78,.014) 9px 10px,
+            transparent 10px 24px
+        ),
+        linear-gradient(
+            145deg,
+            rgba(75,59,50,.34),
+            transparent 58%
+        );
+    --page-background-size:
+        auto,
+        auto,
+        180px 180px,
+        auto;
+    --page-background-position:
+        0 0,
+        0 0,
+        0 0,
+        0 0;
+
+    --color-text: #fff3d6;
+    --color-text-soft: #f2dfb7;
+    --color-text-secondary: #e8c98b;
+    --color-text-muted: #ad9465;
+    --color-accent: rgb(217,107,39);
+
+    --accent-04: rgba(217,107,39,.04);
+    --accent-08: rgba(217,107,39,.08);
+    --accent-10: rgba(217,107,39,.10);
+    --accent-18: rgba(217,107,39,.18);
+    --accent-22: rgba(217,107,39,.22);
+    --accent-38: rgba(217,107,39,.38);
+
+    --surface-top: rgba(75,59,50,.24);
+    --surface-bottom: rgba(48,37,31,.15);
+    --zone-overlay: rgba(19,12,8,.10);
+    --zone-surface-top: rgba(75,59,50,.27);
+    --zone-surface-bottom: rgba(48,37,31,.17);
+    --glass-highlight: rgba(255,243,214,.055);
+    --glass-highlight-zone: rgba(255,243,214,.07);
+    --glass-edge: rgba(217,164,65,.16);
+    --glass-edge-subtle: rgba(111,143,78,.065);
+    --border-subtle: rgba(217,164,65,.14);
+    --shadow-color-zone: rgba(10,6,4,.48);
+    --shadow-color-soft: rgba(10,6,4,.31);
+    --zone-backdrop-saturation: 1.04;
+}
+
+[data-theme="yacht-rock"] {
+    --color-background: #102535;
+    --page-background-color: #0c1923;
+    --page-background-image:
+        radial-gradient(
+            ellipse 48% 30% at 72% 64%,
+            rgba(209,122,63,.31) 0%,
+            rgba(179,139,61,.18) 27%,
+            rgba(79,124,143,.06) 50%,
+            transparent 72%
+        ),
+        repeating-radial-gradient(
+            ellipse at 50% 100%,
+            transparent 0 31px,
+            rgba(217,195,154,.065) 32px 34px,
+            transparent 35px 57px,
+            rgba(127,168,154,.04) 58px 59px,
+            transparent 60px 84px
+        ),
+        linear-gradient(
+            180deg,
+            transparent 0 61.4%,
+            rgba(217,195,154,.14) 61.6% 61.9%,
+            rgba(16,37,53,.10) 62.2% 100%
+        ),
+        repeating-linear-gradient(
+            180deg,
+            transparent 0 11px,
+            rgba(127,168,154,.06) 12px,
+            transparent 13px 22px,
+            rgba(209,122,63,.045) 23px 24px,
+            transparent 25px 38px
+        ),
+        linear-gradient(
+            180deg,
+            rgba(24,32,42,.84) 0%,
+            rgba(16,37,53,.54) 48%,
+            rgba(18,45,59,.68) 62%,
+            rgba(12,25,35,.88) 100%
+        );
+    --page-background-size:
+        auto,
+        520px 230px,
+        auto,
+        100% 38%,
+        auto;
+    --page-background-position:
+        0 0,
+        -90px 49%,
+        0 0,
+        0 100%,
+        0 0;
+
+    --color-text: #f5ead7;
+    --color-text-soft: #eadcc5;
+    --color-text-secondary: #d9c39a;
+    --color-text-muted: #9eaa9e;
+    --color-accent: rgb(79,124,143);
+
+    --accent-04: rgba(79,124,143,.04);
+    --accent-08: rgba(79,124,143,.08);
+    --accent-10: rgba(79,124,143,.10);
+    --accent-18: rgba(79,124,143,.18);
+    --accent-22: rgba(79,124,143,.22);
+    --accent-38: rgba(79,124,143,.38);
+
+    --surface-top: rgba(90,64,48,.20);
+    --surface-bottom: rgba(59,43,36,.13);
+    --zone-overlay: rgba(4,13,19,.12);
+    --zone-surface-top: rgba(90,64,48,.21);
+    --zone-surface-bottom: rgba(16,37,53,.17);
+    --glass-highlight: rgba(245,234,215,.055);
+    --glass-highlight-zone: rgba(245,234,215,.07);
+    --glass-edge: rgba(179,139,61,.17);
+    --glass-edge-subtle: rgba(127,168,154,.07);
+    --border-subtle: rgba(179,139,61,.14);
+    --shadow-color-zone: rgba(2,8,12,.54);
+    --shadow-color-soft: rgba(2,8,12,.34);
+    --zone-backdrop-saturation: 1.06;
+}

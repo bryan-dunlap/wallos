@@ -6,7 +6,9 @@
     "light",
     "minimal",
     "90s-remix",
-    "steampunk"
+    "steampunk",
+    "groovy",
+    "yacht-rock"
   ]);
   let previewTheme = null;
 

@@ -1,5 +1,11 @@
 class HeroCoordinator {
 
+    /*
+     * Providers publish facts. Context generators interpret those facts
+     * into candidates. This coordinator manages generic attention modes;
+     * the Hero widget only displays the context selected here.
+     */
+
     constructor(eventBus) {
         this.eventBus = eventBus;
         this.activeCandidates = new Map();
@@ -7,6 +13,11 @@ class HeroCoordinator {
             id: "default:daily-briefing",
             source: "daily-summary",
             type: "default",
+            mode: "resting",
+            behavior: {
+                sticky: false,
+                durationSeconds: null
+            },
             priority: 0,
             headline: "Daily Briefing",
             summary: ""
@@ -36,11 +47,17 @@ class HeroCoordinator {
     }
 
     receiveCandidate(candidate) {
-        if (!this.isCandidateActive(candidate)) {
+        const normalizedCandidate =
+            this.normalizeCandidate(candidate);
+
+        if (!this.isCandidateActive(normalizedCandidate)) {
             return;
         }
 
-        this.activeCandidates.set(candidate.id, candidate);
+        this.activeCandidates.set(
+            normalizedCandidate.id,
+            normalizedCandidate
+        );
         this.selectDisplay();
     }
 
@@ -57,6 +74,11 @@ class HeroCoordinator {
             id: "default:daily-briefing",
             source: event.source || "daily-summary",
             type: "default",
+            mode: "resting",
+            behavior: {
+                sticky: false,
+                durationSeconds: null
+            },
             priority: 0,
             headline: event.title || "Daily Briefing",
             summary: event.subtitle || ""
@@ -68,23 +90,82 @@ class HeroCoordinator {
     }
 
     isCandidateActive(candidate) {
+        const expiration = Date.parse(candidate?.expiresAt);
+
         return Boolean(
             candidate?.id &&
             Number.isFinite(candidate.priority) &&
-            Date.parse(candidate.expiresAt) > Date.now()
+            (
+                expiration > Date.now() ||
+                !Number.isFinite(expiration)
+            )
         );
+    }
+
+    normalizeCandidate(candidate) {
+        if (!candidate || typeof candidate !== "object") {
+            return candidate;
+        }
+
+        const supportedModes = new Set([
+            "resting",
+            "active",
+            "interrupt"
+        ]);
+        const mode = supportedModes.has(candidate.mode)
+            ? candidate.mode
+            : "resting";
+        const durationSeconds =
+            Number.isFinite(candidate.behavior?.durationSeconds) &&
+            candidate.behavior.durationSeconds >= 0
+                ? candidate.behavior.durationSeconds
+                : null;
+        const durationStart = Number.isFinite(
+            Date.parse(candidate.createdAt)
+        )
+            ? Date.parse(candidate.createdAt)
+            : Date.now();
+        const expiresAt = candidate.expiresAt ||
+            (durationSeconds == null
+                ? null
+                : new Date(
+                    durationStart + durationSeconds * 1000
+                ).toISOString());
+
+        return {
+            ...candidate,
+            mode,
+            expiresAt,
+            behavior: {
+                sticky: candidate.behavior?.sticky === true,
+                durationSeconds
+            }
+        };
     }
 
     selectDisplay() {
         this.removeExpiredCandidates();
 
         const selected = [...this.activeCandidates.values()]
-            .sort((first, second) =>
-                second.priority - first.priority
-            )[0] || this.defaultCandidate;
+            .sort((first, second) => {
+                const modeDifference =
+                    this.getModeRank(second.mode) -
+                    this.getModeRank(first.mode);
+
+                return modeDifference ||
+                    second.priority - first.priority;
+            })[0] || this.defaultCandidate;
 
         this.publishDisplay(selected);
         this.scheduleNextExpiration();
+    }
+
+    getModeRank(mode) {
+        return {
+            resting: 1,
+            active: 2,
+            interrupt: 3
+        }[mode] || 1;
     }
 
     removeExpiredCandidates() {

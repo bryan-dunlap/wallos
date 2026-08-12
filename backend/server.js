@@ -23,6 +23,9 @@ const DEFAULT_CONFIG = {
   },
   display: {
     theme: "mosaic"
+  },
+  profile: {
+    name: ""
   }
 };
 const SUPPORTED_LEAGUES = ["MLB", "NFL", "NBA", "NHL"];
@@ -33,7 +36,9 @@ const SUPPORTED_THEMES = [
   "light",
   "minimal",
   "90s-remix",
-  "steampunk"
+  "steampunk",
+  "groovy",
+  "yacht-rock"
 ];
 
 const MARINERS_TEAM_ID = 136;
@@ -94,6 +99,7 @@ function readConfig() {
     const locationQuery = savedConfig?.location?.query;
     const primaryLeague = savedConfig?.sports?.primaryLeague;
     const theme = savedConfig?.display?.theme;
+    const profileName = savedConfig?.profile?.name;
 
     return {
       location: {
@@ -112,6 +118,11 @@ function readConfig() {
         theme: SUPPORTED_THEMES.includes(theme)
           ? theme
           : DEFAULT_CONFIG.display.theme
+      },
+      profile: {
+        name: typeof profileName === "string"
+          ? profileName
+          : DEFAULT_CONFIG.profile.name
       }
     };
   } catch (error) {
@@ -123,7 +134,8 @@ function readConfig() {
 function validateConfigUpdate(
   locationQuery,
   primaryLeague,
-  theme
+  theme,
+  profileName
 ) {
   if (
     typeof locationQuery !== "string" ||
@@ -140,6 +152,10 @@ function validateConfigUpdate(
     throw new Error("Theme selection is invalid.");
   }
 
+  if (typeof profileName !== "string") {
+    throw new Error("Display name must be a string.");
+  }
+
   return {
     location: {
       query: locationQuery
@@ -149,6 +165,9 @@ function validateConfigUpdate(
     },
     display: {
       theme
+    },
+    profile: {
+      name: profileName
     }
   };
 }
@@ -193,7 +212,9 @@ app.get("/control", (req, res) => {
     light: "Light",
     minimal: "Minimal",
     "90s-remix": "90s Remix",
-    steampunk: "Steampunk"
+    steampunk: "Steampunk",
+    groovy: "Groovy",
+    "yacht-rock": "Yacht Rock"
   };
   const themeOptions = SUPPORTED_THEMES.map(
     (theme) =>
@@ -212,6 +233,11 @@ app.get("/control", (req, res) => {
 <body>
   <h1>Mosaic Control</h1>
   <form method="post" action="/control">
+    <fieldset>
+      <legend>Who is this for?</legend>
+      <label for="profile-name">Display Name</label>
+      <input id="profile-name" name="profileName" type="text" value="${escapeHtml(config.profile.name)}" placeholder="Bryan">
+    </fieldset>
     <fieldset>
       <legend>Where are you?</legend>
       <label for="location-query">City or ZIP Code</label>
@@ -265,7 +291,8 @@ app.post("/control", async (req, res) => {
     const config = validateConfigUpdate(
       req.body.locationQuery,
       req.body.primaryLeague,
-      req.body.theme
+      req.body.theme,
+      req.body.profileName
     );
     await writeConfig(config);
     res.redirect(303, "/control");
@@ -273,7 +300,8 @@ app.post("/control", async (req, res) => {
     const isValidationError = error instanceof Error &&
       (error.message === "Location must not be empty." ||
         error.message === "League must be MLB, NFL, NBA, or NHL." ||
-        error.message === "Theme selection is invalid.");
+        error.message === "Theme selection is invalid." ||
+        error.message === "Display name must be a string.");
 
     if (isValidationError) {
       return res.status(400).json({ error: error.message });
@@ -288,7 +316,8 @@ app.get("/api/config", (req, res) => {
   const config = readConfig();
 
   res.json({
-    display: config.display
+    display: config.display,
+    profile: config.profile
   });
 });
 

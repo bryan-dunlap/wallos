@@ -1,11 +1,14 @@
 {
   "location": {
-    "query": "98402"
+    "query": "98424"
   },
   "sports": {
     "primaryLeague": "MLB"
   },
   "display": {
     "theme": "90s-remix"
+  },
+  "profile": {
+    "name": "Bryan"
   }
 }

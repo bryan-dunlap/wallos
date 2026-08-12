@@ -1,5 +1,16 @@
 function registerMosaicProviders(registry) {
     registry.register(
+        "daily-snapshot",
+        DailySnapshotGenerator
+    );
+
+    // Temporary provider for manually testing Hero context modes.
+    registry.register(
+        "demo-context",
+        DemoContextProvider
+    );
+
+    registry.register(
         "calendar",
         CalendarProvider
     );
