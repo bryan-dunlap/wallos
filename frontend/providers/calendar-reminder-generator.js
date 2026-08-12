@@ -3,6 +3,15 @@ class CalendarReminderGenerator {
     constructor() {
         this.unsubscribe = null;
         this.activeCandidateId = null;
+        this.activeEventId = null;
+        this.reminderTimer = null;
+        this.eventStates = new Map();
+        this.checkpoints = [
+            { key: "thirtyMinute", minutes: 30 },
+            { key: "fifteenMinute", minutes: 15 },
+            { key: "fiveMinute", minutes: 5 },
+            { key: "start", minutes: 0 }
+        ];
     }
 
     start() {
@@ -14,92 +23,176 @@ class CalendarReminderGenerator {
     }
 
     evaluate(facts) {
-        const candidate = this.createReminderCandidate(facts);
+        const event = facts?.status === "available"
+            ? facts.nextEvent
+            : null;
+        const eventId = this.getEventId(event);
+        const startTimestamp = Date.parse(event?.start);
 
-        if (!candidate) {
+        if (
+            !eventId ||
+            !Number.isFinite(startTimestamp) ||
+            startTimestamp < Date.now() - 30 * 1000
+        ) {
+            this.clearReminderTimer();
             this.withdrawActiveCandidate();
+            this.activeEventId = null;
             return;
         }
 
         if (
-            this.activeCandidateId &&
-            this.activeCandidateId !== candidate.id
+            this.activeEventId &&
+            this.activeEventId !== eventId
         ) {
-            this.publishWithdrawal(this.activeCandidateId);
+            this.clearReminderTimer();
+            this.withdrawActiveCandidate();
         }
+
+        this.activeEventId = eventId;
+        const state = this.getEventState(
+            eventId,
+            event,
+            startTimestamp
+        );
+
+        this.scheduleNextCheckpoint(state);
+    }
+
+    getEventId(event) {
+        if (!event?.title || !event.start) return null;
+
+        return encodeURIComponent(
+            `${event.start}|${event.title}`
+        );
+    }
+
+    getEventState(eventId, event, startTimestamp) {
+        if (!this.eventStates.has(eventId)) {
+            this.eventStates.set(eventId, {
+                eventId,
+                event,
+                startTimestamp,
+                sent: {
+                    thirtyMinute: false,
+                    fifteenMinute: false,
+                    fiveMinute: false,
+                    start: false
+                }
+            });
+        }
+
+        const state = this.eventStates.get(eventId);
+        state.event = event;
+        state.startTimestamp = startTimestamp;
+
+        return state;
+    }
+
+    scheduleNextCheckpoint(state) {
+        this.clearReminderTimer();
+
+        const now = Date.now();
+        const checkpoint = this.checkpoints.find((item) => {
+            if (state.sent[item.key]) return false;
+
+            const checkpointTime =
+                state.startTimestamp - item.minutes * 60 * 1000;
+
+            if (checkpointTime < now) {
+                // The generator began after this checkpoint; do not replay it.
+                state.sent[item.key] = true;
+                return false;
+            }
+
+            return true;
+        });
+
+        if (!checkpoint) return;
+
+        const checkpointTime =
+            state.startTimestamp - checkpoint.minutes * 60 * 1000;
+        const delay = Math.max(checkpointTime - now, 0);
+
+        this.reminderTimer = setTimeout(() => {
+            this.reminderTimer = null;
+
+            if (
+                this.activeEventId !== state.eventId ||
+                state.sent[checkpoint.key]
+            ) {
+                return;
+            }
+
+            state.sent[checkpoint.key] = true;
+            this.publishCheckpoint(state, checkpoint);
+            this.scheduleNextCheckpoint(state);
+        }, delay);
+    }
+
+    publishCheckpoint(state, checkpoint) {
+        const createdAt = new Date();
+        const candidateId =
+            `calendar:reminder:${state.eventId}`;
 
         window.mosaicApp.eventBus.publish({
             type: "hero-candidate",
             source: "calendar",
             payload: {
-                candidate
+                candidate: {
+                    id: candidateId,
+                    source: "calendar",
+                    type: "calendar.reminder",
+                    mode: "interrupt",
+                    priority: 90,
+                    headline: state.event.title,
+                    summary: this.formatReminderMessage(checkpoint),
+                    behavior: {
+                        sticky: false,
+                        durationSeconds: 30
+                    },
+                    createdAt: createdAt.toISOString(),
+                    expiresAt: new Date(
+                        createdAt.getTime() + 30 * 1000
+                    ).toISOString()
+                }
             }
         });
-        this.activeCandidateId = candidate.id;
+        this.activeCandidateId = candidateId;
     }
 
-    createReminderCandidate(facts) {
-        const event = facts?.status === "available"
-            ? facts.nextEvent
-            : null;
-        const startTimestamp = Date.parse(event?.start);
-        const now = Date.now();
-        const millisecondsUntilStart = startTimestamp - now;
-        const reminderWindow = 30 * 60 * 1000;
+    getReminderCheckpoint(minutesUntilEvent) {
+        return this.checkpoints.find(
+            (checkpoint) =>
+                checkpoint.minutes === minutesUntilEvent
+        ) || null;
+    }
 
-        if (
-            !event?.title ||
-            !Number.isFinite(startTimestamp) ||
-            millisecondsUntilStart <= 0 ||
-            millisecondsUntilStart > reminderWindow
-        ) {
-            return null;
+    formatReminderMessage(checkpoint) {
+        if (checkpoint.key === "start") {
+            return "Starting now.";
         }
 
-        const minutesUntilStart = Math.ceil(
-            millisecondsUntilStart / (60 * 1000)
-        );
-        const createdAt = new Date(now);
-        const eventIdentifier = encodeURIComponent(
-            `${event.start}|${event.title}`
-        );
+        return `Starts in ${checkpoint.minutes} minutes.`;
+    }
 
-        return {
-            id: `calendar:reminder:${eventIdentifier}`,
-            source: "calendar",
-            type: "calendar.reminder",
-            mode: "interrupt",
-            priority: 90,
-            headline: event.title,
-            summary:
-                `Starts in ${minutesUntilStart} ` +
-                `${minutesUntilStart === 1 ? "minute" : "minutes"}.`,
-            behavior: {
-                sticky: false,
-                durationSeconds: 30
-            },
-            createdAt: createdAt.toISOString(),
-            expiresAt: new Date(
-                createdAt.getTime() + 30 * 1000
-            ).toISOString()
-        };
+    clearReminderTimer() {
+        if (!this.reminderTimer) return;
+
+        clearTimeout(this.reminderTimer);
+        this.reminderTimer = null;
     }
 
     withdrawActiveCandidate() {
         if (!this.activeCandidateId) return;
 
-        this.publishWithdrawal(this.activeCandidateId);
-        this.activeCandidateId = null;
-    }
-
-    publishWithdrawal(id) {
         window.mosaicApp.eventBus.publish({
             type: "hero-candidate-withdraw",
             source: "calendar",
             payload: {
-                id
+                id: this.activeCandidateId
             }
         });
+        this.activeCandidateId = null;
     }
 
 }

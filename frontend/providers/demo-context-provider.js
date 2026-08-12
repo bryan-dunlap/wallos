@@ -56,6 +56,16 @@ class DemoContextProvider {
             }),
             clear: () => this.clearCandidates()
         };
+
+        /*
+         * Temporary Calendar reminder test helpers. These publish only
+         * calendar-facts so production reminder rules remain authoritative.
+         */
+        window.mosaicDemo.calendar = {
+            triggerReminder: (minutesUntilEvent) =>
+                this.triggerCalendarReminder(minutesUntilEvent),
+            clearReminder: () => this.clearCalendarReminder()
+        };
     }
 
     publishCandidate(candidate) {
@@ -77,6 +87,50 @@ class DemoContextProvider {
                     id
                 }
             });
+        });
+    }
+
+    triggerCalendarReminder(minutesUntilEvent) {
+        const supportedCheckpoints = [30, 15, 5, 0];
+
+        if (!supportedCheckpoints.includes(minutesUntilEvent)) {
+            throw new RangeError(
+                "Reminder minutes must be 30, 15, 5, or 0."
+            );
+        }
+
+        const checkpointLeadMs = 50;
+        const start = new Date(
+            Date.now() +
+            minutesUntilEvent * 60 * 1000 +
+            checkpointLeadMs
+        ).toISOString();
+
+        this.publishCalendarFacts({
+            status: "available",
+            eventsToday: 1,
+            remainingToday: 1,
+            nextEvent: {
+                title: "Operations Review",
+                start
+            }
+        });
+    }
+
+    clearCalendarReminder() {
+        this.publishCalendarFacts({
+            status: "available",
+            eventsToday: 0,
+            remainingToday: 0,
+            nextEvent: null
+        });
+    }
+
+    publishCalendarFacts(payload) {
+        window.mosaicApp.eventBus.publish({
+            type: "calendar-facts",
+            source: "demo",
+            payload
         });
     }
 
