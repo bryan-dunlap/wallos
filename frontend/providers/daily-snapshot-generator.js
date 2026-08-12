@@ -1,9 +1,20 @@
 class DailySnapshotGenerator {
 
-    async start() {
-        const profile = await this.loadProfile();
+    constructor() {
+        this.profile = { name: "" };
+        this.calendarFacts = null;
+        this.unsubscribeCalendar = null;
+    }
 
-        this.publishSnapshot(profile);
+    async start() {
+        this.unsubscribeCalendar =
+            window.mosaicApp.eventBus.subscribe(
+                "calendar-facts",
+                (event) => this.receiveCalendarFacts(event.payload)
+            );
+        this.profile = await this.loadProfile();
+
+        this.publishSnapshot();
     }
 
     async loadProfile() {
@@ -24,7 +35,12 @@ class DailySnapshotGenerator {
         }
     }
 
-    publishSnapshot(profile = { name: "" }) {
+    receiveCalendarFacts(facts) {
+        this.calendarFacts = facts;
+        this.publishSnapshot();
+    }
+
+    publishSnapshot() {
         const facts = this.getPlaceholderFacts();
         const now = new Date();
         const snapshot = this.createSnapshot(facts, now);
@@ -43,7 +59,10 @@ class DailySnapshotGenerator {
                         sticky: false,
                         durationSeconds: null
                     },
-                    headline: this.createHeadline(now, profile.name),
+                    headline: this.createHeadline(
+                        now,
+                        this.profile.name
+                    ),
                     summary: snapshot.summary,
                     createdAt: now.toISOString(),
                     expiresAt: null
@@ -74,6 +93,15 @@ class DailySnapshotGenerator {
     }
 
     createMorningSnapshot(facts) {
+        if (facts.calendar.status === "available") {
+            return {
+                summary: this.createCalendarSummary(
+                    "morning",
+                    facts.calendar
+                )
+            };
+        }
+
         const eventSummary = facts.calendar.eventsRemaining > 0
             ? `${facts.calendar.eventsRemaining} events scheduled. `
             : "";
@@ -87,6 +115,15 @@ class DailySnapshotGenerator {
     }
 
     createAfternoonSnapshot(facts) {
+        if (facts.calendar.status === "available") {
+            return {
+                summary: this.createCalendarSummary(
+                    "afternoon",
+                    facts.calendar
+                )
+            };
+        }
+
         if (facts.calendar.eventsRemaining > 0) {
             const nextEvent = facts.calendar.nextEvent;
             const nextSummary = nextEvent
@@ -108,6 +145,15 @@ class DailySnapshotGenerator {
     }
 
     createEveningSnapshot(facts) {
+        if (facts.calendar.status === "available") {
+            return {
+                summary: this.createCalendarSummary(
+                    "evening",
+                    facts.calendar
+                )
+            };
+        }
+
         if (facts.calendar.eventsCompleted > 0) {
             const tomorrow = facts.calendar.tomorrowFirstEvent;
             const tomorrowSummary = tomorrow
@@ -139,15 +185,49 @@ class DailySnapshotGenerator {
         return `${sports.favoriteTeam} play tonight at ${sports.gameTime}.`;
     }
 
+    createCalendarSummary(period, calendar) {
+        if (calendar.remainingToday <= 0) {
+            return "No remaining events today.";
+        }
+
+        const eventCount = period === "morning"
+            ? calendar.eventsToday
+            : calendar.remainingToday;
+        const countLabel = eventCount === 1 ? "event" : "events";
+        const lead = period === "morning"
+            ? `Today: ${eventCount} ${countLabel} scheduled.`
+            : `Remaining today: ${eventCount} ${countLabel}.`;
+        const nextEvent = calendar.nextEvent;
+
+        if (!nextEvent?.title || !nextEvent.start) {
+            return lead;
+        }
+
+        const start = new Date(nextEvent.start);
+
+        if (!Number.isFinite(start.getTime())) {
+            return lead;
+        }
+
+        const time = new Intl.DateTimeFormat("en-US", {
+            hour: "numeric",
+            minute: "2-digit"
+        }).format(start);
+
+        return `${lead} Next: ${nextEvent.title} at ${time}.`;
+    }
+
     getPlaceholderFacts() {
+        const calendar = this.calendarFacts || {
+            status: "unavailable",
+            eventsToday: 0,
+            remainingToday: 0,
+            nextEvent: null
+        };
+
         return {
-            // Future Calendar facts will replace these placeholders.
-            calendar: {
-                eventsRemaining: 0,
-                eventsCompleted: 0,
-                nextEvent: null,
-                tomorrowFirstEvent: null
-            },
+            // Supplied by CalendarProvider; real integration comes later.
+            calendar,
             // Future Sports facts will replace these placeholders.
             sports: {
                 favoriteTeam: "Mariners",

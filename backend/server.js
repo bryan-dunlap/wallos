@@ -26,6 +26,9 @@ const DEFAULT_CONFIG = {
   },
   profile: {
     name: ""
+  },
+  calendar: {
+    enabled: true
   }
 };
 const SUPPORTED_LEAGUES = ["MLB", "NFL", "NBA", "NHL"];
@@ -100,6 +103,7 @@ function readConfig() {
     const primaryLeague = savedConfig?.sports?.primaryLeague;
     const theme = savedConfig?.display?.theme;
     const profileName = savedConfig?.profile?.name;
+    const calendarEnabled = savedConfig?.calendar?.enabled;
 
     return {
       location: {
@@ -123,6 +127,11 @@ function readConfig() {
         name: typeof profileName === "string"
           ? profileName
           : DEFAULT_CONFIG.profile.name
+      },
+      calendar: {
+        enabled: typeof calendarEnabled === "boolean"
+          ? calendarEnabled
+          : DEFAULT_CONFIG.calendar.enabled
       }
     };
   } catch (error) {
@@ -135,7 +144,8 @@ function validateConfigUpdate(
   locationQuery,
   primaryLeague,
   theme,
-  profileName
+  profileName,
+  calendarEnabled
 ) {
   if (
     typeof locationQuery !== "string" ||
@@ -156,6 +166,10 @@ function validateConfigUpdate(
     throw new Error("Display name must be a string.");
   }
 
+  if (typeof calendarEnabled !== "boolean") {
+    throw new Error("Calendar enabled must be a boolean.");
+  }
+
   return {
     location: {
       query: locationQuery
@@ -168,6 +182,9 @@ function validateConfigUpdate(
     },
     profile: {
       name: profileName
+    },
+    calendar: {
+      enabled: calendarEnabled
     }
   };
 }
@@ -252,6 +269,13 @@ app.get("/control", (req, res) => {
       <label for="display-theme">Theme</label>
       <select id="display-theme" name="theme">${themeOptions}</select>
     </fieldset>
+    <fieldset>
+      <legend>Calendar</legend>
+      <label>
+        <input name="calendarEnabled" type="checkbox" value="true"${config.calendar.enabled ? " checked" : ""}>
+        Calendar Enabled
+      </label>
+    </fieldset>
     <button type="submit">Save</button>
   </form>
   <script>
@@ -292,7 +316,8 @@ app.post("/control", async (req, res) => {
       req.body.locationQuery,
       req.body.primaryLeague,
       req.body.theme,
-      req.body.profileName
+      req.body.profileName,
+      req.body.calendarEnabled === "true"
     );
     await writeConfig(config);
     res.redirect(303, "/control");
@@ -301,7 +326,8 @@ app.post("/control", async (req, res) => {
       (error.message === "Location must not be empty." ||
         error.message === "League must be MLB, NFL, NBA, or NHL." ||
         error.message === "Theme selection is invalid." ||
-        error.message === "Display name must be a string.");
+        error.message === "Display name must be a string." ||
+        error.message === "Calendar enabled must be a boolean.");
 
     if (isValidationError) {
       return res.status(400).json({ error: error.message });
@@ -317,7 +343,8 @@ app.get("/api/config", (req, res) => {
 
   res.json({
     display: config.display,
-    profile: config.profile
+    profile: config.profile,
+    calendar: config.calendar
   });
 });
 
