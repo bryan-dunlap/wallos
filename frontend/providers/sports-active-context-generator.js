@@ -60,6 +60,24 @@ class SportsActiveContextGenerator {
             priority: 100,
             headline: `${favoriteTeam.name} vs ${game.opponent}`,
             summary: this.formatGameSummary(favoriteTeam, game),
+            payload: {
+                type: "baseball-game",
+                teams: {
+                    favoriteTeam: {
+                        id: favoriteTeam.id,
+                        name: favoriteTeam.name
+                    },
+                    opponent: {
+                        id: this.getOpponentLabel(game.opponent),
+                        name: game.opponent
+                    }
+                },
+                score: game.score,
+                inning: game.inning,
+                outs: game.outs,
+                count: game.count,
+                bases: game.bases
+            },
             behavior: {
                 sticky: true,
                 durationSeconds: null

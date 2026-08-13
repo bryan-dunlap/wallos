@@ -7,7 +7,9 @@ class MosaicHero {
         this.state = {
             type: "default",
             title: "Daily Briefing",
-            subtitle: ""
+            subtitle: "",
+            candidate: null,
+            payload: null
         };
 
     }
@@ -29,35 +31,58 @@ class MosaicHero {
 
 
     render(){
-        const templates = {
-            default: () => this.renderTemplate("default"),
-            weather: () => this.renderTemplate("weather"),
-            sports: () => this.renderTemplate("sports"),
-            calendar: () => this.renderTemplate("calendar")
-        };
-        const template =
-            templates[this.state.type] ||
-            templates.default;
-
-        this.element.innerHTML = template();
+        this.element.innerHTML = this.renderRestingTemplate();
 
     }
 
 
-    renderTemplate(type){
-        const typeClass =
-            type === "default"
-                ? ""
-                : ` hero-${type}`;
-
+    renderRestingTemplate(){
         return `
 
-            <div class="hero-title${typeClass}">
+            <div class="hero-title">
                 ${this.state.title}
             </div>
 
-            <div class="hero-subtitle${typeClass}">
+            <div class="hero-subtitle">
                 ${this.state.subtitle}
+            </div>
+
+        `;
+
+    }
+
+
+    renderInterruptTemplate(){
+        return `
+
+            <div class="hero-interrupt">
+                <div class="hero-title">
+                    ${this.state.title}
+                </div>
+
+                <div class="hero-subtitle">
+                    ${this.state.subtitle}
+                </div>
+            </div>
+
+        `;
+
+    }
+
+
+    renderActiveTemplate(){
+        return `
+
+            <div class="hero-active">
+                <div class="hero-title hero-active-header">
+                    ${this.state.title}
+                </div>
+
+                <div class="hero-active-content" hidden></div>
+
+                <div class="hero-subtitle hero-active-summary">
+                    ${this.state.subtitle}
+                </div>
             </div>
 
         `;
@@ -73,15 +98,72 @@ class MosaicHero {
             return;
         }
 
-        this.state = {
-            type: candidate.source === "weather"
-                ? "weather"
-                : "default",
-            title: candidate.headline,
-            subtitle: candidate.summary
+        const modeRenderers = {
+            resting: () => this.renderRestingHero(candidate),
+            interrupt: () => this.renderInterruptHero(candidate),
+            active: () => this.renderActiveHero(candidate)
         };
+        const mode = candidate.mode || "resting";
+        const renderer =
+            modeRenderers[mode] || modeRenderers.resting;
 
-        this.render();
+        renderer();
+
+    }
+
+
+    renderRestingHero(candidate){
+        this.setCandidateState(candidate);
+        this.element.innerHTML = this.renderRestingTemplate();
+    }
+
+
+    renderInterruptHero(candidate){
+        this.setCandidateState(candidate);
+        this.element.innerHTML = this.renderInterruptTemplate();
+    }
+
+
+    renderActiveHero(candidate){
+        this.setCandidateState(candidate);
+        this.element.innerHTML = this.renderActiveTemplate();
+
+        const contentRegion = this.element.querySelector(
+            ".hero-active-content"
+        );
+
+        if (contentRegion) {
+            contentRegion.payload = candidate.payload ?? null;
+
+            const renderer =
+                window.mosaicActiveRendererRegistry
+                    ?.getForPayload(candidate.payload);
+
+            if (renderer) {
+                contentRegion.innerHTML = renderer.render(
+                    candidate.payload,
+                    candidate
+                );
+                contentRegion.hidden = false;
+
+                const summaryRegion = this.element.querySelector(
+                    ".hero-active-summary"
+                );
+
+                if (summaryRegion) summaryRegion.hidden = true;
+            }
+        }
+    }
+
+
+    setCandidateState(candidate){
+        this.state = {
+            type: "default",
+            title: candidate.headline,
+            subtitle: candidate.summary,
+            candidate,
+            payload: candidate.payload ?? null
+        };
 
     }
 
@@ -91,7 +173,9 @@ class MosaicHero {
         this.state = {
             type:"default",
             title:"Daily Briefing",
-            subtitle:""
+            subtitle:"",
+            candidate:null,
+            payload:null
         };
 
         this.render();
