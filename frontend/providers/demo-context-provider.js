@@ -66,6 +66,17 @@ class DemoContextProvider {
                 this.triggerCalendarReminder(minutesUntilEvent),
             clearReminder: () => this.clearCalendarReminder()
         };
+
+        /*
+         * Temporary Sports facts helpers. These never publish Hero events;
+         * production context generators remain responsible for Hero state.
+         */
+        window.mosaicDemo.sports = {
+            scheduled: () => this.publishSportsState("scheduled"),
+            live: () => this.publishSportsState("live"),
+            final: () => this.publishSportsState("final"),
+            clear: () => this.clearSportsFacts()
+        };
     }
 
     publishCandidate(candidate) {
@@ -129,6 +140,84 @@ class DemoContextProvider {
     publishCalendarFacts(payload) {
         window.mosaicApp.eventBus.publish({
             type: "calendar-facts",
+            source: "demo",
+            payload
+        });
+    }
+
+    publishSportsState(status) {
+        const startTime = new Date();
+        startTime.setHours(19, 10, 0, 0);
+
+        const game = {
+            status,
+            opponent: "Los Angeles Angels",
+            startTime: startTime.toISOString(),
+            score: null,
+            inning: null,
+            outs: null,
+            count: null,
+            bases: null,
+            result: null
+        };
+
+        if (status === "live") {
+            Object.assign(game, {
+                score: {
+                    favoriteTeam: 3,
+                    opponent: 2
+                },
+                inning: {
+                    half: "bottom",
+                    number: 7
+                },
+                outs: 1,
+                count: {
+                    balls: 2,
+                    strikes: 1
+                },
+                bases: {
+                    first: false,
+                    second: true,
+                    third: false
+                }
+            });
+        }
+
+        if (status === "final") {
+            Object.assign(game, {
+                score: {
+                    favoriteTeam: 5,
+                    opponent: 3
+                },
+                result: "Mariners win 5-3"
+            });
+        }
+
+        this.publishSportsFacts({
+            status: "available",
+            favoriteTeam: {
+                id: "SEA",
+                name: "Seattle Mariners"
+            },
+            game
+        });
+    }
+
+    clearSportsFacts() {
+        this.publishSportsFacts({
+            status: "unavailable",
+            favoriteTeam: {
+                id: "SEA",
+                name: "Seattle Mariners"
+            },
+            game: null
+        });
+    }
+
+    publishSportsFacts(payload) {
+        window.mosaicApp.eventBus.publish({
+            type: "sports-facts",
             source: "demo",
             payload
         });
