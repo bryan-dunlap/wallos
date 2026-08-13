@@ -39,11 +39,11 @@ class SportsProvider {
         }
     }
 
-    publishSportsFacts(config) {
+    publishSportsFacts(config, gameStatus = "scheduled") {
         /*
          * Simulated facts establish the future Sports contract. A real
          * sports data source will later replace only this facts payload.
-         * The game shape can grow with live score/inning and final result.
+         * Scheduled, live, and final examples intentionally share one shape.
          */
         const payload = config.enabled
             ? {
@@ -54,11 +54,7 @@ class SportsProvider {
                         ? "Seattle Mariners"
                         : config.favoriteTeam
                 },
-                game: {
-                    status: "scheduled",
-                    opponent: "Los Angeles Angels",
-                    startTime: "2026-08-12T19:10:00-07:00"
-                }
+                game: this.createSimulatedGame(gameStatus)
             }
             : {
                 status: "unavailable",
@@ -76,6 +72,60 @@ class SportsProvider {
             source: "sports",
             payload
         });
+    }
+
+    createSimulatedGame(status) {
+        const commonGame = {
+            status,
+            opponent: "Los Angeles Angels",
+            startTime: "2026-08-12T19:10:00-07:00",
+            score: null,
+            inning: null,
+            outs: null,
+            count: null,
+            bases: null,
+            result: null
+        };
+
+        if (status === "live") {
+            return {
+                ...commonGame,
+                score: {
+                    favoriteTeam: 3,
+                    opponent: 2
+                },
+                inning: {
+                    half: "bottom",
+                    number: 7
+                },
+                outs: 1,
+                count: {
+                    balls: 2,
+                    strikes: 1
+                },
+                bases: {
+                    first: false,
+                    second: true,
+                    third: false
+                }
+            };
+        }
+
+        if (status === "final") {
+            return {
+                ...commonGame,
+                score: {
+                    favoriteTeam: 5,
+                    opponent: 3
+                },
+                result: "Mariners win 5-3"
+            };
+        }
+
+        return {
+            ...commonGame,
+            status: "scheduled"
+        };
     }
 
     stop() {

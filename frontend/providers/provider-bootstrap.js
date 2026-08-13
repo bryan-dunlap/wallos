@@ -31,6 +31,11 @@ function registerMosaicProviders(registry) {
     );
 
     registry.register(
+        "sports-active-context",
+        SportsActiveContextGenerator
+    );
+
+    registry.register(
         "sports",
         SportsProvider
     );
