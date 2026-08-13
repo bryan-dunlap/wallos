@@ -11,6 +11,71 @@ class SportsProvider {
             () => this.refresh(),
             5 * 60 * 1000
         );
+        this.loadConfig().then(
+            (config) => this.publishSportsFacts(config)
+        );
+    }
+
+    async loadConfig() {
+        try {
+            const response = await fetch("/api/config");
+
+            if (!response.ok) throw new Error("Config unavailable");
+
+            const config = await response.json();
+
+            return {
+                enabled: config.sports?.enabled !== false,
+                favoriteTeam:
+                    typeof config.sports?.favoriteTeam === "string"
+                        ? config.sports.favoriteTeam
+                        : "SEA"
+            };
+        } catch (error) {
+            return {
+                enabled: true,
+                favoriteTeam: "SEA"
+            };
+        }
+    }
+
+    publishSportsFacts(config) {
+        /*
+         * Simulated facts establish the future Sports contract. A real
+         * sports data source will later replace only this facts payload.
+         * The game shape can grow with live score/inning and final result.
+         */
+        const payload = config.enabled
+            ? {
+                status: "available",
+                favoriteTeam: {
+                    id: config.favoriteTeam,
+                    name: config.favoriteTeam === "SEA"
+                        ? "Seattle Mariners"
+                        : config.favoriteTeam
+                },
+                game: {
+                    status: "scheduled",
+                    opponent: "Los Angeles Angels",
+                    startTime: "2026-08-12T19:10:00-07:00"
+                }
+            }
+            : {
+                status: "unavailable",
+                favoriteTeam: {
+                    id: config.favoriteTeam,
+                    name: config.favoriteTeam === "SEA"
+                        ? "Seattle Mariners"
+                        : config.favoriteTeam
+                },
+                game: null
+            };
+
+        window.mosaicApp.eventBus.publish({
+            type: "sports-facts",
+            source: "sports",
+            payload
+        });
     }
 
     stop() {

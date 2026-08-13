@@ -3,7 +3,9 @@
     "query": "98424"
   },
   "sports": {
-    "primaryLeague": "MLB"
+    "primaryLeague": "MLB",
+    "enabled": true,
+    "favoriteTeam": "SEA"
   },
   "display": {
     "theme": "90s-remix"

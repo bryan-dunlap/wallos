@@ -3,7 +3,9 @@ class DailySnapshotGenerator {
     constructor() {
         this.profile = { name: "" };
         this.calendarFacts = null;
+        this.sportsFacts = null;
         this.unsubscribeCalendar = null;
+        this.unsubscribeSports = null;
     }
 
     async start() {
@@ -11,6 +13,11 @@ class DailySnapshotGenerator {
             window.mosaicApp.eventBus.subscribe(
                 "calendar-facts",
                 (event) => this.receiveCalendarFacts(event.payload)
+            );
+        this.unsubscribeSports =
+            window.mosaicApp.eventBus.subscribe(
+                "sports-facts",
+                (event) => this.receiveSportsFacts(event.payload)
             );
         this.profile = await this.loadProfile();
 
@@ -37,6 +44,11 @@ class DailySnapshotGenerator {
 
     receiveCalendarFacts(facts) {
         this.calendarFacts = facts;
+        this.publishSnapshot();
+    }
+
+    receiveSportsFacts(facts) {
+        this.sportsFacts = facts;
         this.publishSnapshot();
     }
 
@@ -86,42 +98,79 @@ class DailySnapshotGenerator {
     createSnapshot(facts, now) {
         const hour = now.getHours();
 
-        if (hour < 12) return this.createMorningSnapshot(facts);
-        if (hour < 18) return this.createAfternoonSnapshot(facts);
+        if (hour < 12) return this.createMorningSnapshot(facts, now);
+        if (hour < 18) return this.createAfternoonSnapshot(facts, now);
 
-        return this.createEveningSnapshot(facts);
+        return this.createEveningSnapshot(facts, now);
     }
 
-    createMorningSnapshot(facts) {
-        if (facts.calendar.status === "available") {
+    createMorningSnapshot(facts, now = new Date()) {
+        const sportsSummary = this.createSportsSummary(
+            facts.sports,
+            "morning",
+            now
+        );
+
+        if (
+            facts.calendar.status === "available" &&
+            facts.calendar.remainingToday > 0
+        ) {
             return {
                 summary: this.createCalendarSummary(
                     "morning",
-                    facts.calendar
-                )
+                    facts.calendar,
+                    !sportsSummary
+                ) + (sportsSummary
+                    ? ` ${sportsSummary.replace(/^Today: /, "")}`
+                    : "")
             };
+        }
+
+        if (sportsSummary) {
+            return { summary: sportsSummary };
+        }
+
+        if (facts.calendar.status === "available") {
+            return { summary: "No remaining events today." };
         }
 
         const eventSummary = facts.calendar.eventsRemaining > 0
             ? `${facts.calendar.eventsRemaining} events scheduled. `
             : "";
-        const gameSummary = this.createGameSummary(facts.sports);
 
         return {
-            summary: eventSummary || gameSummary
-                ? `Today: ${eventSummary}${gameSummary}`.trim()
+            summary: eventSummary
+                ? `Today: ${eventSummary}`.trim()
                 : "Your day is clear."
         };
     }
 
-    createAfternoonSnapshot(facts) {
-        if (facts.calendar.status === "available") {
+    createAfternoonSnapshot(facts, now = new Date()) {
+        const sportsSummary = this.createSportsSummary(
+            facts.sports,
+            "afternoon",
+            now
+        );
+
+        if (
+            facts.calendar.status === "available" &&
+            facts.calendar.remainingToday > 0
+        ) {
             return {
                 summary: this.createCalendarSummary(
                     "afternoon",
-                    facts.calendar
-                )
+                    facts.calendar,
+                    !sportsSummary
+                ) + (sportsSummary ? ` ${sportsSummary}` : "")
             };
+        }
+
+        if (sportsSummary) {
+            return { summary: sportsSummary };
+        }
+
+        if (facts.calendar.status === "available") {
+            return { summary: "No remaining events today." };
         }
 
         if (facts.calendar.eventsRemaining > 0) {
@@ -139,19 +188,36 @@ class DailySnapshotGenerator {
         }
 
         return {
-            summary: this.createGameSummary(facts.sports) ||
-                "Your day is clear."
+            summary: "Your day is clear."
         };
     }
 
-    createEveningSnapshot(facts) {
-        if (facts.calendar.status === "available") {
+    createEveningSnapshot(facts, now = new Date()) {
+        const sportsSummary = this.createSportsSummary(
+            facts.sports,
+            "evening",
+            now
+        );
+
+        if (
+            facts.calendar.status === "available" &&
+            facts.calendar.remainingToday > 0
+        ) {
             return {
                 summary: this.createCalendarSummary(
                     "evening",
-                    facts.calendar
-                )
+                    facts.calendar,
+                    !sportsSummary
+                ) + (sportsSummary ? ` ${sportsSummary}` : "")
             };
+        }
+
+        if (sportsSummary) {
+            return { summary: sportsSummary };
+        }
+
+        if (facts.calendar.status === "available") {
+            return { summary: "No remaining events today." };
         }
 
         if (facts.calendar.eventsCompleted > 0) {
@@ -168,24 +234,53 @@ class DailySnapshotGenerator {
         }
 
         return {
-            summary: this.createGameSummary(facts.sports) ||
-                "Your day is clear."
+            summary: "Your day is clear."
         };
     }
 
-    createGameSummary(sports) {
+    createSportsSummary(sports, period, now) {
+        const game = sports?.game;
+        const startTime = new Date(game?.startTime);
+
         if (
-            !sports.gameToday ||
-            !sports.favoriteTeam ||
-            !sports.gameTime
+            sports?.status !== "available" ||
+            !sports.favoriteTeam?.name ||
+            game?.status !== "scheduled" ||
+            !Number.isFinite(startTime.getTime()) ||
+            !this.isSameLocalDay(startTime, now)
         ) {
             return "";
         }
 
-        return `${sports.favoriteTeam} play tonight at ${sports.gameTime}.`;
+        const teamName = sports.favoriteTeam.name
+            .trim()
+            .split(/\s+/)
+            .at(-1);
+
+        if (period === "evening") {
+            return `${teamName} game tonight.`;
+        }
+
+        const time = new Intl.DateTimeFormat("en-US", {
+            hour: "numeric",
+            minute: "2-digit"
+        }).format(startTime);
+        const lead = period === "morning" ? "Today: " : "";
+
+        return `${lead}${teamName} play tonight at ${time}.`;
     }
 
-    createCalendarSummary(period, calendar) {
+    isSameLocalDay(first, second) {
+        return first.getFullYear() === second.getFullYear() &&
+            first.getMonth() === second.getMonth() &&
+            first.getDate() === second.getDate();
+    }
+
+    createCalendarSummary(
+        period,
+        calendar,
+        includeNextEvent = true
+    ) {
         if (calendar.remainingToday <= 0) {
             return "No remaining events today.";
         }
@@ -199,7 +294,11 @@ class DailySnapshotGenerator {
             : `Remaining today: ${eventCount} ${countLabel}.`;
         const nextEvent = calendar.nextEvent;
 
-        if (!nextEvent?.title || !nextEvent.start) {
+        if (
+            !includeNextEvent ||
+            !nextEvent?.title ||
+            !nextEvent.start
+        ) {
             return lead;
         }
 
@@ -224,16 +323,17 @@ class DailySnapshotGenerator {
             remainingToday: 0,
             nextEvent: null
         };
+        const sports = this.sportsFacts || {
+            status: "unavailable",
+            favoriteTeam: null,
+            game: null
+        };
 
         return {
             // Supplied by CalendarProvider; real integration comes later.
             calendar,
-            // Future Sports facts will replace these placeholders.
-            sports: {
-                favoriteTeam: "Mariners",
-                gameToday: true,
-                gameTime: "7:10 PM"
-            },
+            // Supplied by SportsProvider; real integration comes later.
+            sports,
             // Future Home Assistant facts will replace this placeholder.
             home: {
                 status: "Normal"

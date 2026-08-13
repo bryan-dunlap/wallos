@@ -19,7 +19,9 @@ const DEFAULT_CONFIG = {
     query: "98402"
   },
   sports: {
-    primaryLeague: "MLB"
+    primaryLeague: "MLB",
+    enabled: true,
+    favoriteTeam: "SEA"
   },
   display: {
     theme: "mosaic"
@@ -101,6 +103,8 @@ function readConfig() {
     );
     const locationQuery = savedConfig?.location?.query;
     const primaryLeague = savedConfig?.sports?.primaryLeague;
+    const sportsEnabled = savedConfig?.sports?.enabled;
+    const favoriteTeam = savedConfig?.sports?.favoriteTeam;
     const theme = savedConfig?.display?.theme;
     const profileName = savedConfig?.profile?.name;
     const calendarEnabled = savedConfig?.calendar?.enabled;
@@ -116,7 +120,13 @@ function readConfig() {
       sports: {
         primaryLeague: SUPPORTED_LEAGUES.includes(primaryLeague)
           ? primaryLeague
-          : DEFAULT_CONFIG.sports.primaryLeague
+          : DEFAULT_CONFIG.sports.primaryLeague,
+        enabled: typeof sportsEnabled === "boolean"
+          ? sportsEnabled
+          : DEFAULT_CONFIG.sports.enabled,
+        favoriteTeam: typeof favoriteTeam === "string"
+          ? favoriteTeam
+          : DEFAULT_CONFIG.sports.favoriteTeam
       },
       display: {
         theme: SUPPORTED_THEMES.includes(theme)
@@ -145,7 +155,9 @@ function validateConfigUpdate(
   primaryLeague,
   theme,
   profileName,
-  calendarEnabled
+  calendarEnabled,
+  sportsEnabled,
+  favoriteTeam
 ) {
   if (
     typeof locationQuery !== "string" ||
@@ -170,12 +182,22 @@ function validateConfigUpdate(
     throw new Error("Calendar enabled must be a boolean.");
   }
 
+  if (typeof sportsEnabled !== "boolean") {
+    throw new Error("Sports enabled must be a boolean.");
+  }
+
+  if (typeof favoriteTeam !== "string") {
+    throw new Error("Favorite team must be a string.");
+  }
+
   return {
     location: {
       query: locationQuery
     },
     sports: {
-      primaryLeague
+      primaryLeague,
+      enabled: sportsEnabled,
+      favoriteTeam
     },
     display: {
       theme
@@ -263,6 +285,12 @@ app.get("/control", (req, res) => {
     <fieldset>
       <legend>What sport do you follow?</legend>
       <select name="primaryLeague">${leagueOptions}</select>
+      <label>
+        <input name="sportsEnabled" type="checkbox" value="true"${config.sports.enabled ? " checked" : ""}>
+        Sports Enabled
+      </label>
+      <label for="favorite-team">Favorite Team</label>
+      <input id="favorite-team" name="favoriteTeam" type="text" value="${escapeHtml(config.sports.favoriteTeam)}" placeholder="SEA">
     </fieldset>
     <fieldset>
       <legend>How should Mosaic look?</legend>
@@ -317,7 +345,9 @@ app.post("/control", async (req, res) => {
       req.body.primaryLeague,
       req.body.theme,
       req.body.profileName,
-      req.body.calendarEnabled === "true"
+      req.body.calendarEnabled === "true",
+      req.body.sportsEnabled === "true",
+      req.body.favoriteTeam
     );
     await writeConfig(config);
     res.redirect(303, "/control");
@@ -327,7 +357,9 @@ app.post("/control", async (req, res) => {
         error.message === "League must be MLB, NFL, NBA, or NHL." ||
         error.message === "Theme selection is invalid." ||
         error.message === "Display name must be a string." ||
-        error.message === "Calendar enabled must be a boolean.");
+        error.message === "Calendar enabled must be a boolean." ||
+        error.message === "Sports enabled must be a boolean." ||
+        error.message === "Favorite team must be a string.");
 
     if (isValidationError) {
       return res.status(400).json({ error: error.message });
@@ -344,7 +376,8 @@ app.get("/api/config", (req, res) => {
   res.json({
     display: config.display,
     profile: config.profile,
-    calendar: config.calendar
+    calendar: config.calendar,
+    sports: config.sports
   });
 });
 
