@@ -1,6 +1,10 @@
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
+const {
+  SPORTS_TEAM_REGISTRY,
+  getSportsTeam
+} = require("./sports-team-registry");
 
 const app = express();
 const PORT = 3000;
@@ -21,7 +25,15 @@ const DEFAULT_CONFIG = {
   sports: {
     primaryLeague: "MLB",
     enabled: true,
-    favoriteTeam: "SEA"
+    favoriteTeams: [
+      {
+        id: "SEA",
+        name: "Seattle Mariners",
+        league: "MLB",
+        sport: "baseball",
+        renderer: "baseball-gamecast"
+      }
+    ]
   },
   display: {
     theme: "mosaic"
@@ -104,7 +116,9 @@ function readConfig() {
     const locationQuery = savedConfig?.location?.query;
     const primaryLeague = savedConfig?.sports?.primaryLeague;
     const sportsEnabled = savedConfig?.sports?.enabled;
-    const favoriteTeam = savedConfig?.sports?.favoriteTeam;
+    const favoriteTeams = normalizeFavoriteTeams(
+      savedConfig?.sports
+    );
     const theme = savedConfig?.display?.theme;
     const profileName = savedConfig?.profile?.name;
     const calendarEnabled = savedConfig?.calendar?.enabled;
@@ -124,9 +138,7 @@ function readConfig() {
         enabled: typeof sportsEnabled === "boolean"
           ? sportsEnabled
           : DEFAULT_CONFIG.sports.enabled,
-        favoriteTeam: typeof favoriteTeam === "string"
-          ? favoriteTeam
-          : DEFAULT_CONFIG.sports.favoriteTeam
+        favoriteTeams
       },
       display: {
         theme: SUPPORTED_THEMES.includes(theme)
@@ -150,6 +162,35 @@ function readConfig() {
   }
 }
 
+function normalizeFavoriteTeams(sportsConfig) {
+  const configuredTeams = Array.isArray(sportsConfig?.favoriteTeams)
+    ? sportsConfig.favoriteTeams
+    : typeof sportsConfig?.favoriteTeam === "string"
+      ? [sportsConfig.favoriteTeam]
+      : DEFAULT_CONFIG.sports.favoriteTeams;
+  const seenTeamIds = new Set();
+
+  return configuredTeams.reduce((favorites, configuredTeam) => {
+    const teamId = typeof configuredTeam === "string"
+      ? configuredTeam
+      : configuredTeam?.id;
+    const team = getSportsTeam(teamId);
+
+    if (!team || seenTeamIds.has(team.id)) return favorites;
+
+    seenTeamIds.add(team.id);
+    favorites.push({
+      id: team.id,
+      name: team.name,
+      league: team.league,
+      sport: team.sport,
+      renderer: team.renderer
+    });
+
+    return favorites;
+  }, []);
+}
+
 function validateConfigUpdate(
   locationQuery,
   primaryLeague,
@@ -157,7 +198,7 @@ function validateConfigUpdate(
   profileName,
   calendarEnabled,
   sportsEnabled,
-  favoriteTeam
+  favoriteTeams
 ) {
   if (
     typeof locationQuery !== "string" ||
@@ -186,8 +227,8 @@ function validateConfigUpdate(
     throw new Error("Sports enabled must be a boolean.");
   }
 
-  if (typeof favoriteTeam !== "string") {
-    throw new Error("Favorite team must be a string.");
+  if (!Array.isArray(favoriteTeams)) {
+    throw new Error("Favorite teams must be an array.");
   }
 
   return {
@@ -197,7 +238,7 @@ function validateConfigUpdate(
     sports: {
       primaryLeague,
       enabled: sportsEnabled,
-      favoriteTeam
+      favoriteTeams: normalizeFavoriteTeams({ favoriteTeams })
     },
     display: {
       theme
@@ -261,6 +302,22 @@ app.get("/control", (req, res) => {
         theme === config.display.theme ? " selected" : ""
       }>${themeLabels[theme]}</option>`
   ).join("");
+  const favoriteTeamIds = new Set(
+    config.sports.favoriteTeams.map((team) => team.id)
+  );
+  const teamOptions = SPORTS_TEAM_REGISTRY
+    .filter((team) => !favoriteTeamIds.has(team.id))
+    .map((team) =>
+      `<option value="${team.id}">${escapeHtml(team.name)} (${team.league})</option>`
+    )
+    .join("");
+  const favoriteTeamRows = config.sports.favoriteTeams.length > 0
+    ? config.sports.favoriteTeams.map((team) => `
+        <li>
+          <span>${escapeHtml(team.name)}<br><small>${team.league}</small></span>
+          <button type="submit" name="removeTeamId" value="${team.id}" formaction="/control/favorite-teams/remove" formmethod="post">Remove</button>
+        </li>`).join("")
+    : "<li>No favorite teams configured.</li>";
 
   res.type("html").send(`<!doctype html>
 <html lang="en">
@@ -289,8 +346,11 @@ app.get("/control", (req, res) => {
         <input name="sportsEnabled" type="checkbox" value="true"${config.sports.enabled ? " checked" : ""}>
         Sports Enabled
       </label>
-      <label for="favorite-team">Favorite Team</label>
-      <input id="favorite-team" name="favoriteTeam" type="text" value="${escapeHtml(config.sports.favoriteTeam)}" placeholder="SEA">
+      <label for="favorite-team">Add Favorite Team</label>
+      <select id="favorite-team" name="addTeamId"${teamOptions ? "" : " disabled"}>${teamOptions || "<option>All available teams added</option>"}</select>
+      <button type="submit" formaction="/control/favorite-teams/add" formmethod="post"${teamOptions ? "" : " disabled"}>Add</button>
+      <p>Favorite Teams:</p>
+      <ul>${favoriteTeamRows}</ul>
     </fieldset>
     <fieldset>
       <legend>How should Mosaic look?</legend>
@@ -389,6 +449,7 @@ app.get("/control", (req, res) => {
 
 app.post("/control", async (req, res) => {
   try {
+    const currentConfig = readConfig();
     const config = validateConfigUpdate(
       req.body.locationQuery,
       req.body.primaryLeague,
@@ -396,7 +457,7 @@ app.post("/control", async (req, res) => {
       req.body.profileName,
       req.body.calendarEnabled === "true",
       req.body.sportsEnabled === "true",
-      req.body.favoriteTeam
+      currentConfig.sports.favoriteTeams
     );
     await writeConfig(config);
     res.redirect(303, "/control");
@@ -408,7 +469,7 @@ app.post("/control", async (req, res) => {
         error.message === "Display name must be a string." ||
         error.message === "Calendar enabled must be a boolean." ||
         error.message === "Sports enabled must be a boolean." ||
-        error.message === "Favorite team must be a string.");
+        error.message === "Favorite teams must be an array.");
 
     if (isValidationError) {
       return res.status(400).json({ error: error.message });
@@ -416,6 +477,59 @@ app.post("/control", async (req, res) => {
 
     console.error("Unable to save configuration:", error);
     res.status(500).json({ error: "Configuration could not be saved." });
+  }
+});
+
+app.post("/control/favorite-teams/add", async (req, res) => {
+  try {
+    const team = getSportsTeam(req.body.addTeamId);
+
+    if (!team) {
+      return res.status(400).json({ error: "Favorite team is invalid." });
+    }
+
+    const config = readConfig();
+    const favoriteTeams = normalizeFavoriteTeams({
+      favoriteTeams: [
+        ...config.sports.favoriteTeams,
+        team
+      ]
+    });
+
+    await writeConfig({
+      ...config,
+      sports: {
+        ...config.sports,
+        favoriteTeams
+      }
+    });
+    res.redirect(303, "/control");
+  } catch (error) {
+    console.error("Unable to add favorite team:", error);
+    res.status(500).json({ error: "Favorite team could not be added." });
+  }
+});
+
+app.post("/control/favorite-teams/remove", async (req, res) => {
+  try {
+    const config = readConfig();
+    const teamId = typeof req.body.removeTeamId === "string"
+      ? req.body.removeTeamId.trim().toUpperCase()
+      : "";
+
+    await writeConfig({
+      ...config,
+      sports: {
+        ...config.sports,
+        favoriteTeams: config.sports.favoriteTeams.filter(
+          (team) => team.id !== teamId
+        )
+      }
+    });
+    res.redirect(303, "/control");
+  } catch (error) {
+    console.error("Unable to remove favorite team:", error);
+    res.status(500).json({ error: "Favorite team could not be removed." });
   }
 });
 

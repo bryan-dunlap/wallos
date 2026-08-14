@@ -23,18 +23,29 @@ class SportsProvider {
             if (!response.ok) throw new Error("Config unavailable");
 
             const config = await response.json();
+            const favoriteTeams = Array.isArray(
+                config.sports?.favoriteTeams
+            )
+                ? config.sports.favoriteTeams
+                : [];
+            // Version 0.1 continues using the first favorite. The collection
+            // later enables multiple games, leagues, and priority selection.
+            const favoriteTeam = favoriteTeams[0] || null;
 
             return {
                 enabled: config.sports?.enabled !== false,
-                favoriteTeam:
-                    typeof config.sports?.favoriteTeam === "string"
-                        ? config.sports.favoriteTeam
-                        : "SEA"
+                favoriteTeam
             };
         } catch (error) {
             return {
                 enabled: true,
-                favoriteTeam: "SEA"
+                favoriteTeam: {
+                    id: "SEA",
+                    name: "Seattle Mariners",
+                    league: "MLB",
+                    sport: "baseball",
+                    renderer: "baseball-gamecast"
+                }
             };
         }
     }
@@ -45,25 +56,29 @@ class SportsProvider {
          * sports data source will later replace only this facts payload.
          * Scheduled, live, and final examples intentionally share one shape.
          */
-        const payload = config.enabled
+        const payload = config.enabled && config.favoriteTeam
             ? {
                 status: "available",
                 favoriteTeam: {
-                    id: config.favoriteTeam,
-                    name: config.favoriteTeam === "SEA"
-                        ? "Seattle Mariners"
-                        : config.favoriteTeam
+                    id: config.favoriteTeam.id,
+                    name: config.favoriteTeam.name,
+                    league: config.favoriteTeam.league,
+                    sport: config.favoriteTeam.sport,
+                    renderer: config.favoriteTeam.renderer
                 },
                 game: this.createSimulatedGame(gameStatus)
             }
             : {
                 status: "unavailable",
-                favoriteTeam: {
-                    id: config.favoriteTeam,
-                    name: config.favoriteTeam === "SEA"
-                        ? "Seattle Mariners"
-                        : config.favoriteTeam
-                },
+                favoriteTeam: config.favoriteTeam
+                    ? {
+                        id: config.favoriteTeam.id,
+                        name: config.favoriteTeam.name,
+                        league: config.favoriteTeam.league,
+                        sport: config.favoriteTeam.sport,
+                        renderer: config.favoriteTeam.renderer
+                    }
+                    : null,
                 game: null
             };
 

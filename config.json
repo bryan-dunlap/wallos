@@ -5,7 +5,13 @@
   "sports": {
     "primaryLeague": "MLB",
     "enabled": true,
-    "favoriteTeam": "SEA"
+    "favoriteTeams": [
+      {
+        "id": "SEA",
+        "name": "Seattle Mariners",
+        "league": "MLB"
+      }
+    ]
   },
   "display": {
     "theme": "yacht-rock"
