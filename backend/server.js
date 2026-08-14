@@ -65,6 +65,7 @@ const SPORTS_CACHE_MS = 6 * 60 * 60 * 1000;
 const MLB_LIVE_CACHE_MS = 15 * 1000;
 const MLB_SCHEDULED_CACHE_MS = 5 * 60 * 1000;
 const MLB_FINAL_CACHE_MS = 6 * 60 * 60 * 1000;
+const MLB_PLAYER_SEASON_CACHE_MS = 30 * 60 * 1000;
 
 const REDDIT_FEED_URL =
   "https://www.reddit.com/r/news+nottheonion+WeirdNews+OutOFTheLoop+onthisday/.rss?sort=hot";
@@ -89,6 +90,7 @@ let marinersCache = {
 };
 
 const mlbDailyScheduleCache = new Map();
+const mlbPlayerSeasonStatsCache = new Map();
 
 let redditCache = {
   timestamp: 0,
@@ -644,16 +646,114 @@ function normalizeMlbRunner(runner) {
   };
 }
 
-function normalizeMlbPlayer(player) {
+function normalizeMlbPlayer(player, stats = {}) {
   if (!player?.fullName) return null;
 
   return {
     id: player.id ?? null,
-    name: player.fullName
+    name: player.fullName,
+    ...stats
   };
 }
 
-function normalizeMlbEvent(game) {
+function getMlbBoxscorePlayer(boxscore, playerId) {
+  if (!playerId) return null;
+
+  const playerKey = `ID${playerId}`;
+
+  return (
+    boxscore?.teams?.away?.players?.[playerKey] ||
+    boxscore?.teams?.home?.players?.[playerKey] ||
+    null
+  );
+}
+
+function getCachedMlbSeasonStat(playerId, statType, value) {
+  const cacheKey = `${playerId}:${statType}`;
+  const cachedStat = mlbPlayerSeasonStatsCache.get(cacheKey);
+
+  if (
+    cachedStat &&
+    Date.now() - cachedStat.timestamp <
+      MLB_PLAYER_SEASON_CACHE_MS
+  ) {
+    return cachedStat.value;
+  }
+
+  const normalizedValue = value ?? null;
+
+  mlbPlayerSeasonStatsCache.set(cacheKey, {
+    timestamp: Date.now(),
+    value: normalizedValue
+  });
+
+  return normalizedValue;
+}
+
+async function getMlbLivePlayerStats(game) {
+  if (game.status?.abstractGameState !== "Live") {
+    return null;
+  }
+
+  const batterId = game.linescore?.offense?.batter?.id;
+  const pitcherId = game.linescore?.defense?.pitcher?.id;
+
+  if (!batterId && !pitcherId) return null;
+
+  try {
+    const response = await fetch(
+      `https://statsapi.mlb.com/api/v1.1/game/${game.gamePk}/feed/live`
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `MLB live feed request failed: ${response.status}`
+      );
+    }
+
+    const liveData = await response.json();
+    const boxscore = liveData.liveData?.boxscore;
+    const batter = getMlbBoxscorePlayer(boxscore, batterId);
+    const pitcher = getMlbBoxscorePlayer(boxscore, pitcherId);
+
+    return {
+      batter: batter
+        ? {
+            hits: batter.stats?.batting?.hits ?? null,
+            atBats: batter.stats?.batting?.atBats ?? null,
+            seasonAVG: getCachedMlbSeasonStat(
+              batterId,
+              "batting-average",
+              batter.seasonStats?.batting?.avg
+            )
+          }
+        : null,
+      pitcher: pitcher
+        ? {
+            pitches:
+              pitcher.stats?.pitching?.numberOfPitches ??
+              pitcher.stats?.pitching?.pitchesThrown ??
+              null,
+            strikes:
+              pitcher.stats?.pitching?.strikes ?? null,
+            seasonERA: getCachedMlbSeasonStat(
+              pitcherId,
+              "pitching-era",
+              pitcher.seasonStats?.pitching?.era
+            )
+          }
+        : null
+    };
+  } catch (error) {
+    console.error(
+      `Unable to enrich MLB game ${game.gamePk} players:`,
+      error
+    );
+    return null;
+  }
+}
+
+function normalizeMlbEvent(game, playerStats = {}) {
   const linescore = game.linescore;
   const currentInning =
     linescore?.currentInning ??
@@ -726,10 +826,20 @@ function normalizeMlbEvent(game) {
             )
           },
           batter: normalizeMlbPlayer(
-            linescore.offense?.batter
+            linescore.offense?.batter,
+            playerStats?.batter || {
+              hits: null,
+              atBats: null,
+              seasonAVG: null
+            }
           ),
           pitcher: normalizeMlbPlayer(
-            linescore.defense?.pitcher
+            linescore.defense?.pitcher,
+            playerStats?.pitcher || {
+              pitches: null,
+              strikes: null,
+              seasonERA: null
+            }
           )
         }
       : null,
@@ -1093,7 +1203,11 @@ async function handleMlbDailySchedule(req, res) {
 
     for (const dateGroup of scheduleData.dates || []) {
       for (const game of dateGroup.games || []) {
-        sportsEvents.push(normalizeMlbEvent(game));
+        const playerStats = await getMlbLivePlayerStats(game);
+
+        sportsEvents.push(
+          normalizeMlbEvent(game, playerStats)
+        );
       }
     }
 

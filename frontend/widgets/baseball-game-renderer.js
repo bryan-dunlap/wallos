@@ -31,7 +31,13 @@ class BaseballGameRenderer {
                             )}
                         </div>
 
-                        <div class="baseball-game-versus">@</div>
+                        <div class="baseball-game-versus">
+                            @
+
+                            <div class="baseball-game-inning">
+                                ${this.escape(this.formatInning(inning))}
+                            </div>
+                        </div>
 
                         <div class="baseball-game-team-score">
                             ${this.value(
@@ -48,9 +54,6 @@ class BaseballGameRenderer {
                         </div>
                     </div>
 
-                    <div class="baseball-game-inning">
-                        ${this.escape(this.formatInning(inning))}
-                    </div>
                 </div>
 
                 ${this.renderLineScore(
@@ -241,12 +244,14 @@ class BaseballGameRenderer {
 
         const stats = [];
 
-        if (this.hasValue(batter.hits)) {
-            stats.push(`H ${this.escape(batter.hits)}`);
-        }
-
-        if (this.hasValue(batter.atBats)) {
-            stats.push(`AB ${this.escape(batter.atBats)}`);
+        if (
+            this.hasValue(batter.hits) &&
+            this.hasValue(batter.atBats)
+        ) {
+            stats.push(
+                `${this.escape(batter.hits)}-` +
+                `${this.escape(batter.atBats)}`
+            );
         }
 
         if (this.hasValue(batter.seasonAVG)) {
@@ -254,7 +259,6 @@ class BaseballGameRenderer {
         }
 
         return this.renderPlayerPanel(
-            "Batter",
             batter.name,
             stats,
             "batter"
@@ -266,12 +270,14 @@ class BaseballGameRenderer {
 
         const stats = [];
 
-        if (this.hasValue(pitcher.pitches)) {
-            stats.push(`P ${this.escape(pitcher.pitches)}`);
-        }
-
-        if (this.hasValue(pitcher.strikes)) {
-            stats.push(`S ${this.escape(pitcher.strikes)}`);
+        if (
+            this.hasValue(pitcher.strikes) &&
+            this.hasValue(pitcher.pitches)
+        ) {
+            stats.push(
+                `${this.escape(pitcher.strikes)}-` +
+                `${this.escape(pitcher.pitches)}`
+            );
         }
 
         if (this.hasValue(pitcher.seasonERA)) {
@@ -279,14 +285,13 @@ class BaseballGameRenderer {
         }
 
         return this.renderPlayerPanel(
-            "Pitcher",
             pitcher.name,
             stats,
             "pitcher"
         );
     }
 
-    renderPlayerPanel(label, name, stats, role) {
+    renderPlayerPanel(name, stats, role) {
         const statistics = stats.length > 0
             ? `<div class="baseball-player-stats">
                 ${stats.map((stat) => `<span>${stat}</span>`).join("")}
@@ -294,10 +299,8 @@ class BaseballGameRenderer {
             : "";
 
         return `
-            <div class="baseball-player-panel baseball-player-${role}">
-                <div class="baseball-player-label">
-                    ${this.escape(label)}
-                </div>
+            <div class="baseball-player-panel baseball-player-${role}"
+                aria-label="${this.escape(role)}">
                 <div class="baseball-player-name">
                     ${this.escape(name)}
                 </div>

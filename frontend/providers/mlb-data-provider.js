@@ -204,10 +204,11 @@ class MlbDataProvider {
         if (!batter?.name) return null;
 
         return {
+            id: batter.id ?? null,
             name: batter.name,
-            hits: null,
-            atBats: null,
-            seasonAVG: null
+            hits: batter.hits ?? null,
+            atBats: batter.atBats ?? null,
+            seasonAVG: batter.seasonAVG ?? null
         };
     }
 
@@ -215,10 +216,11 @@ class MlbDataProvider {
         if (!pitcher?.name) return null;
 
         return {
+            id: pitcher.id ?? null,
             name: pitcher.name,
-            strikes: null,
-            pitches: null,
-            seasonERA: null
+            strikes: pitcher.strikes ?? null,
+            pitches: pitcher.pitches ?? null,
+            seasonERA: pitcher.seasonERA ?? null
         };
     }
 

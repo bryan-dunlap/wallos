@@ -632,11 +632,11 @@
 
 .baseball-game-primary {
 
-    display: flex;
+    --baseball-inning-gap: clamp(6px, .8vh, 10px);
 
-    flex-direction: column;
+    padding-bottom: calc(1rem + var(--baseball-inning-gap));
 
-    gap: 2px;
+    display: block;
 
 }
 
@@ -775,16 +775,15 @@
 
 .baseball-game-versus {
 
+    position: relative;
+
     color: var(--color-text-muted);
 
-    font-size: .68rem;
+    font-size: clamp(.85rem, 1.4vw, 1.15rem);
 
     font-weight: 500;
 
-    letter-spacing: .1em;
-
-
-    text-transform: uppercase;
+    letter-spacing: .08em;
 
 }
 
@@ -805,6 +804,17 @@
 
 
 .baseball-game-inning {
+
+    position: absolute;
+
+    top: calc(
+        50% + clamp(1.5rem, 2.75vw, 2.375rem) +
+        var(--baseball-inning-gap)
+    );
+
+    left: 50%;
+
+    transform: translateX(-50%);
 
     color: var(--color-accent);
 
@@ -975,24 +985,7 @@
 }
 
 
-.baseball-player-label {
-
-    color: var(--color-text-muted);
-
-    font-size: .72rem;
-
-    font-weight: 600;
-
-    letter-spacing: .12em;
-
-    text-transform: uppercase;
-
-}
-
-
 .baseball-player-name {
-
-    margin-top: 4px;
 
     color: var(--color-text);
 
@@ -1002,6 +995,10 @@
 
     line-height: 1.2;
 
+    overflow-wrap: anywhere;
+
+    hyphens: auto;
+
 }
 
 
@@ -1010,6 +1007,8 @@
     display: flex;
 
     flex-wrap: wrap;
+
+    flex-direction: column;
 
     gap: 3px var(--space-sm);
 
@@ -1026,7 +1025,7 @@
 
 .baseball-player-batter .baseball-player-stats {
 
-    justify-content: flex-end;
+    align-items: flex-end;
 
 }
 
