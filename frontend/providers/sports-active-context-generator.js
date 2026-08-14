@@ -77,7 +77,9 @@ class SportsActiveContextGenerator {
                 outs: game.outs,
                 count: game.count,
                 bases: game.bases,
-                lineScore: game.lineScore
+                lineScore: game.lineScore,
+                batter: game.batter,
+                pitcher: game.pitcher
             },
             behavior: {
                 sticky: true,

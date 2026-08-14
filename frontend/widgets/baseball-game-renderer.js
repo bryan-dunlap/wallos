@@ -61,6 +61,8 @@ class BaseballGameRenderer {
                 )}
 
                 <div class="baseball-game-situation">
+                    ${this.renderBatter(payload.batter)}
+
                     ${this.renderBases(payload.bases)}
 
                     <div class="baseball-game-indicators">
@@ -80,6 +82,8 @@ class BaseballGameRenderer {
                             3
                         )}
                     </div>
+
+                    ${this.renderPitcher(payload.pitcher)}
                 </div>
             </div>
         `;
@@ -230,6 +234,84 @@ class BaseballGameRenderer {
                 <td>${this.value(totals.errors)}</td>
             </tr>
         `;
+    }
+
+    renderBatter(batter) {
+        if (!this.hasPlayer(batter)) return "";
+
+        const stats = [];
+
+        if (this.hasValue(batter.hits)) {
+            stats.push(`H ${this.escape(batter.hits)}`);
+        }
+
+        if (this.hasValue(batter.atBats)) {
+            stats.push(`AB ${this.escape(batter.atBats)}`);
+        }
+
+        if (this.hasValue(batter.seasonAVG)) {
+            stats.push(`AVG ${this.escape(batter.seasonAVG)}`);
+        }
+
+        return this.renderPlayerPanel(
+            "Batter",
+            batter.name,
+            stats,
+            "batter"
+        );
+    }
+
+    renderPitcher(pitcher) {
+        if (!this.hasPlayer(pitcher)) return "";
+
+        const stats = [];
+
+        if (this.hasValue(pitcher.pitches)) {
+            stats.push(`P ${this.escape(pitcher.pitches)}`);
+        }
+
+        if (this.hasValue(pitcher.strikes)) {
+            stats.push(`S ${this.escape(pitcher.strikes)}`);
+        }
+
+        if (this.hasValue(pitcher.seasonERA)) {
+            stats.push(`ERA ${this.escape(pitcher.seasonERA)}`);
+        }
+
+        return this.renderPlayerPanel(
+            "Pitcher",
+            pitcher.name,
+            stats,
+            "pitcher"
+        );
+    }
+
+    renderPlayerPanel(label, name, stats, role) {
+        const statistics = stats.length > 0
+            ? `<div class="baseball-player-stats">
+                ${stats.map((stat) => `<span>${stat}</span>`).join("")}
+            </div>`
+            : "";
+
+        return `
+            <div class="baseball-player-panel baseball-player-${role}">
+                <div class="baseball-player-label">
+                    ${this.escape(label)}
+                </div>
+                <div class="baseball-player-name">
+                    ${this.escape(name)}
+                </div>
+                ${statistics}
+            </div>
+        `;
+    }
+
+    hasPlayer(player) {
+        return typeof player?.name === "string" && player.name.trim();
+    }
+
+    hasValue(value) {
+        return value !== null && value !== undefined && value !== "";
     }
 
     renderBases(bases = {}) {

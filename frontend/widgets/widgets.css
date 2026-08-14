@@ -925,6 +925,8 @@
 
 .baseball-game-situation {
 
+    position: relative;
+
     display: grid;
 
     grid-template-columns: minmax(140px, .8fr) minmax(260px, 1fr);
@@ -938,6 +940,93 @@
     width: 100%;
 
     margin: 0 auto;
+
+}
+
+
+.baseball-player-panel {
+
+    position: absolute;
+
+    top: 50%;
+
+    width: clamp(120px, 13vw, 180px);
+
+    transform: translateY(-50%);
+
+}
+
+
+.baseball-player-batter {
+
+    right: calc(100% + var(--space-lg));
+
+    text-align: right;
+
+}
+
+
+.baseball-player-pitcher {
+
+    left: calc(100% + var(--space-lg));
+
+    text-align: left;
+
+}
+
+
+.baseball-player-label {
+
+    color: var(--color-text-muted);
+
+    font-size: .72rem;
+
+    font-weight: 600;
+
+    letter-spacing: .12em;
+
+    text-transform: uppercase;
+
+}
+
+
+.baseball-player-name {
+
+    margin-top: 4px;
+
+    color: var(--color-text);
+
+    font-size: clamp(.9rem, 1.2vw, 1.05rem);
+
+    font-weight: 600;
+
+    line-height: 1.2;
+
+}
+
+
+.baseball-player-stats {
+
+    display: flex;
+
+    flex-wrap: wrap;
+
+    gap: 3px var(--space-sm);
+
+    margin-top: 5px;
+
+    color: var(--color-text-secondary);
+
+    font-size: .72rem;
+
+    font-variant-numeric: tabular-nums;
+
+}
+
+
+.baseball-player-batter .baseball-player-stats {
+
+    justify-content: flex-end;
 
 }
 
