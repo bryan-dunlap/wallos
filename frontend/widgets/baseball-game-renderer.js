@@ -52,7 +52,8 @@ class BaseballGameRenderer {
                 ${this.renderLineScore(
                     payload.lineScore,
                     favoriteTeam.id,
-                    opponentTeam.id
+                    opponentTeam.id,
+                    inning.number
                 )}
 
                 <div class="baseball-game-situation">
@@ -109,12 +110,16 @@ class BaseballGameRenderer {
         `;
     }
 
-    renderLineScore(lineScore, favoriteLabel, opponentLabel) {
-        const innings = Array.isArray(lineScore?.innings)
-            ? lineScore.innings.filter(
-                (inning) => Number.isInteger(inning?.number)
-            )
-            : [];
+    renderLineScore(
+        lineScore,
+        favoriteLabel,
+        opponentLabel,
+        currentInning
+    ) {
+        const innings = this.getVisibleInnings(
+            lineScore?.innings,
+            currentInning
+        );
 
         if (innings.length === 0) return "";
 
@@ -164,6 +169,45 @@ class BaseballGameRenderer {
                 </table>
             </div>
         `;
+    }
+
+    getVisibleInnings(allInnings, currentInning) {
+        const innings = Array.isArray(allInnings)
+            ? allInnings.filter(
+                (inning) =>
+                    Number.isInteger(inning?.number) &&
+                    inning.number > 0
+            )
+            : [];
+        const inningByNumber = new Map(
+            innings.map((inning) => [inning.number, inning])
+        );
+        const latestReturnedInning = innings.reduce(
+            (latest, inning) => Math.max(latest, inning.number),
+            0
+        );
+        const activeInning =
+            Number.isInteger(currentInning) && currentInning > 0
+                ? currentInning
+                : latestReturnedInning;
+
+        if (activeInning === 0) return [];
+
+        const lastVisibleInning = Math.max(9, activeInning);
+        const firstVisibleInning = lastVisibleInning - 8;
+
+        return Array.from({ length: 9 }, (_, index) => {
+            const number = firstVisibleInning + index;
+            const inning = inningByNumber.get(number);
+
+            return inning
+                ? { ...inning }
+                : {
+                    number,
+                    favoriteTeam: null,
+                    opponent: null
+                };
+        });
     }
 
     renderLineScoreRow(label, innings, teamKey, totals = {}) {
