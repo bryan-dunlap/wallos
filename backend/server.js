@@ -644,6 +644,15 @@ function normalizeMlbRunner(runner) {
   };
 }
 
+function normalizeMlbPlayer(player) {
+  if (!player?.fullName) return null;
+
+  return {
+    id: player.id ?? null,
+    name: player.fullName
+  };
+}
+
 function normalizeMlbEvent(game) {
   const linescore = game.linescore;
   const currentInning =
@@ -715,7 +724,13 @@ function normalizeMlbEvent(game) {
             third: normalizeMlbRunner(
               linescore.offense?.third
             )
-          }
+          },
+          batter: normalizeMlbPlayer(
+            linescore.offense?.batter
+          ),
+          pitcher: normalizeMlbPlayer(
+            linescore.defense?.pitcher
+          )
         }
       : null,
 

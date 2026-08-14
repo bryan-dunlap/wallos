@@ -71,6 +71,8 @@ class MlbDataProvider {
             count: null,
             bases: null,
             lineScore: null,
+            batter: null,
+            pitcher: null,
             result: null
         };
 
@@ -90,6 +92,12 @@ class MlbDataProvider {
                     strikes: game.linescore?.count?.strikes ?? null
                 },
                 bases: this.normalizeBases(game.linescore?.bases),
+                batter: this.normalizeBatter(
+                    game.linescore?.batter
+                ),
+                pitcher: this.normalizePitcher(
+                    game.linescore?.pitcher
+                ),
                 lineScore: this.normalizeLineScore(
                     game,
                     favoriteIsAway
@@ -189,6 +197,28 @@ class MlbDataProvider {
             first: bases.first?.occupied === true,
             second: bases.second?.occupied === true,
             third: bases.third?.occupied === true
+        };
+    }
+
+    normalizeBatter(batter) {
+        if (!batter?.name) return null;
+
+        return {
+            name: batter.name,
+            hits: null,
+            atBats: null,
+            seasonAVG: null
+        };
+    }
+
+    normalizePitcher(pitcher) {
+        if (!pitcher?.name) return null;
+
+        return {
+            name: pitcher.name,
+            strikes: null,
+            pitches: null,
+            seasonERA: null
         };
     }
 
