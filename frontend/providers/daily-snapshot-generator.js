@@ -245,10 +245,19 @@ class DailySnapshotGenerator {
         if (
             sports?.status !== "available" ||
             !sports.favoriteTeam?.name ||
-            game?.status !== "scheduled" ||
             !Number.isFinite(startTime.getTime()) ||
             !this.isSameLocalDay(startTime, now)
         ) {
+            return "";
+        }
+
+        if (game?.status === "final") {
+            return typeof game.result === "string"
+                ? game.result.trim()
+                : "";
+        }
+
+        if (game?.status !== "scheduled") {
             return "";
         }
 

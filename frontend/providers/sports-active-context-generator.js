@@ -63,20 +63,23 @@ class SportsActiveContextGenerator {
             payload: {
                 type: "baseball-game",
                 teams: {
-                    favoriteTeam: {
-                        id: favoriteTeam.id,
-                        name: favoriteTeam.name
-                    },
-                    opponent: {
-                        id: this.getOpponentLabel(game.opponent),
-                        name: game.opponent
-                    }
+                    favoriteTeam: this.createBaseballTeamIdentity(
+                        favoriteTeam.id,
+                        favoriteTeam.name,
+                        favoriteTeam.logo
+                    ),
+                    opponent: this.createBaseballTeamIdentity(
+                        this.getOpponentLabel(game.opponent),
+                        game.opponent,
+                        game.opponentLogo
+                    )
                 },
                 score: game.score,
                 inning: game.inning,
                 outs: game.outs,
                 count: game.count,
-                bases: game.bases
+                bases: game.bases,
+                lineScore: game.lineScore
             },
             behavior: {
                 sticky: true,
@@ -142,6 +145,34 @@ class SportsActiveContextGenerator {
             .map((word) => word.charAt(0))
             .join("")
             .toUpperCase();
+    }
+
+    createBaseballTeamIdentity(id, fullName, logo = "") {
+        const teamId = String(id).toUpperCase();
+        const name = String(fullName)
+            .trim()
+            .split(/\s+/)
+            .at(-1);
+
+        return {
+            id: teamId,
+            name,
+            logo: typeof logo === "string" && logo.trim()
+                ? logo.trim()
+                : this.getMlbTeamLogo(teamId)
+        };
+    }
+
+    getMlbTeamLogo(teamId) {
+        const mlbTeamIds = {
+            SEA: 136,
+            LAA: 108
+        };
+        const mlbTeamId = mlbTeamIds[teamId];
+
+        return mlbTeamId
+            ? `https://www.mlbstatic.com/team-logos/${mlbTeamId}.svg`
+            : "";
     }
 
     formatOrdinal(number) {

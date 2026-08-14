@@ -306,6 +306,14 @@ app.get("/control", (req, res) => {
     </fieldset>
     <button type="submit">Save</button>
   </form>
+  <fieldset>
+    <legend>Sports Demo (Temporary Development Tool)</legend>
+    <p>Preview simulated Sports states on the running Mosaic dashboard. Demo state is not saved.</p>
+    <button type="button" data-sports-demo-action="scheduled">Scheduled</button>
+    <button type="button" data-sports-demo-action="live">Live</button>
+    <button type="button" data-sports-demo-action="final">Final</button>
+    <button type="button" data-sports-demo-action="clear">Clear</button>
+  </fieldset>
   <script>
     (() => {
       const themeSelect = document.getElementById("display-theme");
@@ -324,6 +332,47 @@ app.get("/control", (req, res) => {
       themeSelect.addEventListener("change", () => {
         channel.postMessage({
           theme: themeSelect.value
+        });
+      });
+
+      window.addEventListener(
+        "pagehide",
+        () => channel.close(),
+        { once: true }
+      );
+    })();
+
+    (() => {
+      const buttons = document.querySelectorAll(
+        "[data-sports-demo-action]"
+      );
+      const allowedActions = new Set([
+        "scheduled",
+        "live",
+        "final",
+        "clear"
+      ]);
+
+      if (typeof BroadcastChannel !== "function") {
+        buttons.forEach((button) => {
+          button.disabled = true;
+          button.title =
+            "Sports Demo requires BroadcastChannel support.";
+        });
+        return;
+      }
+
+      const channel = new BroadcastChannel(
+        "mosaic-sports-demo"
+      );
+
+      buttons.forEach((button) => {
+        button.addEventListener("click", () => {
+          const action = button.dataset.sportsDemoAction;
+
+          if (!allowedActions.has(action)) return;
+
+          channel.postMessage({ action });
         });
       });
 

@@ -84,6 +84,7 @@ class SportsProvider {
             outs: null,
             count: null,
             bases: null,
+            lineScore: null,
             result: null
         };
 
@@ -107,6 +108,27 @@ class SportsProvider {
                     first: false,
                     second: true,
                     third: false
+                },
+                lineScore: {
+                    innings: [
+                        { number: 1, favoriteTeam: 0, opponent: 0 },
+                        { number: 2, favoriteTeam: 1, opponent: 0 },
+                        { number: 3, favoriteTeam: 0, opponent: 0 },
+                        { number: 4, favoriteTeam: 0, opponent: 1 },
+                        { number: 5, favoriteTeam: 0, opponent: 0 },
+                        { number: 6, favoriteTeam: 2, opponent: 0 },
+                        { number: 7, favoriteTeam: 0, opponent: 1 }
+                    ],
+                    favoriteTeam: {
+                        runs: 3,
+                        hits: 7,
+                        errors: 0
+                    },
+                    opponent: {
+                        runs: 2,
+                        hits: 6,
+                        errors: 0
+                    }
                 }
             };
         }

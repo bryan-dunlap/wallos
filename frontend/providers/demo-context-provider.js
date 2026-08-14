@@ -10,6 +10,7 @@ class DemoContextProvider {
             "demo:active",
             "demo:interrupt"
         ];
+        this.sportsDemoChannel = null;
     }
 
     start() {
@@ -77,6 +78,36 @@ class DemoContextProvider {
             final: () => this.publishSportsState("final"),
             clear: () => this.clearSportsFacts()
         };
+
+        this.startSportsDemoChannel();
+    }
+
+    startSportsDemoChannel() {
+        if (
+            this.sportsDemoChannel ||
+            typeof BroadcastChannel !== "function"
+        ) {
+            return;
+        }
+
+        const actions = {
+            scheduled: () => this.publishSportsState("scheduled"),
+            live: () => this.publishSportsState("live"),
+            final: () => this.publishSportsState("final"),
+            clear: () => this.clearSportsFacts()
+        };
+
+        this.sportsDemoChannel = new BroadcastChannel(
+            "mosaic-sports-demo"
+        );
+        this.sportsDemoChannel.addEventListener(
+            "message",
+            (event) => {
+                const action = actions[event.data?.action];
+
+                if (action) action();
+            }
+        );
     }
 
     publishCandidate(candidate) {
@@ -158,6 +189,7 @@ class DemoContextProvider {
             outs: null,
             count: null,
             bases: null,
+            lineScore: null,
             result: null
         };
 
@@ -180,6 +212,27 @@ class DemoContextProvider {
                     first: false,
                     second: true,
                     third: false
+                },
+                lineScore: {
+                    innings: [
+                        { number: 1, favoriteTeam: 0, opponent: 0 },
+                        { number: 2, favoriteTeam: 1, opponent: 0 },
+                        { number: 3, favoriteTeam: 0, opponent: 0 },
+                        { number: 4, favoriteTeam: 0, opponent: 1 },
+                        { number: 5, favoriteTeam: 0, opponent: 0 },
+                        { number: 6, favoriteTeam: 2, opponent: 0 },
+                        { number: 7, favoriteTeam: 0, opponent: 1 }
+                    ],
+                    favoriteTeam: {
+                        runs: 3,
+                        hits: 7,
+                        errors: 0
+                    },
+                    opponent: {
+                        runs: 2,
+                        hits: 6,
+                        errors: 0
+                    }
                 }
             });
         }

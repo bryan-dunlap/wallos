@@ -522,3 +522,535 @@
     color: var(--color-text-secondary);
 
 }
+
+
+.hero-active {
+
+    width: 100%;
+
+    height: 100%;
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: var(--space-sm);
+
+    justify-content: center;
+
+}
+
+
+.hero-active:has(.baseball-gamecast) {
+
+    gap: 0;
+
+    justify-content: stretch;
+
+}
+
+
+.hero-active:has(.baseball-gamecast) .hero-active-header {
+
+    display: none;
+
+}
+
+
+.hero-active-header {
+
+    color: var(--color-accent);
+
+    font-size: 1.15rem;
+
+    font-weight: 600;
+
+    letter-spacing: .08em;
+
+    line-height: 1.25;
+
+    text-transform: uppercase;
+
+    padding-bottom: var(--space-sm);
+
+    border-bottom: 1px solid var(--border-subtle);
+
+}
+
+
+.hero-active-content {
+
+    width: 100%;
+
+    min-height: 0;
+
+    flex: 1;
+
+    color: var(--color-text);
+
+    line-height: 1.25;
+
+}
+
+
+.hero-active-content[hidden] {
+
+    display: none;
+
+}
+
+
+.hero-active-summary {
+
+    margin-top: 0;
+
+    color: var(--color-text-secondary);
+
+    font-size: 1.05rem;
+
+    line-height: 1.4;
+
+}
+
+
+.baseball-gamecast {
+
+    height: 100%;
+
+    display: flex;
+
+    flex-direction: column;
+
+    justify-content: space-between;
+
+    gap: clamp(8px, 1.5vh, 16px);
+
+    padding: var(--space-xs) 0;
+
+}
+
+
+.baseball-game-primary {
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 2px;
+
+}
+
+
+.baseball-game-matchup {
+
+    --baseball-matchup-gap: clamp(6px, 1.1vw, 14px);
+
+    --baseball-identity-gap: clamp(2px, .35vw, 5px);
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    gap: var(--baseball-matchup-gap);
+
+}
+
+
+.baseball-game-team-identity {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: var(--baseball-identity-gap);
+
+    min-width: 0;
+
+}
+
+
+.baseball-game-team-identity-favorite {
+
+    justify-content: flex-end;
+
+}
+
+
+.baseball-game-team-identity-opponent {
+
+    justify-content: flex-start;
+
+}
+
+
+.baseball-game-team-identity-favorite,
+.baseball-game-team-identity-opponent {
+
+    flex: 0 1 auto;
+
+}
+
+
+.baseball-game-team-score,
+.baseball-game-versus {
+
+    flex: 0 0 auto;
+
+}
+
+
+.baseball-game-team-identity-favorite .baseball-game-team-name {
+
+    text-align: right;
+
+}
+
+
+.baseball-game-team-logo {
+
+    width: clamp(38px, 5vw, 60px);
+
+    height: clamp(38px, 5vw, 60px);
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+}
+
+
+.baseball-game-team-logo-image {
+
+    display: block;
+
+    width: 100%;
+
+    height: 100%;
+
+    object-fit: contain;
+
+}
+
+
+.baseball-game-team-logo-image[hidden] {
+
+    display: none;
+
+}
+
+
+.baseball-game-team-name {
+
+    min-width: 0;
+
+    overflow: hidden;
+
+    color: var(--color-text-secondary);
+
+    font-size: clamp(.85rem, 1.4vw, 1.15rem);
+
+    font-weight: 600;
+
+    letter-spacing: .08em;
+
+    text-overflow: ellipsis;
+
+    text-transform: uppercase;
+
+    white-space: nowrap;
+
+}
+
+
+.baseball-game-team-identity-opponent .baseball-game-team-name {
+
+    text-align: left;
+
+}
+
+
+.baseball-game-versus {
+
+    color: var(--color-text-muted);
+
+    font-size: .68rem;
+
+    font-weight: 500;
+
+    letter-spacing: .1em;
+
+
+    text-transform: uppercase;
+
+}
+
+
+.baseball-game-team-score {
+
+    color: var(--color-text);
+
+    font-size: clamp(3rem, 5.5vw, 4.75rem);
+
+    font-weight: 600;
+
+    line-height: .95;
+
+    font-variant-numeric: tabular-nums;
+
+}
+
+
+.baseball-game-inning {
+
+    color: var(--color-accent);
+
+    font-size: .78rem;
+
+    font-weight: 600;
+
+    letter-spacing: .12em;
+
+    white-space: nowrap;
+
+    text-align: center;
+
+}
+
+
+.baseball-line-score-wrap {
+
+    padding: 7px 0;
+
+    border-top: 1px solid var(--border-subtle);
+
+    border-bottom: 1px solid var(--border-subtle);
+
+    overflow: hidden;
+
+}
+
+
+.baseball-line-score {
+
+    width: 100%;
+
+    border-collapse: collapse;
+
+    table-layout: fixed;
+
+    color: var(--color-text-secondary);
+
+    font-size: clamp(.82rem, 1.15vw, 1rem);
+
+    font-variant-numeric: tabular-nums;
+
+    line-height: 1.35;
+
+}
+
+
+.baseball-line-score th,
+.baseball-line-score td {
+
+    padding: 3px 4px;
+
+    text-align: center;
+
+}
+
+
+.baseball-line-score th:first-child {
+
+    width: 4rem;
+
+    color: var(--color-text);
+
+    text-align: left;
+
+}
+
+
+.baseball-line-score thead th {
+
+    color: var(--color-text-muted);
+
+    font-size: clamp(.72rem, .95vw, .86rem);
+
+    font-weight: 500;
+
+    letter-spacing: .06em;
+
+    text-transform: uppercase;
+
+}
+
+
+.baseball-line-score tbody th,
+.baseball-line-score tbody td:nth-last-child(-n + 3) {
+
+    color: var(--color-text);
+
+    font-weight: 600;
+
+}
+
+
+.baseball-game-situation {
+
+    display: grid;
+
+    grid-template-columns: minmax(140px, .8fr) minmax(260px, 1fr);
+
+    align-items: center;
+
+    gap: var(--space-xl);
+
+    max-width: 620px;
+
+    width: 100%;
+
+    margin: 0 auto;
+
+}
+
+
+.baseball-bases {
+
+    position: relative;
+
+    width: 106px;
+
+    height: 68px;
+
+    margin: 0 auto;
+
+}
+
+
+.baseball-base {
+
+    position: absolute;
+
+    width: 25px;
+
+    height: 25px;
+
+    border: 2px solid var(--color-text-muted);
+
+    background: transparent;
+
+    transform: rotate(45deg);
+
+}
+
+
+.baseball-base.is-occupied {
+
+    border-color: var(--color-accent);
+
+    background: var(--color-accent);
+
+}
+
+
+.baseball-base-second {
+
+    top: 0;
+
+    left: 40px;
+
+}
+
+
+.baseball-base-third {
+
+    bottom: 0;
+
+    left: 9px;
+
+}
+
+
+.baseball-base-first {
+
+    right: 9px;
+
+    bottom: 0;
+
+}
+
+
+.baseball-game-indicators {
+
+    display: grid;
+
+    gap: 8px;
+
+}
+
+
+.baseball-indicator-row {
+
+    display: grid;
+
+    grid-template-columns: 6.5rem 1fr;
+
+    align-items: center;
+
+    gap: var(--space-sm);
+
+}
+
+
+.baseball-indicator-label {
+
+    color: var(--color-text-secondary);
+
+    font-size: .82rem;
+
+    font-weight: 600;
+
+    letter-spacing: .1em;
+
+    text-align: left;
+
+    text-transform: uppercase;
+
+}
+
+
+.baseball-indicator-values {
+
+    display: flex;
+
+    gap: 10px;
+
+}
+
+
+.baseball-indicator {
+
+    width: 15px;
+
+    height: 15px;
+
+    border: 1px solid var(--color-text-muted);
+
+    border-radius: 50%;
+
+    background: transparent;
+
+}
+
+
+.baseball-indicator.is-filled {
+
+    border-color: var(--color-accent);
+
+    background: var(--color-accent);
+
+}
