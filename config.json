@@ -7,9 +7,13 @@
     "enabled": true,
     "favoriteTeams": [
       {
-        "id": "LAD",
-        "name": "Los Angeles Dodgers",
-        "league": "MLB"
+        "id": "MIN",
+        "name": "Minnesota Twins",
+        "league": "MLB",
+        "sport": "baseball",
+        "renderer": "baseball-gamecast",
+        "providerId": 142,
+        "logo": "https://www.mlbstatic.com/team-logos/142.svg"
       }
     ]
   },

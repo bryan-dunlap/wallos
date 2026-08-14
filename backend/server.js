@@ -31,7 +31,9 @@ const DEFAULT_CONFIG = {
         name: "Seattle Mariners",
         league: "MLB",
         sport: "baseball",
-        renderer: "baseball-gamecast"
+        renderer: "baseball-gamecast",
+        providerId: 136,
+        logo: "https://www.mlbstatic.com/team-logos/136.svg"
       }
     ]
   },
@@ -184,7 +186,9 @@ function normalizeFavoriteTeams(sportsConfig) {
       name: team.name,
       league: team.league,
       sport: team.sport,
-      renderer: team.renderer
+      renderer: team.renderer,
+      providerId: team.providerId,
+      logo: team.logo
     });
 
     return favorites;
@@ -585,6 +589,8 @@ function isValidDateKey(value) {
 
 function normalizeMlbTeam(teamData, linescoreData) {
   const teamId = teamData?.team?.id ?? null;
+  const abbreviation = teamData?.team?.abbreviation || "";
+  const registryTeam = getSportsTeam(abbreviation);
   const runs =
     linescoreData?.runs ??
     teamData?.score ??
@@ -592,12 +598,19 @@ function normalizeMlbTeam(teamData, linescoreData) {
 
   return {
     id: teamId,
-    abbreviation:
-      teamData?.team?.abbreviation || "",
+    abbreviation,
     name: teamData?.team?.name || "Team TBD",
-    logo: teamId
-      ? `https://www.mlbstatic.com/team-logos/${teamId}.svg`
-      : null,
+    shortName:
+      registryTeam?.shortName ||
+      teamData?.team?.teamName ||
+      teamData?.team?.name ||
+      "Team TBD",
+    providerId: registryTeam?.providerId ?? teamId,
+    logo:
+      registryTeam?.logo ||
+      (teamId
+        ? `https://www.mlbstatic.com/team-logos/${teamId}.svg`
+        : null),
 
     record: {
       wins: teamData?.leagueRecord?.wins ?? null,
@@ -633,6 +646,18 @@ function normalizeMlbRunner(runner) {
 
 function normalizeMlbEvent(game) {
   const linescore = game.linescore;
+  const currentInning =
+    linescore?.currentInning ??
+    linescore?.innings?.at(-1)?.num ??
+    null;
+  const inningHalf =
+    linescore?.inningHalf ||
+    linescore?.inningState ||
+    (linescore?.isTopInning === true
+      ? "Top"
+      : linescore?.isTopInning === false
+        ? "Bottom"
+        : null);
 
   return {
     eventId: game.gamePk,
@@ -664,11 +689,16 @@ function normalizeMlbEvent(game) {
 
     linescore: linescore
       ? {
+          innings: (linescore.innings || []).map(
+            (inning) => ({
+              number: inning.num ?? null,
+              away: inning.away?.runs ?? null,
+              home: inning.home?.runs ?? null
+            })
+          ),
           inning: {
-            number:
-              linescore.currentInning ?? null,
-            half:
-              linescore.inningHalf || null
+            number: currentInning,
+            half: inningHalf
           },
           outs: linescore.outs ?? null,
           count: {

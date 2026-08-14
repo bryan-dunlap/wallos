@@ -47,7 +47,9 @@ class SportsProvider {
                     name: "Seattle Mariners",
                     league: "MLB",
                     sport: "baseball",
-                    renderer: "baseball-gamecast"
+                    renderer: "baseball-gamecast",
+                    providerId: 136,
+                    logo: "https://www.mlbstatic.com/team-logos/136.svg"
                 }
             };
         }

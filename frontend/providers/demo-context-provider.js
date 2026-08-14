@@ -183,6 +183,24 @@ class DemoContextProvider {
         const game = {
             status,
             opponent: "Los Angeles Angels",
+            opponentLogo:
+                "https://www.mlbstatic.com/team-logos/108.svg",
+            teams: {
+                away: {
+                    id: "SEA",
+                    name: "Seattle Mariners",
+                    shortName: "Mariners",
+                    logo: "https://www.mlbstatic.com/team-logos/136.svg",
+                    providerId: 136
+                },
+                home: {
+                    id: "LAA",
+                    name: "Los Angeles Angels",
+                    shortName: "Angels",
+                    logo: "https://www.mlbstatic.com/team-logos/108.svg",
+                    providerId: 108
+                }
+            },
             startTime: startTime.toISOString(),
             score: null,
             inning: null,
@@ -196,6 +214,8 @@ class DemoContextProvider {
         if (status === "live") {
             Object.assign(game, {
                 score: {
+                    away: 3,
+                    home: 2,
                     favoriteTeam: 3,
                     opponent: 2
                 },
@@ -214,15 +234,26 @@ class DemoContextProvider {
                     third: false
                 },
                 lineScore: {
+                    teams: game.teams,
                     innings: [
-                        { number: 1, favoriteTeam: 0, opponent: 0 },
-                        { number: 2, favoriteTeam: 1, opponent: 0 },
-                        { number: 3, favoriteTeam: 0, opponent: 0 },
-                        { number: 4, favoriteTeam: 0, opponent: 1 },
-                        { number: 5, favoriteTeam: 0, opponent: 0 },
-                        { number: 6, favoriteTeam: 2, opponent: 0 },
-                        { number: 7, favoriteTeam: 0, opponent: 1 }
+                        { number: 1, away: 0, home: 0, favoriteTeam: 0, opponent: 0 },
+                        { number: 2, away: 1, home: 0, favoriteTeam: 1, opponent: 0 },
+                        { number: 3, away: 0, home: 0, favoriteTeam: 0, opponent: 0 },
+                        { number: 4, away: 0, home: 1, favoriteTeam: 0, opponent: 1 },
+                        { number: 5, away: 0, home: 0, favoriteTeam: 0, opponent: 0 },
+                        { number: 6, away: 2, home: 0, favoriteTeam: 2, opponent: 0 },
+                        { number: 7, away: 0, home: 1, favoriteTeam: 0, opponent: 1 }
                     ],
+                    away: {
+                        runs: 3,
+                        hits: 7,
+                        errors: 0
+                    },
+                    home: {
+                        runs: 2,
+                        hits: 6,
+                        errors: 0
+                    },
                     favoriteTeam: {
                         runs: 3,
                         hits: 7,
@@ -240,6 +271,8 @@ class DemoContextProvider {
         if (status === "final") {
             Object.assign(game, {
                 score: {
+                    away: 5,
+                    home: 3,
                     favoriteTeam: 5,
                     opponent: 3
                 },
@@ -251,7 +284,8 @@ class DemoContextProvider {
             status: "available",
             favoriteTeam: {
                 id: "SEA",
-                name: "Seattle Mariners"
+                name: "Seattle Mariners",
+                logo: "https://www.mlbstatic.com/team-logos/136.svg"
             },
             game
         });
@@ -262,7 +296,8 @@ class DemoContextProvider {
             status: "unavailable",
             favoriteTeam: {
                 id: "SEA",
-                name: "Seattle Mariners"
+                name: "Seattle Mariners",
+                logo: "https://www.mlbstatic.com/team-logos/136.svg"
             },
             game: null
         });

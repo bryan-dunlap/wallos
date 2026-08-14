@@ -47,7 +47,8 @@ class SportsActiveContextGenerator {
             !favoriteTeam?.id ||
             !favoriteTeam.name ||
             game?.status !== "live" ||
-            !game.opponent
+            !game.teams?.away?.id ||
+            !game.teams?.home?.id
         ) {
             return null;
         }
@@ -58,20 +59,17 @@ class SportsActiveContextGenerator {
             type: "sports.live-game",
             mode: "active",
             priority: 100,
-            headline: `${favoriteTeam.name} vs ${game.opponent}`,
-            summary: this.formatGameSummary(favoriteTeam, game),
+            headline:
+                `${game.teams.away.name} at ${game.teams.home.name}`,
+            summary: this.formatGameSummary(game),
             payload: {
                 type: "baseball-game",
                 teams: {
-                    favoriteTeam: this.createBaseballTeamIdentity(
-                        favoriteTeam.id,
-                        favoriteTeam.name,
-                        favoriteTeam.logo
+                    away: this.createBaseballTeamIdentity(
+                        game.teams.away
                     ),
-                    opponent: this.createBaseballTeamIdentity(
-                        this.getOpponentLabel(game.opponent),
-                        game.opponent,
-                        game.opponentLogo
+                    home: this.createBaseballTeamIdentity(
+                        game.teams.home
                     )
                 },
                 score: game.score,
@@ -90,18 +88,18 @@ class SportsActiveContextGenerator {
         };
     }
 
-    formatGameSummary(favoriteTeam, game) {
+    formatGameSummary(game) {
         const details = [];
-        const favoriteLabel = favoriteTeam.id.toUpperCase();
-        const opponentLabel = this.getOpponentLabel(game.opponent);
+        const awayLabel = game.teams.away.id.toUpperCase();
+        const homeLabel = game.teams.home.id.toUpperCase();
 
         if (
-            Number.isFinite(game.score?.favoriteTeam) &&
-            Number.isFinite(game.score?.opponent)
+            Number.isFinite(game.score?.away) &&
+            Number.isFinite(game.score?.home)
         ) {
             details.push(
-                `${favoriteLabel} ${game.score.favoriteTeam} · ` +
-                `${opponentLabel} ${game.score.opponent}`
+                `${awayLabel} ${game.score.away} · ` +
+                `${homeLabel} ${game.score.home}`
             );
         }
 
@@ -135,44 +133,15 @@ class SportsActiveContextGenerator {
         return details.join(" · ");
     }
 
-    getOpponentLabel(opponent) {
-        const knownTeams = {
-            "Los Angeles Angels": "LAA"
-        };
-
-        return knownTeams[opponent] || opponent
-            .split(/\s+/)
-            .map((word) => word.charAt(0))
-            .join("")
-            .toUpperCase();
-    }
-
-    createBaseballTeamIdentity(id, fullName, logo = "") {
-        const teamId = String(id).toUpperCase();
-        const name = String(fullName)
-            .trim()
-            .split(/\s+/)
-            .at(-1);
-
+    createBaseballTeamIdentity(team) {
         return {
-            id: teamId,
-            name,
-            logo: typeof logo === "string" && logo.trim()
-                ? logo.trim()
-                : this.getMlbTeamLogo(teamId)
+            id: String(team.id).toUpperCase(),
+            name: team.shortName || team.name,
+            logo: typeof team.logo === "string"
+                ? team.logo.trim()
+                : "",
+            providerId: team.providerId ?? null
         };
-    }
-
-    getMlbTeamLogo(teamId) {
-        const mlbTeamIds = {
-            SEA: 136,
-            LAA: 108
-        };
-        const mlbTeamId = mlbTeamIds[teamId];
-
-        return mlbTeamId
-            ? `https://www.mlbstatic.com/team-logos/${mlbTeamId}.svg`
-            : "";
     }
 
     formatOrdinal(number) {

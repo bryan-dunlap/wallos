@@ -4,13 +4,13 @@ class BaseballGameRenderer {
         const score = payload.score || {};
         const inning = payload.inning || {};
         const count = payload.count || {};
-        const favoriteTeam = this.normalizeTeam(
-            payload.teams?.favoriteTeam,
-            "TEAM"
+        const awayTeam = this.normalizeTeam(
+            payload.teams?.away || payload.teams?.favoriteTeam,
+            "AWAY"
         );
-        const opponentTeam = this.normalizeTeam(
-            payload.teams?.opponent,
-            "OPP"
+        const homeTeam = this.normalizeTeam(
+            payload.teams?.home || payload.teams?.opponent,
+            "HOME"
         );
 
         return `
@@ -18,29 +18,33 @@ class BaseballGameRenderer {
                 <div class="baseball-game-primary">
                     <div class="baseball-game-matchup">
                         <div class="baseball-game-team-identity baseball-game-team-identity-favorite">
-                            ${this.renderTeamLogo(favoriteTeam)}
+                            ${this.renderTeamLogo(awayTeam)}
 
                             <div class="baseball-game-team-name">
-                                ${this.escape(favoriteTeam.name)}
+                                ${this.escape(awayTeam.name)}
                             </div>
                         </div>
 
                         <div class="baseball-game-team-score">
-                            ${this.value(score.favoriteTeam)}
+                            ${this.value(
+                                score.away ?? score.favoriteTeam
+                            )}
                         </div>
 
-                        <div class="baseball-game-versus">VS</div>
+                        <div class="baseball-game-versus">@</div>
 
                         <div class="baseball-game-team-score">
-                            ${this.value(score.opponent)}
+                            ${this.value(
+                                score.home ?? score.opponent
+                            )}
                         </div>
 
                         <div class="baseball-game-team-identity baseball-game-team-identity-opponent">
                             <div class="baseball-game-team-name">
-                                ${this.escape(opponentTeam.name)}
+                                ${this.escape(homeTeam.name)}
                             </div>
 
-                            ${this.renderTeamLogo(opponentTeam)}
+                            ${this.renderTeamLogo(homeTeam)}
                         </div>
                     </div>
 
@@ -51,8 +55,8 @@ class BaseballGameRenderer {
 
                 ${this.renderLineScore(
                     payload.lineScore,
-                    favoriteTeam.id,
-                    opponentTeam.id,
+                    awayTeam.id,
+                    homeTeam.id,
                     inning.number
                 )}
 
@@ -112,8 +116,8 @@ class BaseballGameRenderer {
 
     renderLineScore(
         lineScore,
-        favoriteLabel,
-        opponentLabel,
+        awayLabel,
+        homeLabel,
         currentInning
     ) {
         const innings = this.getVisibleInnings(
@@ -154,16 +158,16 @@ class BaseballGameRenderer {
                     </thead>
                     <tbody>
                         ${this.renderLineScoreRow(
-                            favoriteLabel,
+                            awayLabel,
                             innings,
-                            "favoriteTeam",
-                            lineScore.favoriteTeam
+                            "away",
+                            lineScore.away
                         )}
                         ${this.renderLineScoreRow(
-                            opponentLabel,
+                            homeLabel,
                             innings,
-                            "opponent",
-                            lineScore.opponent
+                            "home",
+                            lineScore.home
                         )}
                     </tbody>
                 </table>
@@ -204,6 +208,8 @@ class BaseballGameRenderer {
                 ? { ...inning }
                 : {
                     number,
+                    away: null,
+                    home: null,
                     favoriteTeam: null,
                     opponent: null
                 };
