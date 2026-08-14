@@ -151,6 +151,8 @@
 
     grid-row: 2;
 
+    overflow: visible;
+
 }
 
 
@@ -202,12 +204,58 @@
 
 .team-identity-logo {
 
-    width: 26px;
-    height: 26px;
+    width: 36px;
+    height: 36px;
 
-    flex: 0 0 26px;
+    flex: 0 0 36px;
+
+    display: inline-flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    overflow: visible;
+
+}
+
+
+.team-identity-logo-image,
+.baseball-game-team-logo-image {
+
+    width: 100%;
+    height: 100%;
 
     object-fit: contain;
+
+    filter:
+        drop-shadow(
+            0 0 4px
+            color-mix(in srgb, var(--color-accent) 62%, transparent)
+        )
+        drop-shadow(
+            0 0 12px
+            color-mix(in srgb, var(--color-accent) 40%, transparent)
+        )
+        drop-shadow(
+            0 0 18px
+            color-mix(in srgb, var(--color-accent) 18%, transparent)
+        );
+
+}
+
+
+[data-theme="light"] .team-identity-logo-image,
+[data-theme="light"] .baseball-game-team-logo-image {
+
+    filter: none;
+
+}
+
+
+.team-identity-logo-image[hidden] {
+
+    display: none;
 
 }
 
@@ -311,7 +359,7 @@
 
 .sports-scoreboard-team {
 
-    overflow: hidden;
+    overflow: visible;
 
     gap: 6px;
 
@@ -720,18 +768,14 @@
 
     justify-content: center;
 
+    overflow: visible;
+
 }
 
 
 .baseball-game-team-logo-image {
 
     display: block;
-
-    width: 100%;
-
-    height: 100%;
-
-    object-fit: contain;
 
 }
 

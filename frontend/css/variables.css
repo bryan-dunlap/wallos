@@ -56,6 +56,7 @@
     ========================== */
 
     --color-accent: rgb(120,183,245);
+    --sports-logo-surface: rgba(255,255,255,.22);
 
     --accent-04: rgba(120,183,245,.04);
     --accent-08: rgba(120,183,245,.08);
@@ -155,6 +156,7 @@
     --color-text-secondary: #8bcf9e;
     --color-text-muted: #659a73;
     --color-accent: rgb(91,238,133);
+    --sports-logo-surface: rgba(255,255,255,.22);
 
     --accent-04: rgba(91,238,133,.04);
     --accent-08: rgba(91,238,133,.08);
@@ -192,6 +194,7 @@
     --color-text-secondary: #bfb0e3;
     --color-text-muted: #9182b4;
     --color-accent: rgb(255,91,205);
+    --sports-logo-surface: rgba(255,255,255,.22);
 
     --accent-04: rgba(255,91,205,.04);
     --accent-08: rgba(255,91,205,.08);
@@ -229,6 +232,7 @@
     --color-text-secondary: #4e6576;
     --color-text-muted: #6f8290;
     --color-accent: rgb(28,105,153);
+    --sports-logo-surface: rgba(24,39,51,.10);
 
     --accent-04: rgba(28,105,153,.04);
     --accent-08: rgba(28,105,153,.08);
@@ -264,6 +268,7 @@
     --color-text-secondary: #a7adb2;
     --color-text-muted: #7d858b;
     --color-accent: rgb(184,194,202);
+    --sports-logo-surface: rgba(255,255,255,.22);
 
     --accent-04: rgba(184,194,202,.04);
     --accent-08: rgba(184,194,202,.08);
@@ -332,6 +337,7 @@
     --color-text-secondary: #c8b6ea;
     --color-text-muted: #9e8ac5;
     --color-accent: rgb(34,226,209);
+    --sports-logo-surface: rgba(255,255,255,.22);
 
     --accent-04: rgba(34,226,209,.04);
     --accent-08: rgba(34,226,209,.08);
@@ -390,6 +396,7 @@
     --color-text-secondary: #b99a6d;
     --color-text-muted: #8d704f;
     --color-accent: rgb(213,157,74);
+    --sports-logo-surface: rgba(255,255,255,.22);
 
     --accent-04: rgba(213,157,74,.04);
     --accent-08: rgba(213,157,74,.08);
@@ -455,6 +462,7 @@
     --color-text-secondary: #e8c98b;
     --color-text-muted: #ad9465;
     --color-accent: rgb(217,107,39);
+    --sports-logo-surface: rgba(255,255,255,.22);
 
     --accent-04: rgba(217,107,39,.04);
     --accent-08: rgba(217,107,39,.08);
@@ -536,6 +544,7 @@
     --color-text-secondary: #d9c39a;
     --color-text-muted: #9eaa9e;
     --color-accent: rgb(79,124,143);
+    --sports-logo-surface: rgba(255,255,255,.22);
 
     --accent-04: rgba(79,124,143,.04);
     --accent-08: rgba(79,124,143,.08);

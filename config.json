@@ -7,18 +7,18 @@
     "enabled": true,
     "favoriteTeams": [
       {
-        "id": "MIN",
-        "name": "Minnesota Twins",
+        "id": "SEA",
+        "name": "Seattle Mariners",
         "league": "MLB",
         "sport": "baseball",
         "renderer": "baseball-gamecast",
-        "providerId": 142,
-        "logo": "https://www.mlbstatic.com/team-logos/142.svg"
+        "providerId": 136,
+        "logo": "https://www.mlbstatic.com/team-logos/136.svg"
       }
     ]
   },
   "display": {
-    "theme": "yacht-rock"
+    "theme": "groovy"
   },
   "profile": {
     "name": "Bryan"

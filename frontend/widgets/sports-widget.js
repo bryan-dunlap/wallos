@@ -212,8 +212,12 @@ class SportsWidget {
         );
         const renderLogo = (team) => (
             team.logo
-                ? `<img class="team-identity-logo"
-                    src="${team.logo}" alt="">`
+                ? `<span class="team-identity-logo"
+                    aria-hidden="true">
+                    <img class="team-identity-logo-image"
+                        src="${team.logo}" alt=""
+                        onerror="this.hidden=true">
+                </span>`
                 : `<span class="team-identity-logo"
                     aria-hidden="true">—</span>`
         );
