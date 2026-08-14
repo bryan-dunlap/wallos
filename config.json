@@ -7,8 +7,8 @@
     "enabled": true,
     "favoriteTeams": [
       {
-        "id": "SEA",
-        "name": "Seattle Mariners",
+        "id": "LAD",
+        "name": "Los Angeles Dodgers",
         "league": "MLB"
       }
     ]

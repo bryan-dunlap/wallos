@@ -829,14 +829,25 @@
 
     border-bottom: 1px solid var(--border-subtle);
 
-    overflow: hidden;
+    overflow-x: auto;
+
+    overflow-y: hidden;
+
+    scrollbar-width: none;
+
+}
+
+
+.baseball-line-score-wrap::-webkit-scrollbar {
+
+    display: none;
 
 }
 
 
 .baseball-line-score {
 
-    width: 100%;
+    width: max(100%, var(--baseball-line-score-width));
 
     border-collapse: collapse;
 
@@ -853,6 +864,21 @@
 }
 
 
+.baseball-line-score-team-column {
+
+    width: 4.5rem;
+
+}
+
+
+.baseball-line-score-inning-column,
+.baseball-line-score-total-column {
+
+    width: 2.35rem;
+
+}
+
+
 .baseball-line-score th,
 .baseball-line-score td {
 
@@ -864,8 +890,6 @@
 
 
 .baseball-line-score th:first-child {
-
-    width: 4rem;
 
     color: var(--color-text);
 

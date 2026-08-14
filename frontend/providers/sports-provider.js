@@ -2,18 +2,21 @@ class SportsProvider {
 
     constructor() {
         this.refreshTimer = null;
+        this.mlbDataProvider = new MlbDataProvider();
     }
 
     start() {
         this.stop();
-        this.refresh();
+        this.refreshCycle();
         this.refreshTimer = setInterval(
-            () => this.refresh(),
+            () => this.refreshCycle(),
             5 * 60 * 1000
         );
-        this.loadConfig().then(
-            (config) => this.publishSportsFacts(config)
-        );
+    }
+
+    async refreshCycle() {
+        await this.refresh();
+        await this.refreshSportsFacts();
     }
 
     async loadConfig() {
@@ -50,38 +53,7 @@ class SportsProvider {
         }
     }
 
-    publishSportsFacts(config, gameStatus = "scheduled") {
-        /*
-         * Simulated facts establish the future Sports contract. A real
-         * sports data source will later replace only this facts payload.
-         * Scheduled, live, and final examples intentionally share one shape.
-         */
-        const payload = config.enabled && config.favoriteTeam
-            ? {
-                status: "available",
-                favoriteTeam: {
-                    id: config.favoriteTeam.id,
-                    name: config.favoriteTeam.name,
-                    league: config.favoriteTeam.league,
-                    sport: config.favoriteTeam.sport,
-                    renderer: config.favoriteTeam.renderer
-                },
-                game: this.createSimulatedGame(gameStatus)
-            }
-            : {
-                status: "unavailable",
-                favoriteTeam: config.favoriteTeam
-                    ? {
-                        id: config.favoriteTeam.id,
-                        name: config.favoriteTeam.name,
-                        league: config.favoriteTeam.league,
-                        sport: config.favoriteTeam.sport,
-                        renderer: config.favoriteTeam.renderer
-                    }
-                    : null,
-                game: null
-            };
-
+    publishSportsFacts(payload) {
         window.mosaicApp.eventBus.publish({
             type: "sports-facts",
             source: "sports",
@@ -89,80 +61,38 @@ class SportsProvider {
         });
     }
 
-    createSimulatedGame(status) {
-        const commonGame = {
-            status,
-            opponent: "Los Angeles Angels",
-            startTime: "2026-08-12T19:10:00-07:00",
-            score: null,
-            inning: null,
-            outs: null,
-            count: null,
-            bases: null,
-            lineScore: null,
-            result: null
-        };
+    async refreshSportsFacts() {
+        let config = null;
 
-        if (status === "live") {
-            return {
-                ...commonGame,
-                score: {
-                    favoriteTeam: 3,
-                    opponent: 2
-                },
-                inning: {
-                    half: "bottom",
-                    number: 7
-                },
-                outs: 1,
-                count: {
-                    balls: 2,
-                    strikes: 1
-                },
-                bases: {
-                    first: false,
-                    second: true,
-                    third: false
-                },
-                lineScore: {
-                    innings: [
-                        { number: 1, favoriteTeam: 0, opponent: 0 },
-                        { number: 2, favoriteTeam: 1, opponent: 0 },
-                        { number: 3, favoriteTeam: 0, opponent: 0 },
-                        { number: 4, favoriteTeam: 0, opponent: 1 },
-                        { number: 5, favoriteTeam: 0, opponent: 0 },
-                        { number: 6, favoriteTeam: 2, opponent: 0 },
-                        { number: 7, favoriteTeam: 0, opponent: 1 }
-                    ],
-                    favoriteTeam: {
-                        runs: 3,
-                        hits: 7,
-                        errors: 0
-                    },
-                    opponent: {
-                        runs: 2,
-                        hits: 6,
-                        errors: 0
-                    }
-                }
-            };
+        try {
+            config = await this.loadConfig();
+
+            if (!config.enabled || !config.favoriteTeam) {
+                this.publishSportsFacts(
+                    this.mlbDataProvider.createUnavailableFacts(
+                        config.favoriteTeam
+                    )
+                );
+                return;
+            }
+
+            const facts = await this.mlbDataProvider.getScheduleFacts(
+                config.favoriteTeam,
+                this.getDateKey(new Date())
+            );
+
+            this.publishSportsFacts(facts);
+        } catch (error) {
+            console.error(
+                "Unable to load favorite-team MLB schedule:",
+                error
+            );
+            this.publishSportsFacts(
+                this.mlbDataProvider.createUnavailableFacts(
+                    config?.favoriteTeam
+                )
+            );
         }
-
-        if (status === "final") {
-            return {
-                ...commonGame,
-                score: {
-                    favoriteTeam: 5,
-                    opponent: 3
-                },
-                result: "Mariners win 5-3"
-            };
-        }
-
-        return {
-            ...commonGame,
-            status: "scheduled"
-        };
     }
 
     stop() {

@@ -121,10 +121,23 @@ class BaseballGameRenderer {
         const inningHeadings = innings
             .map((inning) => `<th scope="col">${inning.number}</th>`)
             .join("");
+        const teamColumnWidth = 4.5;
+        const scoreColumnWidth = 2.35;
+        const lineScoreWidth =
+            teamColumnWidth +
+            (innings.length + 3) * scoreColumnWidth;
 
         return `
             <div class="baseball-line-score-wrap">
-                <table class="baseball-line-score">
+                <table class="baseball-line-score"
+                    style="--baseball-line-score-width: ${lineScoreWidth}rem">
+                    <colgroup>
+                        <col class="baseball-line-score-team-column">
+                        <col class="baseball-line-score-inning-column"
+                            span="${innings.length}">
+                        <col class="baseball-line-score-total-column"
+                            span="3">
+                    </colgroup>
                     <thead>
                         <tr>
                             <th scope="col">Team</th>
