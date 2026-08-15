@@ -8,6 +8,9 @@ class CalendarProvider {
         this.refreshTimer = null;
         this.refreshInFlight = null;
         this.lastKnownGoodFacts = null;
+        this.lastKnownGoodRangeFacts = null;
+        this.currentRangeRequest = null;
+        this.unsubscribeRangeRequests = null;
         this.started = false;
         this.handlePageHide = () => this.stop();
     }
@@ -16,6 +19,11 @@ class CalendarProvider {
         if (this.started) return;
 
         this.started = true;
+        this.unsubscribeRangeRequests =
+            window.mosaicApp.eventBus.subscribe(
+                "calendar-range-request",
+                (event) => this.handleRangeRequest(event.payload)
+            );
         window.addEventListener(
             "pagehide",
             this.handlePageHide,
@@ -40,6 +48,11 @@ class CalendarProvider {
             this.refreshTimer = null;
         }
 
+        if (this.unsubscribeRangeRequests) {
+            this.unsubscribeRangeRequests();
+            this.unsubscribeRangeRequests = null;
+        }
+
         window.removeEventListener(
             "pagehide",
             this.handlePageHide
@@ -49,12 +62,20 @@ class CalendarProvider {
     runRefreshCycle() {
         if (this.refreshInFlight) return this.refreshInFlight;
 
-        this.refreshInFlight = this.refreshFromCurrentSettings()
+        this.refreshInFlight = this.refreshAllCalendarFacts()
             .finally(() => {
                 this.refreshInFlight = null;
             });
 
         return this.refreshInFlight;
+    }
+
+    async refreshAllCalendarFacts() {
+        await this.refreshFromCurrentSettings();
+
+        if (this.currentRangeRequest) {
+            await this.refreshPlanningRange(this.currentRangeRequest);
+        }
     }
 
     async refreshFromCurrentSettings() {
@@ -130,6 +151,139 @@ class CalendarProvider {
                 this.createUnavailableFacts()
             );
         }
+    }
+
+    async handleRangeRequest(payload) {
+        const request = this.normalizeRangeRequest(payload);
+
+        if (!request) return;
+
+        this.currentRangeRequest = request;
+        await this.refreshPlanningRange(request);
+    }
+
+    normalizeRangeRequest(payload) {
+        const start = new Date(payload?.start);
+        const end = new Date(payload?.end);
+        const requestId = payload?.requestId;
+
+        if (
+            !Number.isFinite(start.getTime()) ||
+            !Number.isFinite(end.getTime()) ||
+            end <= start ||
+            (typeof requestId !== "string" &&
+                !Number.isInteger(requestId))
+        ) {
+            return null;
+        }
+
+        return {
+            requestId,
+            start,
+            end
+        };
+    }
+
+    async refreshPlanningRange(request) {
+        const settings = await this.loadSettings();
+
+        if (!settings.enabled) {
+            this.publishRangeFacts(
+                this.createUnavailableRangeFacts(request)
+            );
+            return;
+        }
+
+        try {
+            const provider = this.registry.get(settings.providerId) ||
+                this.registry.getDefault();
+
+            if (!provider) throw new Error("Calendar provider unavailable");
+
+            const sources = this.registry.getSources(provider.id);
+            const providerEvents = await provider.getEvents({
+                start: request.start,
+                end: request.end,
+                sources
+            });
+            const events = this.normalizer.normalizeEvents(
+                providerEvents,
+                provider.id
+            );
+            const facts = this.createRangeFacts(events, request);
+
+            this.lastKnownGoodRangeFacts = facts;
+            this.publishRangeFacts(facts);
+        } catch (error) {
+            const cachedFacts = this.lastKnownGoodRangeFacts;
+            const cacheMatchesRange =
+                cachedFacts?.range?.start === request.start.toISOString() &&
+                cachedFacts?.range?.end === request.end.toISOString();
+
+            this.publishRangeFacts(
+                cacheMatchesRange
+                    ? { ...cachedFacts, requestId: request.requestId }
+                    : this.createUnavailableRangeFacts(request)
+            );
+        }
+    }
+
+    createRangeFacts(events, request) {
+        const countsByDate = events.reduce((counts, event) => {
+            const dateKey = this.getEventDateKey(event);
+
+            if (!dateKey) return counts;
+
+            counts[dateKey] = (counts[dateKey] || 0) + 1;
+
+            return counts;
+        }, {});
+
+        return {
+            status: "available",
+            requestId: request.requestId,
+            range: {
+                start: request.start.toISOString(),
+                end: request.end.toISOString()
+            },
+            countsByDate
+        };
+    }
+
+    getEventDateKey(event) {
+        if (
+            event?.allDay === true &&
+            typeof event.startTime === "string" &&
+            /^\d{4}-\d{2}-\d{2}/.test(event.startTime)
+        ) {
+            return event.startTime.slice(0, 10);
+        }
+
+        const date = new Date(event?.startTime);
+
+        return Number.isFinite(date.getTime())
+            ? this.getLocalDateKey(date)
+            : null;
+    }
+
+    createUnavailableRangeFacts(request) {
+        return {
+            status: "unavailable",
+            requestId: request.requestId,
+            range: {
+                start: request.start.toISOString(),
+                end: request.end.toISOString()
+            },
+            countsByDate: {}
+        };
+    }
+
+    getLocalDateKey(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+
+        return `${year}-${month}-${day}`;
     }
 
     getTodayRange(now = new Date()) {
@@ -231,6 +385,14 @@ class CalendarProvider {
          */
         window.mosaicApp.eventBus.publish({
             type: "calendar-facts",
+            source: "calendar",
+            payload
+        });
+    }
+
+    publishRangeFacts(payload) {
+        window.mosaicApp.eventBus.publish({
+            type: "calendar-range-facts",
             source: "calendar",
             payload
         });

@@ -29,6 +29,8 @@ let timelineStartOffset = 0;
 
 let weatherByDate = {};
 let weatherLoaded = false;
+let calendarCountsByDate = {};
+let calendarRangeRequestId = 0;
 
 /* ==========================
    Date Helpers
@@ -52,30 +54,71 @@ function getDateKey(date) {
 }
 
 /* ==========================
-   Placeholder Calendar Data
+   Planning Calendar Indicators
 ========================== */
 
-function getCalendarData(offset) {
-  const samples = [
-    { calendar: "1 Event" },
-    { calendar: "No Events" },
-    { calendar: "2 Events" },
-    { calendar: "1 Event" },
-    { calendar: "3 Events" }
-  ];
+function getCalendarIndicatorCount(eventCount) {
+  if (eventCount <= 0) return 0;
+  if (eventCount === 1) return 1;
+  if (eventCount <= 3) return 2;
 
-  return samples[Math.abs(offset) % samples.length];
+  return 3;
 }
 
-function getEventCount(calendarText) {
-  if (calendarText === "No Events") {
-    return "0";
+function createCalendarIndicatorMarkup(eventCount) {
+  const indicatorCount = getCalendarIndicatorCount(eventCount);
+
+  if (indicatorCount === 0) return "";
+
+  const dots = Array.from(
+    { length: indicatorCount },
+    () => "<span></span>"
+  ).join("");
+
+  return `
+    <div class="day-glance-item" aria-label="${eventCount} ${
+      eventCount === 1 ? "event" : "events"
+    }">
+      <div class="event-dots" aria-hidden="true">${dots}</div>
+      ${eventCount}
+    </div>
+  `;
+}
+
+function requestPlanningCalendarRange() {
+  const start = getDateFromOffset(timelineStartOffset);
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(start);
+  end.setDate(end.getDate() + 5);
+
+  calendarRangeRequestId += 1;
+
+  window.mosaicApp.eventBus.publish({
+    type: "calendar-range-request",
+    source: "planning",
+    payload: {
+      requestId: calendarRangeRequestId,
+      start: start.toISOString(),
+      end: end.toISOString()
+    }
+  });
+}
+
+window.mosaicApp.eventBus.subscribe(
+  "calendar-range-facts",
+  (event) => {
+    if (event.payload?.requestId !== calendarRangeRequestId) return;
+
+    calendarCountsByDate =
+      event.payload.status === "available" &&
+      event.payload.countsByDate &&
+      typeof event.payload.countsByDate === "object"
+        ? event.payload.countsByDate
+        : {};
+    updatePlanningZone();
   }
-
-  return calendarText
-    .replace(" Events", "")
-    .replace(" Event", "");
-}
+);
 
 /* ==========================
    Weather
@@ -202,7 +245,8 @@ function buildRollingWeek() {
 
     const date = getDateFromOffset(offset);
     const weather = getWeatherForDate(date);
-    const calendar = getCalendarData(offset);
+    const calendarEventCount =
+      calendarCountsByDate[getDateKey(date)] || 0;
 
     const column = document.createElement("div");
     const isAnchored = offset === timelineStartOffset;
@@ -256,16 +300,7 @@ function buildRollingWeek() {
           ${temperatureText}
         </div>
 
-        <div class="day-glance-item">
-
-          <div class="event-dots">
-            <span></span>
-            <span></span>
-          </div>
-
-          ${getEventCount(calendar.calendar)}
-
-        </div>
+        ${createCalendarIndicatorMarkup(calendarEventCount)}
 
       </div>
     `;
@@ -323,6 +358,7 @@ prevButton.addEventListener("click", () => {
   timelineStartOffset -= 1;
 
   updatePlanningZone();
+  requestPlanningCalendarRange();
 
 });
 
@@ -332,6 +368,7 @@ nextButton.addEventListener("click", () => {
   timelineStartOffset += 1;
 
   updatePlanningZone();
+  requestPlanningCalendarRange();
 
 });
 
@@ -341,6 +378,7 @@ homeButton.addEventListener("click", () => {
   timelineStartOffset = 0;
 
   updatePlanningZone();
+  requestPlanningCalendarRange();
 
 });
 
@@ -372,6 +410,7 @@ setInterval(updateClock, 30000);
 ========================== */
 
 updatePlanningZone();
+requestPlanningCalendarRange();
 
 loadWeather();
 
