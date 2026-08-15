@@ -112,6 +112,33 @@ test("does not fetch disabled sources", async () => {
   assert.equal(requests, 0);
 });
 
+test("translates webcal to HTTPS only for the backend request", async () => {
+  let requestedUrl = null;
+  const source = createSource({
+    url: "webcal://calendar.test/private.ics?token=secret"
+  });
+  const provider = new IcalCalendarProvider({
+    fetchImpl: async (url) => {
+      requestedUrl = url;
+      return new Response(readFixture("timed-events.ics"));
+    }
+  });
+  const events = await provider.getEvents({
+    ...range,
+    sources: [source]
+  });
+
+  assert.equal(
+    requestedUrl,
+    "https://calendar.test/private.ics?token=secret"
+  );
+  assert.equal(
+    source.url,
+    "webcal://calendar.test/private.ics?token=secret"
+  );
+  assert.equal(events.length, 1);
+});
+
 test("uses stale cached content after a fetch failure", async () => {
   let now = 0;
   let requests = 0;

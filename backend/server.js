@@ -1,6 +1,7 @@
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
+const { randomUUID } = require("crypto");
 const {
   SPORTS_TEAM_REGISTRY,
   getSportsTeam
@@ -371,6 +372,22 @@ app.get("/control", (req, res) => {
         provider.id === config.calendar.provider ? " selected" : ""
       }>${escapeHtml(provider.name)}</option>`
   ).join("");
+  const calendarSourceRows = config.calendar.sources.length > 0
+    ? config.calendar.sources.map((source) => `
+        <li>
+          <span>${source.enabled ? "✓" : "○"} ${escapeHtml(source.name)}<br><small>${source.enabled ? "Enabled" : "Disabled"}</small></span>
+          <span data-calendar-source-actions>
+            <button type="submit" name="calendarSourceId" value="${escapeHtml(source.id)}" formaction="/control/calendar-sources/toggle" formmethod="post">${source.enabled ? "Disable" : "Enable"}</button>
+            <button type="button" data-remove-calendar-source>Remove</button>
+          </span>
+          <div data-calendar-source-confirmation hidden>
+            <p>Remove ${escapeHtml(source.name)}?</p>
+            <p>This will stop Mosaic from displaying events from this calendar.</p>
+            <button type="button" data-cancel-calendar-source-removal>Cancel</button>
+            <button type="submit" name="calendarSourceId" value="${escapeHtml(source.id)}" formaction="/control/calendar-sources/remove" formmethod="post">Remove Calendar</button>
+          </div>
+        </li>`).join("")
+    : "<li>No Calendar sources configured.</li>";
 
   res.type("html").send(`<!doctype html>
 <html lang="en">
@@ -418,6 +435,13 @@ app.get("/control", (req, res) => {
       </label>
       <label for="calendar-provider">Provider</label>
       <select id="calendar-provider" name="calendarProvider">${calendarProviderOptions}</select>
+      <h2>Calendar Sources</h2>
+      <label for="calendar-source-name">Nickname</label>
+      <input id="calendar-source-name" name="calendarSourceName" type="text">
+      <label for="calendar-source-url">iCal Address</label>
+      <input id="calendar-source-url" name="calendarSourceUrl" type="url">
+      <button type="submit" formaction="/control/calendar-sources/add" formmethod="post">Add Calendar</button>
+      <ul>${calendarSourceRows}</ul>
     </fieldset>
     <button type="submit">Save</button>
   </form>
@@ -496,6 +520,42 @@ app.get("/control", (req, res) => {
         () => channel.close(),
         { once: true }
       );
+    })();
+
+    (() => {
+      document.querySelectorAll(
+        "[data-remove-calendar-source]"
+      ).forEach((button) => {
+        button.addEventListener("click", () => {
+          const row = button.closest("li");
+          const actions = row.querySelector(
+            "[data-calendar-source-actions]"
+          );
+          const confirmation = row.querySelector(
+            "[data-calendar-source-confirmation]"
+          );
+
+          actions.hidden = true;
+          confirmation.hidden = false;
+        });
+      });
+
+      document.querySelectorAll(
+        "[data-cancel-calendar-source-removal]"
+      ).forEach((button) => {
+        button.addEventListener("click", () => {
+          const row = button.closest("li");
+          const actions = row.querySelector(
+            "[data-calendar-source-actions]"
+          );
+          const confirmation = row.querySelector(
+            "[data-calendar-source-confirmation]"
+          );
+
+          confirmation.hidden = true;
+          actions.hidden = false;
+        });
+      });
     })();
   </script>
 </body>
@@ -590,6 +650,142 @@ app.post("/control/favorite-teams/remove", async (req, res) => {
     res.status(500).json({ error: "Favorite team could not be removed." });
   }
 });
+
+app.post("/control/calendar-sources/add", async (req, res) => {
+  try {
+    const name = typeof req.body.calendarSourceName === "string"
+      ? req.body.calendarSourceName.trim()
+      : "";
+    const url = typeof req.body.calendarSourceUrl === "string"
+      ? req.body.calendarSourceUrl.trim()
+      : "";
+
+    if (!name) {
+      return res.status(400).json({
+        error: "Calendar nickname must not be empty."
+      });
+    }
+
+    if (!url) {
+      return res.status(400).json({
+        error: "iCalendar URL must not be empty."
+      });
+    }
+
+    const source = normalizeCalendarSources([{
+      id: `calendar-${randomUUID()}`,
+      name,
+      enabled: true,
+      url
+    }])[0];
+
+    if (!source) {
+      return res.status(400).json({
+        error: "iCalendar URL is invalid."
+      });
+    }
+
+    const config = readConfig();
+
+    if (
+      config.calendar.sources.some(
+        (configuredSource) => configuredSource.url === source.url
+      )
+    ) {
+      return res.status(400).json({
+        error: "That Calendar source is already configured."
+      });
+    }
+
+    await writeConfig({
+      ...config,
+      calendar: {
+        ...config.calendar,
+        sources: [...config.calendar.sources, source]
+      }
+    });
+    res.redirect(303, "/control");
+  } catch (error) {
+    console.error("Unable to add Calendar source.");
+    res.status(500).json({
+      error: "Calendar source could not be added."
+    });
+  }
+});
+
+app.post("/control/calendar-sources/toggle", async (req, res) => {
+  try {
+    const config = readConfig();
+    const sourceId = normalizeCalendarSourceId(
+      req.body.calendarSourceId
+    );
+    const sourceExists = config.calendar.sources.some(
+      (source) => source.id === sourceId
+    );
+
+    if (!sourceExists) {
+      return res.status(400).json({
+        error: "Calendar source is invalid."
+      });
+    }
+
+    await writeConfig({
+      ...config,
+      calendar: {
+        ...config.calendar,
+        sources: config.calendar.sources.map((source) =>
+          source.id === sourceId
+            ? { ...source, enabled: !source.enabled }
+            : source
+        )
+      }
+    });
+    res.redirect(303, "/control");
+  } catch (error) {
+    console.error("Unable to update Calendar source.");
+    res.status(500).json({
+      error: "Calendar source could not be updated."
+    });
+  }
+});
+
+app.post("/control/calendar-sources/remove", async (req, res) => {
+  try {
+    const config = readConfig();
+    const sourceId = normalizeCalendarSourceId(
+      req.body.calendarSourceId
+    );
+    const sourceExists = config.calendar.sources.some(
+      (source) => source.id === sourceId
+    );
+
+    if (!sourceExists) {
+      return res.status(400).json({
+        error: "Calendar source is invalid."
+      });
+    }
+
+    await writeConfig({
+      ...config,
+      calendar: {
+        ...config.calendar,
+        sources: config.calendar.sources.filter(
+          (source) => source.id !== sourceId
+        )
+      }
+    });
+    res.redirect(303, "/control");
+  } catch (error) {
+    console.error("Unable to remove Calendar source.");
+    res.status(500).json({
+      error: "Calendar source could not be removed."
+    });
+  }
+});
+
+function normalizeCalendarSourceId(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
 
 app.get("/api/config", (req, res) => {
   const config = readConfig();

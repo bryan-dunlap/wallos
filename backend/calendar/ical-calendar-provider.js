@@ -116,8 +116,14 @@ class IcalCalendarProvider {
 
     const url = new URL(source.url);
 
-    if (url.protocol !== "https:" && url.protocol !== "http:") {
-      throw new TypeError("Calendar source URL must use HTTP or HTTPS.");
+    if (
+      url.protocol !== "https:" &&
+      url.protocol !== "http:" &&
+      url.protocol !== "webcal:"
+    ) {
+      throw new TypeError(
+        "Calendar source URL must use HTTP, HTTPS, or webcal."
+      );
     }
   }
 
@@ -139,10 +145,13 @@ class IcalCalendarProvider {
     }
 
     try {
-      const response = await this.fetchImpl(source.url, {
-        headers,
-        signal: controller.signal
-      });
+      const response = await this.fetchImpl(
+        this.getFetchUrl(source.url),
+        {
+          headers,
+          signal: controller.signal
+        }
+      );
 
       if (response.status === 304 && cached?.content) {
         return {
@@ -168,6 +177,10 @@ class IcalCalendarProvider {
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  getFetchUrl(configuredUrl) {
+    return configuredUrl.replace(/^webcal:/i, "https:");
   }
 
   async readResponseText(response) {

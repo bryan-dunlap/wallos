@@ -32,7 +32,7 @@ function normalizeCalendarUrl(value) {
   try {
     const url = new URL(value);
 
-    return url.protocol === "https:" || url.protocol === "http:"
+    return ["https:", "http:", "webcal:"].includes(url.protocol)
       ? value.trim()
       : null;
   } catch (error) {
