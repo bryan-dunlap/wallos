@@ -1,11 +1,63 @@
+const CALENDAR_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+
 class CalendarProvider {
 
     constructor() {
         this.registry = window.mosaicCalendar.providers;
         this.normalizer = new CalendarEventNormalizer();
+        this.refreshTimer = null;
+        this.refreshInFlight = null;
+        this.lastKnownGoodFacts = null;
+        this.started = false;
+        this.handlePageHide = () => this.stop();
     }
 
     async start() {
+        if (this.started) return;
+
+        this.started = true;
+        window.addEventListener(
+            "pagehide",
+            this.handlePageHide,
+            { once: true }
+        );
+
+        await this.runRefreshCycle();
+
+        if (!this.started) return;
+
+        this.refreshTimer = setInterval(
+            () => this.runRefreshCycle(),
+            CALENDAR_REFRESH_INTERVAL_MS
+        );
+    }
+
+    stop() {
+        this.started = false;
+
+        if (this.refreshTimer) {
+            clearInterval(this.refreshTimer);
+            this.refreshTimer = null;
+        }
+
+        window.removeEventListener(
+            "pagehide",
+            this.handlePageHide
+        );
+    }
+
+    runRefreshCycle() {
+        if (this.refreshInFlight) return this.refreshInFlight;
+
+        this.refreshInFlight = this.refreshFromCurrentSettings()
+            .finally(() => {
+                this.refreshInFlight = null;
+            });
+
+        return this.refreshInFlight;
+    }
+
+    async refreshFromCurrentSettings() {
         const settings = await this.loadSettings();
 
         if (!settings.enabled) {
@@ -62,10 +114,15 @@ class CalendarProvider {
                 providerEvents,
                 provider.id
             );
+            const facts = this.createFacts(events);
 
-            this.publishFacts(this.createFacts(events));
+            this.lastKnownGoodFacts = facts;
+            this.publishFacts(facts);
         } catch (error) {
-            this.publishFacts(this.createUnavailableFacts());
+            this.publishFacts(
+                this.lastKnownGoodFacts ||
+                this.createUnavailableFacts()
+            );
         }
     }
 
