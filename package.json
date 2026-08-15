@@ -6,14 +6,15 @@
   "directories": {
     "doc": "docs"
   },
-"scripts": {
-  "start": "node backend/server.js"
-},
+  "scripts": {
+    "start": "node backend/server.js"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "node-ical": "^0.25.6"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"
