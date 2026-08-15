@@ -4,7 +4,7 @@
   },
   "sports": {
     "primaryLeague": "MLB",
-    "enabled": false,
+    "enabled": true,
     "favoriteTeams": [
       {
         "id": "SEA",
@@ -25,7 +25,7 @@
   },
   "calendar": {
     "enabled": true,
-    "provider": "demo",
+    "provider": "ical",
     "sources": [
       {
         "id": "calendar-569ca19b-5d73-47e2-aeb2-26f57de668e6",

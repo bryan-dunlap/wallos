@@ -366,11 +366,11 @@ app.get("/control", (req, res) => {
     .join("");
   const favoriteTeamRows = config.sports.favoriteTeams.length > 0
     ? config.sports.favoriteTeams.map((team) => `
-        <li>
-          <span>${escapeHtml(team.name)}<br><small>${team.league}</small></span>
-          <button type="submit" name="removeTeamId" value="${team.id}" formaction="/control/favorite-teams/remove" formmethod="post">Remove</button>
+        <li class="item-row">
+          <span class="item-copy"><strong>${escapeHtml(team.name)}</strong><small>${team.league}</small></span>
+          <button class="button button-quiet" type="submit" name="removeTeamId" value="${team.id}" formaction="/control/favorite-teams/remove" formmethod="post">Remove</button>
         </li>`).join("")
-    : "<li>No favorite teams configured.</li>";
+    : "<li class=\"empty-state\">No favorite teams configured.</li>";
   const calendarProviderOptions = calendarProviderMetadata.map(
     (provider) =>
       `<option value="${escapeHtml(provider.id)}"${
@@ -379,20 +379,22 @@ app.get("/control", (req, res) => {
   ).join("");
   const calendarSourceRows = config.calendar.sources.length > 0
     ? config.calendar.sources.map((source) => `
-        <li>
-          <span>${source.enabled ? "✓" : "○"} ${escapeHtml(source.name)}<br><small>${source.enabled ? "Enabled" : "Disabled"}</small></span>
+        <li class="item-row">
+          <span class="item-copy"><strong><span class="status-dot${source.enabled ? " is-enabled" : ""}"></span>${escapeHtml(source.name)}</strong><small>${source.enabled ? "Enabled" : "Disabled"}</small></span>
           <span data-calendar-source-actions>
-            <button type="submit" name="calendarSourceId" value="${escapeHtml(source.id)}" formaction="/control/calendar-sources/toggle" formmethod="post">${source.enabled ? "Disable" : "Enable"}</button>
-            <button type="button" data-remove-calendar-source>Remove</button>
+            <button class="button button-quiet" type="submit" name="calendarSourceId" value="${escapeHtml(source.id)}" formaction="/control/calendar-sources/toggle" formmethod="post">${source.enabled ? "Disable" : "Enable"}</button>
+            <button class="button button-quiet" type="button" data-remove-calendar-source>Remove</button>
           </span>
-          <div data-calendar-source-confirmation hidden>
-            <p>Remove ${escapeHtml(source.name)}?</p>
+          <div class="inline-confirmation" data-calendar-source-confirmation hidden>
+            <strong>Remove ${escapeHtml(source.name)}?</strong>
             <p>This will stop Mosaic from displaying events from this calendar.</p>
-            <button type="button" data-cancel-calendar-source-removal>Cancel</button>
-            <button type="submit" name="calendarSourceId" value="${escapeHtml(source.id)}" formaction="/control/calendar-sources/remove" formmethod="post">Remove Calendar</button>
+            <div class="button-row">
+              <button class="button button-quiet" type="button" data-cancel-calendar-source-removal>Cancel</button>
+              <button class="button button-danger" type="submit" name="calendarSourceId" value="${escapeHtml(source.id)}" formaction="/control/calendar-sources/remove" formmethod="post">Remove Calendar</button>
+            </div>
           </div>
         </li>`).join("")
-    : "<li>No Calendar sources configured.</li>";
+    : "<li class=\"empty-state\">No Calendar sources configured.</li>";
 
   res.type("html").send(`<!doctype html>
 <html lang="en">
@@ -400,65 +402,222 @@ app.get("/control", (req, res) => {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Mosaic Control</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #18222f;
+      background: #d8e1e9;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 10% 3%, rgba(218, 230, 239, .78), transparent 34%), radial-gradient(circle at 88% 16%, rgba(170, 193, 213, .42), transparent 36%), radial-gradient(circle at 46% 92%, rgba(194, 202, 218, .3), transparent 38%), linear-gradient(145deg, #dfe7ee 0%, #ced9e2 52%, #dae2e9 100%); background-attachment: fixed; }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    .control-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0 64px; }
+    .control-header { margin-bottom: 32px; }
+    .eyebrow { margin: 0 0 8px; color: #64748b; font-size: .75rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 3rem); letter-spacing: -.04em; }
+    .control-intro { max-width: 620px; margin: 10px 0 0; color: #64748b; line-height: 1.6; }
+    .settings-form { display: grid; gap: 24px; }
+    .settings-surface { display: grid; gap: 24px; padding: 28px; border: 1px solid rgba(241, 247, 251, .54); border-radius: 24px; background: linear-gradient(145deg, rgba(222, 233, 242, .78), rgba(202, 217, 229, .65)); box-shadow: 0 26px 70px rgba(43, 58, 76, .16), 0 3px 12px rgba(43, 58, 76, .08), inset 0 1px 0 rgba(246, 250, 253, .72), inset 0 -1px 0 rgba(73, 94, 116, .09); backdrop-filter: blur(24px) saturate(120%); }
+    .section-heading { grid-column: 1 / -1; margin: 16px 0 -8px; padding-top: 24px; border-top: 1px solid rgba(100, 116, 139, .16); }
+    .settings-surface > .section-heading:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+    .section-heading h2 { margin: 0; font-size: 1.25rem; }
+    .section-heading p { margin: 5px 0 0; color: #64748b; }
+    .card-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+    .settings-card { min-width: 0; padding: 24px; border: 1px solid rgba(235, 243, 248, .38); border-radius: 16px; background: linear-gradient(150deg, rgba(198, 213, 225, .82), rgba(178, 198, 214, .72)); box-shadow: 0 16px 40px 2px rgba(43, 58, 76, .17), 0 5px 14px rgba(43, 58, 76, .09), inset 0 1px 0 rgba(241, 247, 250, .5), inset 0 -1px 0 rgba(65, 85, 106, .1); backdrop-filter: blur(12px) saturate(112%); }
+    .settings-card-wide { grid-column: 1 / -1; }
+    .card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+    .card-header h3 { margin: 0; font-size: 1.08rem; }
+    .card-description { margin: 5px 0 0; color: #64748b; font-size: .9rem; line-height: 1.45; }
+    .settings-content { margin-top: 22px; padding-top: 20px; border-top: 1px solid #e5e9ef; }
+    .field { display: grid; gap: 7px; }
+    .field-full { grid-column: 1 / -1; }
+    .field label { color: #334155; font-size: .84rem; font-weight: 650; }
+    input[type="text"], input[type="url"], select { width: 100%; min-height: 44px; padding: 10px 12px; color: #172033; border: 1px solid rgba(91, 115, 139, .24); border-radius: 10px; background: rgba(229, 238, 245, .78); box-shadow: inset 0 1px 2px rgba(43, 58, 76, .065), 0 1px 0 rgba(246, 250, 253, .55); backdrop-filter: blur(8px); }
+    input:focus, select:focus, button:focus-visible { outline: 3px solid rgba(37, 99, 235, .16); outline-offset: 2px; border-color: rgba(37, 99, 235, .58); }
+    .switch { position: relative; display: inline-flex; align-items: center; gap: 9px; color: #64748b; font-size: .78rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+    .switch input { position: absolute; opacity: 0; pointer-events: none; }
+    .switch-track { position: relative; width: 44px; height: 24px; border-radius: 999px; background: #cbd5e1; transition: background .18s ease; }
+    .switch-track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #edf3f7; box-shadow: 0 2px 5px rgba(15, 23, 42, .22); transition: transform .18s ease; }
+    .switch input:checked + .switch-track { background: #2563eb; }
+    .switch input:checked + .switch-track::after { transform: translateX(20px); }
+    .switch-state::before { content: "Off"; }
+    .switch input:checked ~ .switch-state::before { content: "On"; color: #1d4ed8; }
+    .subsection-title { margin: 22px 0 10px; font-size: .86rem; letter-spacing: .04em; text-transform: uppercase; color: #64748b; }
+    .item-list { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
+    .item-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 13px 14px; border: 1px solid rgba(239, 246, 250, .42); border-radius: 11px; background: rgba(203, 218, 230, .5); box-shadow: inset 0 1px 0 rgba(244, 249, 252, .46); }
+    .item-copy { display: grid; gap: 3px; min-width: 0; }
+    .item-copy strong { overflow: hidden; text-overflow: ellipsis; }
+    .item-copy small { color: #64748b; }
+    [data-calendar-source-actions] { display: flex; gap: 6px; }
+    .status-dot { display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: #94a3b8; }
+    .status-dot.is-enabled { background: #16a34a; box-shadow: 0 0 0 3px rgba(22, 163, 74, .12); }
+    .empty-state { padding: 16px; color: #64748b; border: 1px dashed #cbd5e1; border-radius: 11px; text-align: center; }
+    .button-row { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; }
+    .add-team-row { margin-top: 14px; }
+    .button { min-height: 40px; padding: 9px 14px; border: 0; border-radius: 9px; font-weight: 700; }
+    .button-primary { color: #fff; background: linear-gradient(145deg, #2b61d5, #1d4fc0); box-shadow: 0 5px 14px rgba(29, 78, 216, .2), inset 0 1px 0 rgba(255, 255, 255, .2); }
+    .button-secondary { color: #1d4ed8; background: rgba(210, 224, 241, .78); box-shadow: inset 0 1px 0 rgba(243, 248, 252, .52); }
+    .button-quiet { min-height: 34px; padding: 7px 10px; color: #475569; background: transparent; }
+    .button-danger { color: #fff; background: #b42318; }
+    .button:disabled { cursor: not-allowed; opacity: .5; }
+    .inline-form { display: grid; grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr) auto; gap: 10px; align-items: end; }
+    .inline-confirmation { grid-column: 1 / -1; padding: 14px; border-left: 3px solid #b42318; border-radius: 8px; background: #fff1f0; }
+    .inline-confirmation p { margin: 5px 0 12px; color: #7f1d1d; font-size: .88rem; }
+    .developer-card { background: linear-gradient(150deg, rgba(193, 208, 220, .82), rgba(173, 193, 209, .72)); }
+    .save-bar { position: sticky; bottom: 16px; z-index: 5; display: flex; justify-content: flex-end; padding: 12px; border: 1px solid rgba(236, 244, 249, .52); border-radius: 14px; background: rgba(219, 230, 238, .9); box-shadow: 0 10px 30px rgba(15, 23, 42, .12), inset 0 1px 0 rgba(246, 250, 253, .58); backdrop-filter: blur(14px); }
+    .save-status { align-self: center; margin-right: auto; padding: 0 10px; color: #64748b; font-size: .86rem; font-weight: 650; }
+    [hidden] { display: none !important; }
+    @media (max-width: 760px) {
+      .control-shell { width: min(100% - 20px, 620px); padding-top: 28px; }
+      .settings-surface { padding: 20px; border-radius: 18px; }
+      .card-grid { grid-template-columns: 1fr; }
+      .settings-card-wide, .field-full { grid-column: auto; }
+      .inline-form { grid-template-columns: 1fr; }
+      .item-row { align-items: start; }
+      .save-bar { bottom: 8px; }
+    }
+    @media (max-width: 460px) {
+      .settings-surface { padding: 14px; }
+      .settings-card { padding: 18px; border-radius: 14px; }
+      .card-header { gap: 12px; }
+      .item-row { grid-template-columns: 1fr; }
+      [data-calendar-source-actions] { justify-content: flex-start; }
+    }
+  </style>
 </head>
 <body>
-  <h1>Mosaic Control</h1>
-  <form method="post" action="/control">
-    <fieldset>
-      <legend>Who is this for?</legend>
-      <label for="profile-name">Display Name</label>
-      <input id="profile-name" name="profileName" type="text" value="${escapeHtml(config.profile.name)}" placeholder="Bryan">
-    </fieldset>
-    <fieldset>
-      <legend>Where are you?</legend>
-      <label for="location-query">City or ZIP Code</label>
-      <input id="location-query" name="locationQuery" type="text" value="${escapeHtml(config.location.query)}" required>
-    </fieldset>
-    <fieldset>
-      <legend>What sport do you follow?</legend>
-      <select name="primaryLeague">${leagueOptions}</select>
-      <label>
-        <input name="sportsEnabled" type="checkbox" value="true"${config.sports.enabled ? " checked" : ""}>
-        Sports Enabled
-      </label>
-      <label for="favorite-team">Add Favorite Team</label>
-      <select id="favorite-team" name="addTeamId"${teamOptions ? "" : " disabled"}>${teamOptions || "<option>All available teams added</option>"}</select>
-      <button type="submit" formaction="/control/favorite-teams/add" formmethod="post"${teamOptions ? "" : " disabled"}>Add</button>
-      <p>Favorite Teams:</p>
-      <ul>${favoriteTeamRows}</ul>
-    </fieldset>
-    <fieldset>
-      <legend>How should Mosaic look?</legend>
-      <label for="display-theme">Theme</label>
-      <select id="display-theme" name="theme">${themeOptions}</select>
-    </fieldset>
-    <fieldset>
-      <legend>Calendar</legend>
-      <label>
-        <input name="calendarEnabled" type="checkbox" value="true"${config.calendar.enabled ? " checked" : ""}>
-        Calendar Enabled
-      </label>
-      <label for="calendar-provider">Provider</label>
-      <select id="calendar-provider" name="calendarProvider">${calendarProviderOptions}</select>
-      <h2>Calendar Sources</h2>
-      <label for="calendar-source-name">Nickname</label>
-      <input id="calendar-source-name" name="calendarSourceName" type="text">
-      <label for="calendar-source-url">iCal Address</label>
-      <input id="calendar-source-url" name="calendarSourceUrl" type="url">
-      <button type="submit" formaction="/control/calendar-sources/add" formmethod="post">Add Calendar</button>
-      <ul>${calendarSourceRows}</ul>
-    </fieldset>
-    <button type="submit">Save</button>
-  </form>
-  <fieldset>
-    <legend>Sports Demo (Temporary Development Tool)</legend>
-    <p>Preview simulated Sports states on the running Mosaic dashboard. Demo state is not saved.</p>
-    <button type="button" data-sports-demo-action="scheduled">Scheduled</button>
-    <button type="button" data-sports-demo-action="live">Live</button>
-    <button type="button" data-sports-demo-action="final">Final</button>
-    <button type="button" data-sports-demo-action="clear">Clear</button>
-  </fieldset>
+  <main class="control-shell">
+    <header class="control-header">
+      <p class="eyebrow">Mosaic</p>
+      <h1>Control Center</h1>
+      <p class="control-intro">Shape what Mosaic shows and how it supports your day.</p>
+    </header>
+    <form class="settings-form" method="post" action="/control">
+      <div class="settings-surface">
+      <div class="section-heading"><h2>Personalization</h2><p>Basic details Mosaic uses to make information relevant.</p></div>
+      <div class="card-grid">
+        <section class="settings-card">
+          <div class="field"><label for="profile-name">Display name</label><input id="profile-name" name="profileName" type="text" value="${escapeHtml(config.profile.name)}" placeholder="Bryan"></div>
+        </section>
+        <section class="settings-card">
+          <div class="field"><label for="location-query">City or ZIP code</label><input id="location-query" name="locationQuery" type="text" value="${escapeHtml(config.location.query)}" required></div>
+        </section>
+      </div>
+
+      <div class="section-heading"><h2>Appearance</h2><p>Choose the visual character of your dashboard.</p></div>
+      <div class="card-grid">
+        <section class="settings-card settings-card-wide">
+          <div class="field"><label for="display-theme">Theme</label><select id="display-theme" name="theme">${themeOptions}</select></div>
+        </section>
+      </div>
+
+      <div class="section-heading"><h2>Information Sources</h2><p>Choose which parts of your life Mosaic keeps in view.</p></div>
+      <div class="card-grid">
+        <section class="settings-card" data-feature-card>
+          <div class="card-header">
+            <div><h3>Calendar</h3><p class="card-description">Upcoming events and timely reminders.</p></div>
+            <label class="switch"><input name="calendarEnabled" type="checkbox" value="true" data-feature-toggle aria-label="Enable Calendar" aria-controls="calendar-settings"${config.calendar.enabled ? " checked" : ""}><span class="switch-track"></span><span class="switch-state"></span></label>
+          </div>
+          <div class="settings-content" id="calendar-settings" data-feature-content${config.calendar.enabled ? "" : " hidden"}>
+            <div class="field"><label for="calendar-provider">Calendar service</label><select id="calendar-provider" name="calendarProvider">${calendarProviderOptions}</select></div>
+            <h4 class="subsection-title">Your calendars</h4>
+            <ul class="item-list">${calendarSourceRows}</ul>
+            <h4 class="subsection-title">Add a calendar</h4>
+            <div class="inline-form">
+              <div class="field"><label for="calendar-source-name">Nickname</label><input id="calendar-source-name" name="calendarSourceName" type="text" placeholder="Personal"></div>
+              <div class="field"><label for="calendar-source-url">iCal address</label><input id="calendar-source-url" name="calendarSourceUrl" type="url" placeholder="https://calendar.example.com/feed.ics"></div>
+              <button class="button button-secondary" type="submit" formaction="/control/calendar-sources/add" formmethod="post">Add Calendar</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="settings-card" data-feature-card>
+          <div class="card-header">
+            <div><h3>Sports</h3><p class="card-description">Favorite teams and game awareness.</p></div>
+            <label class="switch"><input name="sportsEnabled" type="checkbox" value="true" data-feature-toggle aria-label="Enable Sports" aria-controls="sports-settings"${config.sports.enabled ? " checked" : ""}><span class="switch-track"></span><span class="switch-state"></span></label>
+          </div>
+          <div class="settings-content" id="sports-settings" data-feature-content${config.sports.enabled ? "" : " hidden"}>
+            <div class="field"><label for="primary-league">Primary league</label><select id="primary-league" name="primaryLeague">${leagueOptions}</select></div>
+            <h4 class="subsection-title">Favorite teams</h4>
+            <ul class="item-list">${favoriteTeamRows}</ul>
+            <div class="button-row add-team-row">
+              <select id="favorite-team" name="addTeamId" aria-label="Add favorite team"${teamOptions ? "" : " disabled"}>${teamOptions || "<option>All available teams added</option>"}</select>
+              <button class="button button-secondary" type="submit" formaction="/control/favorite-teams/add" formmethod="post"${teamOptions ? "" : " disabled"}>Add team</button>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="section-heading"><h2>Developer Tools</h2><p>Optional controls for testing Mosaic experiences.</p></div>
+      <div class="card-grid">
+        <section class="settings-card settings-card-wide developer-card" data-feature-card>
+          <div class="card-header">
+            <div><h3>Sports Demo</h3><p class="card-description">Preview simulated game states on the running dashboard. Demo state is never saved.</p></div>
+            <label class="switch"><input id="sports-demo-enabled" type="checkbox" data-feature-toggle aria-label="Enable Sports Demo" aria-controls="sports-demo-settings"><span class="switch-track"></span><span class="switch-state"></span></label>
+          </div>
+          <div class="settings-content" id="sports-demo-settings" data-feature-content hidden>
+            <div class="button-row">
+              <button class="button button-secondary" type="button" data-sports-demo-action="scheduled">Scheduled</button>
+              <button class="button button-secondary" type="button" data-sports-demo-action="live">Live</button>
+              <button class="button button-secondary" type="button" data-sports-demo-action="final">Final</button>
+              <button class="button button-quiet" type="button" data-sports-demo-action="clear">Clear</button>
+            </div>
+          </div>
+        </section>
+      </div>
+      </div>
+
+      <div class="save-bar"><span class="save-status" data-save-status role="status" aria-live="polite" hidden>Unsaved changes</span><button class="button button-primary" type="submit">Save Changes</button></div>
+    </form>
+  </main>
   <script>
+    (() => {
+      const form = document.querySelector(".settings-form");
+      const status = document.querySelector("[data-save-status]");
+      const savedFieldNames = new Set([
+        "profileName",
+        "locationQuery",
+        "theme",
+        "calendarEnabled",
+        "calendarProvider",
+        "sportsEnabled",
+        "primaryLeague"
+      ]);
+
+      const showPendingState = (event) => {
+        if (!savedFieldNames.has(event.target.name)) return;
+
+        status.hidden = false;
+      };
+
+      form.addEventListener("input", showPendingState);
+      form.addEventListener("change", showPendingState);
+    })();
+
+    (() => {
+      document.querySelectorAll("[data-feature-toggle]")
+        .forEach((toggle) => {
+          const content = document.getElementById(
+            toggle.getAttribute("aria-controls")
+          );
+
+          if (!content) return;
+
+          const syncDisclosure = () => {
+            content.hidden = !toggle.checked;
+            toggle.setAttribute(
+              "aria-expanded",
+              String(toggle.checked)
+            );
+          };
+
+          toggle.addEventListener("change", syncDisclosure);
+          syncDisclosure();
+        });
+    })();
+
     (() => {
       const themeSelect = document.getElementById("display-theme");
 

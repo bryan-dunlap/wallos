@@ -74,6 +74,7 @@ class SportsActiveContextGenerator {
                 },
                 score: game.score,
                 inning: game.inning,
+                battingTeam: this.getBattingTeam(game),
                 outs: game.outs,
                 count: game.count,
                 bases: game.bases,
@@ -88,6 +89,14 @@ class SportsActiveContextGenerator {
             createdAt: new Date().toISOString(),
             expiresAt: null
         };
+    }
+
+    getBattingTeam(game) {
+        if (game?.status !== "live") return null;
+        if (game.inning?.half === "top") return "away";
+        if (game.inning?.half === "bottom") return "home";
+
+        return null;
     }
 
     formatGameSummary(game) {

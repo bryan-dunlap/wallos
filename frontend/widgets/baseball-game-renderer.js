@@ -4,6 +4,11 @@ class BaseballGameRenderer {
         const score = payload.score || {};
         const inning = payload.inning || {};
         const count = payload.count || {};
+        const battingTeam = ["away", "home"].includes(
+            payload.battingTeam
+        )
+            ? payload.battingTeam
+            : null;
         const awayTeam = this.normalizeTeam(
             payload.teams?.away || payload.teams?.favoriteTeam,
             "AWAY"
@@ -18,6 +23,10 @@ class BaseballGameRenderer {
                 <div class="baseball-game-primary">
                     <div class="baseball-game-matchup">
                         <div class="baseball-game-team-identity baseball-game-team-identity-favorite">
+                            ${this.renderBattingIndicator(
+                                battingTeam === "away"
+                            )}
+
                             ${this.renderTeamLogo(awayTeam)}
 
                             <div class="baseball-game-team-name">
@@ -51,6 +60,10 @@ class BaseballGameRenderer {
                             </div>
 
                             ${this.renderTeamLogo(homeTeam)}
+
+                            ${this.renderBattingIndicator(
+                                battingTeam === "home"
+                            )}
                         </div>
                     </div>
 
@@ -104,6 +117,14 @@ class BaseballGameRenderer {
             : "";
 
         return { id, name, logo };
+    }
+
+    renderBattingIndicator(isBatting) {
+        return `
+            <span class="baseball-game-batting-indicator${
+                isBatting ? " is-active" : ""
+            }" aria-hidden="true"></span>
+        `;
     }
 
     renderTeamLogo(team) {

@@ -719,6 +719,34 @@
 }
 
 
+.baseball-game-batting-indicator {
+
+    width: 8px;
+
+    height: 8px;
+
+    flex: 0 0 8px;
+
+    border-radius: 50%;
+
+    background: #e7bd4f;
+
+    box-shadow:
+        0 0 5px rgba(231, 189, 79, .72),
+        0 0 11px rgba(231, 189, 79, .34);
+
+    opacity: 0;
+
+}
+
+
+.baseball-game-batting-indicator.is-active {
+
+    opacity: 1;
+
+}
+
+
 .baseball-game-team-identity-favorite {
 
     justify-content: flex-end;
