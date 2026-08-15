@@ -152,12 +152,17 @@ function readConfig() {
     const calendarEnabled = savedConfig?.calendar?.enabled;
     const configuredCalendarProvider =
       savedConfig?.calendar?.provider;
-    const calendarProvider = calendarProviderRegistry.get(
-      configuredCalendarProvider
-    ) || calendarProviderRegistry.getDefault();
     const calendarSources = normalizeCalendarSources(
       savedConfig?.calendar?.sources
     );
+    const calendarProviderId =
+      configuredCalendarProvider === defaultCalendarProvider &&
+      calendarSources.length > 0
+        ? icalCalendarProvider.id
+        : configuredCalendarProvider;
+    const calendarProvider = calendarProviderRegistry.get(
+      calendarProviderId
+    ) || calendarProviderRegistry.getDefault();
 
     return {
       location: {
@@ -701,6 +706,9 @@ app.post("/control/calendar-sources/add", async (req, res) => {
       ...config,
       calendar: {
         ...config.calendar,
+        provider: config.calendar.sources.length === 0
+          ? icalCalendarProvider.id
+          : config.calendar.provider,
         sources: [...config.calendar.sources, source]
       }
     });

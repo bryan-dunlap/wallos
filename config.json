@@ -4,7 +4,7 @@
   },
   "sports": {
     "primaryLeague": "MLB",
-    "enabled": true,
+    "enabled": false,
     "favoriteTeams": [
       {
         "id": "SEA",
@@ -26,6 +26,19 @@
   "calendar": {
     "enabled": true,
     "provider": "demo",
-    "sources": []
+    "sources": [
+      {
+        "id": "calendar-569ca19b-5d73-47e2-aeb2-26f57de668e6",
+        "name": "Personal",
+        "enabled": true,
+        "url": "webcal://p53-caldav.icloud.com/published/2/MTY5OTIyODMxMTY5OTIyOEk9PFxmvOSUZ4GA0jWZ-UP9IvyjopHxj9eC4kW6YfFJ_yEgnjECNRtuVvgwE3dRaQXh85hjNEVopgGUJ7D_lSY"
+      },
+      {
+        "id": "calendar-f16b2859-d8e0-4c34-a3ff-db7840132640",
+        "name": "Birthdays",
+        "enabled": true,
+        "url": "webcal://p53-caldav.icloud.com/published/2/MTY5OTIyODMxMTY5OTIyOEk9PFxmvOSUZ4GA0jWZ-UMUH6-Xgp9VXtQLCmZWpy9uCUfNR-EN82cy_W_3mAFMJVjg1aAJqVUChspWpkeBoQ0"
+      }
+    ]
   }
 }
