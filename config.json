@@ -24,6 +24,8 @@
     "name": "Bryan"
   },
   "calendar": {
-    "enabled": true
+    "enabled": true,
+    "provider": "demo",
+    "sources": []
   }
 }

@@ -11,6 +11,13 @@ const CalendarProviderRegistry = require(
 const DemoCalendarDataProvider = require(
   "../frontend/providers/demo-calendar-data-provider"
 );
+const {
+  IcalCalendarProvider
+} = require("./calendar/ical-calendar-provider");
+const {
+  normalizeCalendarSources,
+  createPublicCalendarConfig
+} = require("./calendar/calendar-source-config");
 
 const app = express();
 const PORT = 3000;
@@ -19,6 +26,8 @@ const frontendPath = path.join(__dirname, "..", "frontend");
 const configPath = path.join(__dirname, "..", "config.json");
 const calendarProviderRegistry = new CalendarProviderRegistry();
 calendarProviderRegistry.register(new DemoCalendarDataProvider());
+const icalCalendarProvider = new IcalCalendarProvider();
+calendarProviderRegistry.register(icalCalendarProvider);
 const calendarProviderMetadata =
   calendarProviderRegistry.getMetadata();
 const defaultCalendarProvider =
@@ -57,7 +66,8 @@ const DEFAULT_CONFIG = {
   },
   calendar: {
     enabled: true,
-    provider: defaultCalendarProvider
+    provider: defaultCalendarProvider,
+    sources: []
   }
 };
 const SUPPORTED_LEAGUES = ["MLB", "NFL", "NBA", "NHL"];
@@ -144,6 +154,9 @@ function readConfig() {
     const calendarProvider = calendarProviderRegistry.get(
       configuredCalendarProvider
     ) || calendarProviderRegistry.getDefault();
+    const calendarSources = normalizeCalendarSources(
+      savedConfig?.calendar?.sources
+    );
 
     return {
       location: {
@@ -176,7 +189,8 @@ function readConfig() {
         enabled: typeof calendarEnabled === "boolean"
           ? calendarEnabled
           : DEFAULT_CONFIG.calendar.enabled,
-        provider: calendarProvider.id
+        provider: calendarProvider.id,
+        sources: calendarSources
       }
     };
   } catch (error) {
@@ -223,6 +237,7 @@ function validateConfigUpdate(
   profileName,
   calendarEnabled,
   calendarProvider,
+  calendarSources,
   sportsEnabled,
   favoriteTeams
 ) {
@@ -278,7 +293,8 @@ function validateConfigUpdate(
     },
     calendar: {
       enabled: calendarEnabled,
-      provider: calendarProvider
+      provider: calendarProvider,
+      sources: normalizeCalendarSources(calendarSources)
     }
   };
 }
@@ -496,6 +512,7 @@ app.post("/control", async (req, res) => {
       req.body.profileName,
       req.body.calendarEnabled === "true",
       req.body.calendarProvider,
+      currentConfig.calendar.sources,
       req.body.sportsEnabled === "true",
       currentConfig.sports.favoriteTeams
     );
@@ -580,9 +597,50 @@ app.get("/api/config", (req, res) => {
   res.json({
     display: config.display,
     profile: config.profile,
-    calendar: config.calendar,
+    calendar: createPublicCalendarConfig(config.calendar),
     sports: config.sports
   });
+});
+
+app.get("/api/calendar/events", async (req, res) => {
+  const config = readConfig();
+
+  if (!config.calendar.enabled) {
+    return res.json({ events: [] });
+  }
+
+  if (config.calendar.provider !== icalCalendarProvider.id) {
+    return res.status(409).json({
+      error: "The configured Calendar provider is not iCalendar."
+    });
+  }
+
+  const start = new Date(req.query.start);
+  const end = new Date(req.query.end);
+
+  if (
+    !Number.isFinite(start.getTime()) ||
+    !Number.isFinite(end.getTime()) ||
+    end <= start
+  ) {
+    return res.status(400).json({
+      error: "Calendar event range is invalid."
+    });
+  }
+
+  try {
+    const events = await icalCalendarProvider.getEvents({
+      start,
+      end,
+      sources: config.calendar.sources
+    });
+
+    res.json({ events });
+  } catch (error) {
+    res.status(503).json({
+      error: "Calendar events are temporarily unavailable."
+    });
+  }
 });
 
 /* ==========================

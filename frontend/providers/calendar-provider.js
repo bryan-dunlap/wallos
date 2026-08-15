@@ -81,12 +81,18 @@ class CalendarProvider {
             const configuredProvider = this.registry.get(
                 config.calendar?.provider
             );
+            const selectedProvider =
+                configuredProvider || defaultProvider;
+
+            if (typeof selectedProvider?.setSources === "function") {
+                selectedProvider.setSources(
+                    config.calendar?.sources
+                );
+            }
 
             return {
                 enabled: config.calendar?.enabled !== false,
-                providerId: (
-                    configuredProvider || defaultProvider
-                )?.id || null
+                providerId: selectedProvider?.id || null
             };
         } catch (error) {
             return {
