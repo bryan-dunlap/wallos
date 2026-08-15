@@ -6,17 +6,19 @@ class CalendarProvider {
     }
 
     async start() {
-        const enabled = await this.loadEnabledSetting();
+        const settings = await this.loadSettings();
 
-        if (!enabled) {
+        if (!settings.enabled) {
             this.publishFacts(this.createUnavailableFacts());
             return;
         }
 
-        await this.refresh();
+        await this.refresh(settings.providerId);
     }
 
-    async loadEnabledSetting() {
+    async loadSettings() {
+        const defaultProvider = this.registry.getDefault();
+
         try {
             const response = await fetch("/api/config");
 
@@ -24,18 +26,38 @@ class CalendarProvider {
 
             const config = await response.json();
 
-            return config.calendar?.enabled !== false;
+            const configuredProvider = this.registry.get(
+                config.calendar?.provider
+            );
+
+            return {
+                enabled: config.calendar?.enabled !== false,
+                providerId: (
+                    configuredProvider || defaultProvider
+                )?.id || null
+            };
         } catch (error) {
-            return true;
+            return {
+                enabled: true,
+                providerId: defaultProvider?.id || null
+            };
         }
     }
 
-    async refresh() {
+    async refresh(providerId) {
         const range = this.getTodayRange();
 
         try {
-            const provider = this.registry.get("demo");
-            const providerEvents = await provider.getEvents(range);
+            const provider = this.registry.get(providerId) ||
+                this.registry.getDefault();
+
+            if (!provider) throw new Error("Calendar provider unavailable");
+
+            const sources = this.registry.getSources(provider.id);
+            const providerEvents = await provider.getEvents({
+                ...range,
+                sources
+            });
             const events = this.normalizer.normalizeEvents(
                 providerEvents,
                 provider.id
@@ -58,26 +80,74 @@ class CalendarProvider {
     }
 
     createFacts(events, now = new Date()) {
-        const remainingEvents = events.filter((event) => {
-            const eventEnd = Date.parse(
-                event.endTime || event.startTime
-            );
+        const classifiedEvents = this.classifyEvents(events);
+        const remainingTimedEvents = classifiedEvents.timed.filter(
+            (event) => {
+                const eventEnd = Date.parse(
+                    event.endTime || event.startTime
+                );
 
-            return Number.isFinite(eventEnd) && eventEnd >= now.getTime();
-        });
-        const nextEvent = remainingEvents[0] || null;
+                return Number.isFinite(eventEnd) &&
+                    eventEnd >= now.getTime();
+            }
+        );
+        const nextEvent = remainingTimedEvents[0] || null;
 
         return {
             status: "available",
             eventsToday: events.length,
-            remainingToday: remainingEvents.length,
+            remainingToday:
+                remainingTimedEvents.length +
+                classifiedEvents.allDay.length,
             nextEvent: nextEvent
                 ? {
                     title: nextEvent.title,
                     start: nextEvent.startTime
                 }
-                : null
+                : null,
+            timedEvents: remainingTimedEvents.map(
+                (event) => this.createEventFact(event)
+            ),
+            allDayEvents: classifiedEvents.allDay.map(
+                (event) => this.createEventFact(event)
+            )
         };
+    }
+
+    createEventFact(event) {
+        /*
+         * Calendar and provider identity remain internal normalization
+         * metadata. Presentation consumers receive event awareness only.
+         */
+        return {
+            id: event.id,
+            title: event.title,
+            startTime: event.startTime,
+            endTime: event.endTime,
+            allDay: event.allDay,
+            location: event.location
+        };
+    }
+
+    classifyEvents(events) {
+        return events.reduce(
+            (classified, event) => {
+                const classification = this.classifyEvent(event);
+
+                if (classification === "all-day") {
+                    classified.allDay.push(event);
+                } else {
+                    classified.timed.push(event);
+                }
+
+                return classified;
+            },
+            { timed: [], allDay: [] }
+        );
+    }
+
+    classifyEvent(event) {
+        return event.allDay === true ? "all-day" : "timed";
     }
 
     createUnavailableFacts() {
@@ -85,7 +155,9 @@ class CalendarProvider {
             status: "unavailable",
             eventsToday: 0,
             remainingToday: 0,
-            nextEvent: null
+            nextEvent: null,
+            timedEvents: [],
+            allDayEvents: []
         };
     }
 

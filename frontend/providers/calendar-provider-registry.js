@@ -31,14 +31,50 @@ class CalendarProviderRegistry {
         return this.providers.get(providerId) || null;
     }
 
+    getDefault() {
+        return this.providers.values().next().value || null;
+    }
+
+    getSources(providerId) {
+        const provider = this.get(providerId);
+
+        if (!provider || typeof provider.getSources !== "function") {
+            return [];
+        }
+
+        const sources = provider.getSources();
+
+        if (!Array.isArray(sources)) return [];
+
+        return sources
+            .filter((source) =>
+                typeof source?.id === "string" &&
+                source.id.trim() &&
+                typeof source?.name === "string" &&
+                source.name.trim()
+            )
+            .map((source) => ({
+                id: source.id.trim(),
+                name: source.name.trim(),
+                enabled: source.enabled !== false
+            }));
+    }
+
     getMetadata() {
         return Array.from(this.providers.values(), (provider) => ({
             id: provider.id,
-            name: provider.name
+            name: provider.name,
+            sources: this.getSources(provider.id)
         }));
     }
 
 }
 
-window.mosaicCalendar = window.mosaicCalendar || {};
-window.mosaicCalendar.providers = new CalendarProviderRegistry();
+if (typeof window !== "undefined") {
+    window.mosaicCalendar = window.mosaicCalendar || {};
+    window.mosaicCalendar.providers = new CalendarProviderRegistry();
+}
+
+if (typeof module !== "undefined" && module.exports) {
+    module.exports = CalendarProviderRegistry;
+}

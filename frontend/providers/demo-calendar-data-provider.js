@@ -7,13 +7,28 @@ class DemoCalendarDataProvider {
     constructor() {
         this.id = "demo";
         this.name = "Demo Calendar";
+        this.sources = [
+            { id: "work", name: "Work", enabled: true },
+            { id: "personal", name: "Personal", enabled: true },
+            { id: "birthdays", name: "Birthdays", enabled: true },
+            { id: "holidays", name: "National Holidays", enabled: true }
+        ];
     }
 
-    async getEvents({ start, end }) {
+    getSources() {
+        return this.sources.map((source) => ({ ...source }));
+    }
+
+    async getEvents({ start, end, sources = this.getSources() }) {
         const day = new Date(start);
         const rangeEnd = new Date(end);
+        const enabledSourceIds = new Set(
+            sources
+                .filter((source) => source.enabled !== false)
+                .map((source) => source.id)
+        );
         const events = [
-            this.createEvent(
+            this.createTimedEvent(
                 day,
                 14,
                 "demo:operations-review",
@@ -21,25 +36,47 @@ class DemoCalendarDataProvider {
                 "work",
                 "Work"
             ),
-            this.createEvent(
+            this.createTimedEvent(
                 day,
                 16,
-                "demo:project-sync",
-                "Project Sync",
+                "demo:appointment",
+                "Appointment",
                 "personal",
                 "Personal"
+            ),
+            this.createAllDayEvent(
+                day,
+                "demo:birthday",
+                "Birthday",
+                "birthdays",
+                "Birthdays"
+            ),
+            this.createAllDayEvent(
+                day,
+                "demo:holiday",
+                "Holiday",
+                "holidays",
+                "National Holidays"
             )
         ];
 
         return events.filter((event) => {
             const eventStart = Date.parse(event.startTime);
 
-            return eventStart >= day.getTime() &&
+            return enabledSourceIds.has(event.calendar.id) &&
+                eventStart >= day.getTime() &&
                 eventStart < rangeEnd.getTime();
         });
     }
 
-    createEvent(day, hour, id, title, calendarId, calendarName) {
+    createTimedEvent(
+        day,
+        hour,
+        id,
+        title,
+        calendarId,
+        calendarName
+    ) {
         const startTime = new Date(day);
         startTime.setHours(hour, 0, 0, 0);
 
@@ -57,9 +94,36 @@ class DemoCalendarDataProvider {
         };
     }
 
+    createAllDayEvent(day, id, title, calendarId, calendarName) {
+        const startTime = new Date(day);
+        startTime.setHours(0, 0, 0, 0);
+
+        const endTime = new Date(startTime);
+        endTime.setDate(endTime.getDate() + 1);
+
+        return {
+            id,
+            title,
+            startTime,
+            endTime,
+            allDay: true,
+            location: null,
+            calendar: {
+                id: calendarId,
+                name: calendarName
+            }
+        };
+    }
+
 }
 
-// The demo source is the framework's first registered provider.
-window.mosaicCalendar.providers.register(
-    new DemoCalendarDataProvider()
-);
+if (typeof window !== "undefined") {
+    // The demo source is the framework's first registered provider.
+    window.mosaicCalendar.providers.register(
+        new DemoCalendarDataProvider()
+    );
+}
+
+if (typeof module !== "undefined" && module.exports) {
+    module.exports = DemoCalendarDataProvider;
+}

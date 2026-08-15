@@ -5,12 +5,24 @@ const {
   SPORTS_TEAM_REGISTRY,
   getSportsTeam
 } = require("./sports-team-registry");
+const CalendarProviderRegistry = require(
+  "../frontend/providers/calendar-provider-registry"
+);
+const DemoCalendarDataProvider = require(
+  "../frontend/providers/demo-calendar-data-provider"
+);
 
 const app = express();
 const PORT = 3000;
 
 const frontendPath = path.join(__dirname, "..", "frontend");
 const configPath = path.join(__dirname, "..", "config.json");
+const calendarProviderRegistry = new CalendarProviderRegistry();
+calendarProviderRegistry.register(new DemoCalendarDataProvider());
+const calendarProviderMetadata =
+  calendarProviderRegistry.getMetadata();
+const defaultCalendarProvider =
+  calendarProviderRegistry.getDefault().id;
 
 /* ==========================
    Configuration
@@ -44,7 +56,8 @@ const DEFAULT_CONFIG = {
     name: ""
   },
   calendar: {
-    enabled: true
+    enabled: true,
+    provider: defaultCalendarProvider
   }
 };
 const SUPPORTED_LEAGUES = ["MLB", "NFL", "NBA", "NHL"];
@@ -126,6 +139,11 @@ function readConfig() {
     const theme = savedConfig?.display?.theme;
     const profileName = savedConfig?.profile?.name;
     const calendarEnabled = savedConfig?.calendar?.enabled;
+    const configuredCalendarProvider =
+      savedConfig?.calendar?.provider;
+    const calendarProvider = calendarProviderRegistry.get(
+      configuredCalendarProvider
+    ) || calendarProviderRegistry.getDefault();
 
     return {
       location: {
@@ -157,7 +175,8 @@ function readConfig() {
       calendar: {
         enabled: typeof calendarEnabled === "boolean"
           ? calendarEnabled
-          : DEFAULT_CONFIG.calendar.enabled
+          : DEFAULT_CONFIG.calendar.enabled,
+        provider: calendarProvider.id
       }
     };
   } catch (error) {
@@ -203,6 +222,7 @@ function validateConfigUpdate(
   theme,
   profileName,
   calendarEnabled,
+  calendarProvider,
   sportsEnabled,
   favoriteTeams
 ) {
@@ -229,6 +249,10 @@ function validateConfigUpdate(
     throw new Error("Calendar enabled must be a boolean.");
   }
 
+  if (!calendarProviderRegistry.get(calendarProvider)) {
+    throw new Error("Calendar provider is invalid.");
+  }
+
   if (typeof sportsEnabled !== "boolean") {
     throw new Error("Sports enabled must be a boolean.");
   }
@@ -253,7 +277,8 @@ function validateConfigUpdate(
       name: profileName
     },
     calendar: {
-      enabled: calendarEnabled
+      enabled: calendarEnabled,
+      provider: calendarProvider
     }
   };
 }
@@ -324,6 +349,12 @@ app.get("/control", (req, res) => {
           <button type="submit" name="removeTeamId" value="${team.id}" formaction="/control/favorite-teams/remove" formmethod="post">Remove</button>
         </li>`).join("")
     : "<li>No favorite teams configured.</li>";
+  const calendarProviderOptions = calendarProviderMetadata.map(
+    (provider) =>
+      `<option value="${escapeHtml(provider.id)}"${
+        provider.id === config.calendar.provider ? " selected" : ""
+      }>${escapeHtml(provider.name)}</option>`
+  ).join("");
 
   res.type("html").send(`<!doctype html>
 <html lang="en">
@@ -369,6 +400,8 @@ app.get("/control", (req, res) => {
         <input name="calendarEnabled" type="checkbox" value="true"${config.calendar.enabled ? " checked" : ""}>
         Calendar Enabled
       </label>
+      <label for="calendar-provider">Provider</label>
+      <select id="calendar-provider" name="calendarProvider">${calendarProviderOptions}</select>
     </fieldset>
     <button type="submit">Save</button>
   </form>
@@ -462,6 +495,7 @@ app.post("/control", async (req, res) => {
       req.body.theme,
       req.body.profileName,
       req.body.calendarEnabled === "true",
+      req.body.calendarProvider,
       req.body.sportsEnabled === "true",
       currentConfig.sports.favoriteTeams
     );
@@ -474,6 +508,7 @@ app.post("/control", async (req, res) => {
         error.message === "Theme selection is invalid." ||
         error.message === "Display name must be a string." ||
         error.message === "Calendar enabled must be a boolean." ||
+        error.message === "Calendar provider is invalid." ||
         error.message === "Sports enabled must be a boolean." ||
         error.message === "Favorite teams must be an array.");
 
