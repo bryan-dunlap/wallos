@@ -1,5 +1,15 @@
 function registerMosaicProviders(registry) {
     registry.register(
+        "discovery-rotation",
+        DiscoveryRotationController
+    );
+
+    registry.register(
+        "discovery",
+        DiscoveryProvider
+    );
+
+    registry.register(
         "daily-snapshot",
         DailySnapshotGenerator
     );

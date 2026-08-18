@@ -674,10 +674,13 @@ button:focus-visible,
     outline-offset: 4px;
 }
 /* ==========================
-   Temporary Reddit Feed
+   Discovery Feed
 ========================== */
 
 .discovery-zone {
+    min-width: 0;
+    min-height: 0;
+
     display: flex;
     align-items: center;
     justify-content: center;
@@ -685,18 +688,24 @@ button:focus-visible,
     overflow: hidden;
 }
 
-.discovery-card {
+.discovery-zone .discovery-card {
     width: 100%;
     height: 100%;
+    min-width: 0;
     min-height: 0;
 
     display: flex;
     align-items: center;
     justify-content: center;
+
+    overflow: hidden;
+    contain: size layout paint;
 }
 
-.reddit-feed {
+.discovery-zone .discovery-feed {
     width: 100%;
+    height: 100%;
+    min-height: 0;
 
     display: flex;
     align-items: center;
@@ -705,14 +714,18 @@ button:focus-visible,
     text-align: center;
 }
 
-.reddit-post {
+.discovery-zone .discovery-item {
     width: 100%;
     max-width: 1100px;
 
-    animation: reddit-fade-in .45s ease;
+    animation: discovery-fade-in .45s ease;
 }
 
-.reddit-source {
+.discovery-zone .discovery-item-text {
+    padding: clamp(14px, 2.6vw, 38px);
+}
+
+.discovery-zone .discovery-source {
     margin-bottom: 10px;
 
     color: var(--color-accent);
@@ -723,7 +736,7 @@ button:focus-visible,
     text-transform: uppercase;
 }
 
-.reddit-headline {
+.discovery-zone .discovery-headline {
     color: var(--color-text-soft);
 
     font-family: "Outfit", sans-serif;
@@ -737,7 +750,118 @@ button:focus-visible,
     margin: 0 auto;
 }
 
-.reddit-position {
+.discovery-zone .discovery-text-headline {
+    max-width: 1050px;
+
+    font-size: clamp(2rem, 3.8vw, 4rem);
+    font-weight: 500;
+    line-height: 1.12;
+    text-wrap: balance;
+}
+
+.discovery-zone .discovery-item-text-has-body .discovery-text-headline {
+    font-size: clamp(1.55rem, 2.8vw, 2.9rem);
+}
+
+.discovery-zone .discovery-body {
+    color: var(--color-text-muted);
+
+    font-family: "Outfit", sans-serif;
+    font-weight: 300;
+}
+
+.discovery-zone .discovery-text-body {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+
+    max-width: 980px;
+    margin: 16px auto 0;
+
+    font-size: clamp(1.05rem, 1.55vw, 1.5rem);
+    line-height: 1.4;
+    text-wrap: balance;
+}
+
+.discovery-zone .discovery-feed-image {
+    padding: 0;
+}
+
+.discovery-zone .discovery-item-image {
+    height: 100%;
+    max-width: none;
+    min-height: 0;
+
+    display: grid;
+    grid-template-columns: minmax(0, 56fr) minmax(280px, 44fr);
+    gap: clamp(10px, 1vw, 18px);
+}
+
+.discovery-zone .discovery-media {
+    min-height: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.discovery-zone .discovery-media-image {
+    display: block;
+
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+
+    object-fit: contain;
+}
+
+.discovery-zone .discovery-image-caption {
+    min-width: 0;
+    min-height: 0;
+
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+
+    padding: clamp(18px, 3vh, 34px) 0 8px;
+
+    overflow: hidden;
+    transform: translateX(clamp(-96px, -5vw, -64px));
+    text-align: left;
+}
+
+.discovery-zone .discovery-image-caption .discovery-source {
+    margin-bottom: 7px;
+}
+
+.discovery-zone .discovery-image-headline {
+    max-width: none;
+    margin: 0;
+
+    font-size: clamp(1.75rem, 2.8vw, 3.1rem);
+    line-height: 1.12;
+    text-wrap: balance;
+}
+
+.discovery-zone .discovery-image-body {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+
+    margin-top: 14px;
+
+    font-size: clamp(.95rem, 1.15vw, 1.18rem);
+    line-height: 1.38;
+}
+
+.discovery-zone .discovery-image-caption .discovery-position {
+    margin-top: 16px;
+}
+
+.discovery-zone .discovery-position {
     margin-top: 14px;
 
     color: var(--color-text-muted);
@@ -746,7 +870,7 @@ button:focus-visible,
     letter-spacing: .18em;
 }
 
-@keyframes reddit-fade-in {
+@keyframes discovery-fade-in {
     from {
         opacity: 0;
         transform: translateY(8px);

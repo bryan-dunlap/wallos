@@ -19,6 +19,23 @@ const {
   normalizeCalendarSources,
   createPublicCalendarConfig
 } = require("./calendar/calendar-source-config");
+const {
+  normalizeDiscoverySources,
+  normalizeFeedUrl,
+  createPublicDiscoveryConfig
+} = require("./discovery/discovery-source-config");
+const {
+  DiscoverySourceAdapterRegistry
+} = require("./discovery/discovery-source-adapter-registry");
+const {
+  RedditDiscoveryAdapter
+} = require("./discovery/reddit-discovery-adapter");
+const {
+  RssDiscoveryAdapter
+} = require("./discovery/rss-discovery-adapter");
+const {
+  DiscoveryAggregator
+} = require("./discovery/discovery-aggregator");
 
 const app = express();
 const PORT = 3000;
@@ -69,6 +86,10 @@ const DEFAULT_CONFIG = {
     enabled: true,
     provider: defaultCalendarProvider,
     sources: []
+  },
+  discovery: {
+    enabled: true,
+    sources: normalizeDiscoverySources()
   }
 };
 const SUPPORTED_LEAGUES = ["MLB", "NFL", "NBA", "NHL"];
@@ -121,6 +142,20 @@ let redditCache = {
   data: null
 };
 
+const discoverySourceAdapterRegistry =
+  new DiscoverySourceAdapterRegistry();
+discoverySourceAdapterRegistry.register(
+  new RedditDiscoveryAdapter({ loadPosts: loadRedditPosts })
+);
+discoverySourceAdapterRegistry.register(
+  new RssDiscoveryAdapter()
+);
+const discoverySourceTypeMetadata =
+  discoverySourceAdapterRegistry.getMetadata();
+const discoveryAggregator = new DiscoveryAggregator(
+  discoverySourceAdapterRegistry
+);
+
 /* ==========================
    Static Frontend
 ========================== */
@@ -163,6 +198,10 @@ function readConfig() {
     const calendarProvider = calendarProviderRegistry.get(
       calendarProviderId
     ) || calendarProviderRegistry.getDefault();
+    const discoveryEnabled = savedConfig?.discovery?.enabled;
+    const discoverySources = normalizeDiscoverySources(
+      savedConfig?.discovery?.sources
+    );
 
     return {
       location: {
@@ -197,6 +236,12 @@ function readConfig() {
           : DEFAULT_CONFIG.calendar.enabled,
         provider: calendarProvider.id,
         sources: calendarSources
+      },
+      discovery: {
+        enabled: typeof discoveryEnabled === "boolean"
+          ? discoveryEnabled
+          : DEFAULT_CONFIG.discovery.enabled,
+        sources: discoverySources
       }
     };
   } catch (error) {
@@ -245,7 +290,9 @@ function validateConfigUpdate(
   calendarProvider,
   calendarSources,
   sportsEnabled,
-  favoriteTeams
+  favoriteTeams,
+  discoveryEnabled,
+  discoverySources
 ) {
   if (
     typeof locationQuery !== "string" ||
@@ -282,6 +329,14 @@ function validateConfigUpdate(
     throw new Error("Favorite teams must be an array.");
   }
 
+  if (typeof discoveryEnabled !== "boolean") {
+    throw new Error("Discovery enabled must be a boolean.");
+  }
+
+  if (!Array.isArray(discoverySources)) {
+    throw new Error("Discovery sources must be an array.");
+  }
+
   return {
     location: {
       query: locationQuery
@@ -301,6 +356,10 @@ function validateConfigUpdate(
       enabled: calendarEnabled,
       provider: calendarProvider,
       sources: normalizeCalendarSources(calendarSources)
+    },
+    discovery: {
+      enabled: discoveryEnabled,
+      sources: normalizeDiscoverySources(discoverySources)
     }
   };
 }
@@ -395,6 +454,41 @@ app.get("/control", (req, res) => {
           </div>
         </li>`).join("")
     : "<li class=\"empty-state\">No Calendar sources configured.</li>";
+  const discoveryTypeLabels = new Map(
+    discoverySourceTypeMetadata.map((metadata) => [
+      metadata.type,
+      metadata.name
+    ])
+  );
+  const discoverySourceTypeOptions = discoverySourceTypeMetadata
+    .filter((metadata) => metadata.userAddable)
+    .map((metadata) =>
+      `<option value="${escapeHtml(metadata.type)}">${escapeHtml(metadata.name)}</option>`
+    )
+    .join("");
+  const discoverySourceRows = config.discovery.sources.length > 0
+    ? config.discovery.sources.map((source) => {
+        const canRemove = source.type !== "reddit";
+
+        return `
+        <li class="item-row">
+          <span class="item-copy"><strong><span class="status-dot${source.enabled ? " is-enabled" : ""}"></span>${escapeHtml(source.name)}</strong><small>${escapeHtml(discoveryTypeLabels.get(source.type) || source.type)} · ${source.enabled ? "Enabled" : "Disabled"}</small></span>
+          <span data-discovery-source-actions>
+            <button class="button button-quiet" type="submit" name="discoverySourceId" value="${escapeHtml(source.id)}" formaction="/control/discovery-sources/toggle" formmethod="post">${source.enabled ? "Disable" : "Enable"}</button>
+            ${canRemove ? "<button class=\"button button-quiet\" type=\"button\" data-remove-discovery-source>Remove</button>" : ""}
+          </span>
+          ${canRemove ? `
+          <div class="inline-confirmation" data-discovery-source-confirmation hidden>
+            <strong>Remove ${escapeHtml(source.name)}?</strong>
+            <p>This will stop Mosaic from displaying items from this source.</p>
+            <div class="button-row">
+              <button class="button button-quiet" type="button" data-cancel-discovery-source-removal>Cancel</button>
+              <button class="button button-danger" type="submit" name="discoverySourceId" value="${escapeHtml(source.id)}" formaction="/control/discovery-sources/remove" formmethod="post">Remove Source</button>
+            </div>
+          </div>` : ""}
+        </li>`;
+      }).join("")
+    : "<li class=\"empty-state\">No Discovery sources configured.</li>";
 
   res.type("html").send(`<!doctype html>
 <html lang="en">
@@ -450,7 +544,7 @@ app.get("/control", (req, res) => {
     .item-copy { display: grid; gap: 3px; min-width: 0; }
     .item-copy strong { overflow: hidden; text-overflow: ellipsis; }
     .item-copy small { color: #64748b; }
-    [data-calendar-source-actions] { display: flex; gap: 6px; }
+    [data-calendar-source-actions], [data-discovery-source-actions] { display: flex; gap: 6px; }
     .status-dot { display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: #94a3b8; }
     .status-dot.is-enabled { background: #16a34a; box-shadow: 0 0 0 3px rgba(22, 163, 74, .12); }
     .empty-state { padding: 16px; color: #64748b; border: 1px dashed #cbd5e1; border-radius: 11px; text-align: center; }
@@ -463,6 +557,7 @@ app.get("/control", (req, res) => {
     .button-danger { color: #fff; background: #b42318; }
     .button:disabled { cursor: not-allowed; opacity: .5; }
     .inline-form { display: grid; grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr) auto; gap: 10px; align-items: end; }
+    .discovery-source-form { grid-template-columns: minmax(0, .65fr) minmax(150px, .45fr) minmax(0, 1.3fr) auto; }
     .inline-confirmation { grid-column: 1 / -1; padding: 14px; border-left: 3px solid #b42318; border-radius: 8px; background: #fff1f0; }
     .inline-confirmation p { margin: 5px 0 12px; color: #7f1d1d; font-size: .88rem; }
     .developer-card { background: linear-gradient(150deg, rgba(193, 208, 220, .82), rgba(173, 193, 209, .72)); }
@@ -483,7 +578,7 @@ app.get("/control", (req, res) => {
       .settings-card { padding: 18px; border-radius: 14px; }
       .card-header { gap: 12px; }
       .item-row { grid-template-columns: 1fr; }
-      [data-calendar-source-actions] { justify-content: flex-start; }
+      [data-calendar-source-actions], [data-discovery-source-actions] { justify-content: flex-start; }
     }
   </style>
 </head>
@@ -529,6 +624,24 @@ app.get("/control", (req, res) => {
               <div class="field"><label for="calendar-source-name">Nickname</label><input id="calendar-source-name" name="calendarSourceName" type="text" placeholder="Personal"></div>
               <div class="field"><label for="calendar-source-url">iCal address</label><input id="calendar-source-url" name="calendarSourceUrl" type="url" placeholder="https://calendar.example.com/feed.ics"></div>
               <button class="button button-secondary" type="submit" formaction="/control/calendar-sources/add" formmethod="post">Add Calendar</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="settings-card" data-feature-card>
+          <div class="card-header">
+            <div><h3>Discovery</h3><p class="card-description">Passive-interest stories, images, and feeds.</p></div>
+            <label class="switch"><input name="discoveryEnabled" type="checkbox" value="true" data-feature-toggle aria-label="Enable Discovery" aria-controls="discovery-settings"${config.discovery.enabled ? " checked" : ""}><span class="switch-track"></span><span class="switch-state"></span></label>
+          </div>
+          <div class="settings-content" id="discovery-settings" data-feature-content${config.discovery.enabled ? "" : " hidden"}>
+            <h4 class="subsection-title">Sources</h4>
+            <ul class="item-list">${discoverySourceRows}</ul>
+            <h4 class="subsection-title">Add a source</h4>
+            <div class="inline-form discovery-source-form">
+              <div class="field"><label for="discovery-source-name">Nickname</label><input id="discovery-source-name" name="discoverySourceName" type="text" placeholder="Technology News"></div>
+              <div class="field"><label for="discovery-source-type">Source type</label><select id="discovery-source-type" name="discoverySourceType">${discoverySourceTypeOptions}</select></div>
+              <div class="field"><label for="discovery-source-url">Feed address</label><input id="discovery-source-url" name="discoverySourceUrl" type="url" placeholder="https://example.com/feed.xml"></div>
+              <button class="button button-secondary" type="submit" formaction="/control/discovery-sources/add" formmethod="post">Add Source</button>
             </div>
           </div>
         </section>
@@ -582,6 +695,7 @@ app.get("/control", (req, res) => {
         "theme",
         "calendarEnabled",
         "calendarProvider",
+        "discoveryEnabled",
         "sportsEnabled",
         "primaryLeague"
       ]);
@@ -721,6 +835,42 @@ app.get("/control", (req, res) => {
         });
       });
     })();
+
+    (() => {
+      document.querySelectorAll(
+        "[data-remove-discovery-source]"
+      ).forEach((button) => {
+        button.addEventListener("click", () => {
+          const row = button.closest("li");
+          const actions = row.querySelector(
+            "[data-discovery-source-actions]"
+          );
+          const confirmation = row.querySelector(
+            "[data-discovery-source-confirmation]"
+          );
+
+          actions.hidden = true;
+          confirmation.hidden = false;
+        });
+      });
+
+      document.querySelectorAll(
+        "[data-cancel-discovery-source-removal]"
+      ).forEach((button) => {
+        button.addEventListener("click", () => {
+          const row = button.closest("li");
+          const actions = row.querySelector(
+            "[data-discovery-source-actions]"
+          );
+          const confirmation = row.querySelector(
+            "[data-discovery-source-confirmation]"
+          );
+
+          confirmation.hidden = true;
+          actions.hidden = false;
+        });
+      });
+    })();
   </script>
 </body>
 </html>`);
@@ -738,7 +888,9 @@ app.post("/control", async (req, res) => {
       req.body.calendarProvider,
       currentConfig.calendar.sources,
       req.body.sportsEnabled === "true",
-      currentConfig.sports.favoriteTeams
+      currentConfig.sports.favoriteTeams,
+      req.body.discoveryEnabled === "true",
+      currentConfig.discovery.sources
     );
     await writeConfig(config);
     res.redirect(303, "/control");
@@ -751,7 +903,9 @@ app.post("/control", async (req, res) => {
         error.message === "Calendar enabled must be a boolean." ||
         error.message === "Calendar provider is invalid." ||
         error.message === "Sports enabled must be a boolean." ||
-        error.message === "Favorite teams must be an array.");
+        error.message === "Favorite teams must be an array." ||
+        error.message === "Discovery enabled must be a boolean." ||
+        error.message === "Discovery sources must be an array.");
 
     if (isValidationError) {
       return res.status(400).json({ error: error.message });
@@ -954,6 +1108,142 @@ function normalizeCalendarSourceId(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+app.post("/control/discovery-sources/add", async (req, res) => {
+  try {
+    const name = typeof req.body.discoverySourceName === "string"
+      ? req.body.discoverySourceName.trim()
+      : "";
+    const type = typeof req.body.discoverySourceType === "string"
+      ? req.body.discoverySourceType.trim()
+      : "";
+    const url = normalizeFeedUrl(req.body.discoverySourceUrl);
+    const adapterMetadata = discoverySourceTypeMetadata.find(
+      (metadata) => metadata.type === type && metadata.userAddable
+    );
+
+    if (!name) {
+      return res.status(400).json({
+        error: "Discovery source nickname must not be empty."
+      });
+    }
+
+    if (!adapterMetadata || !url) {
+      return res.status(400).json({
+        error: "Discovery source configuration is invalid."
+      });
+    }
+
+    const config = readConfig();
+
+    if (config.discovery.sources.some(
+      (source) => source.type === type && source.config.url === url
+    )) {
+      return res.status(400).json({
+        error: "That Discovery source is already configured."
+      });
+    }
+
+    const sources = normalizeDiscoverySources([
+      ...config.discovery.sources,
+      {
+        id: `discovery-${randomUUID()}`,
+        name,
+        type,
+        enabled: true,
+        config: { url }
+      }
+    ]);
+
+    await writeConfig({
+      ...config,
+      discovery: {
+        ...config.discovery,
+        sources
+      }
+    });
+    res.redirect(303, "/control");
+  } catch (error) {
+    console.error("Unable to add Discovery source.");
+    res.status(500).json({
+      error: "Discovery source could not be added."
+    });
+  }
+});
+
+app.post("/control/discovery-sources/toggle", async (req, res) => {
+  try {
+    const config = readConfig();
+    const sourceId = normalizeDiscoverySourceId(
+      req.body.discoverySourceId
+    );
+    const sourceExists = config.discovery.sources.some(
+      (source) => source.id === sourceId
+    );
+
+    if (!sourceExists) {
+      return res.status(400).json({
+        error: "Discovery source is invalid."
+      });
+    }
+
+    await writeConfig({
+      ...config,
+      discovery: {
+        ...config.discovery,
+        sources: config.discovery.sources.map((source) =>
+          source.id === sourceId
+            ? { ...source, enabled: !source.enabled }
+            : source
+        )
+      }
+    });
+    res.redirect(303, "/control");
+  } catch (error) {
+    console.error("Unable to update Discovery source.");
+    res.status(500).json({
+      error: "Discovery source could not be updated."
+    });
+  }
+});
+
+app.post("/control/discovery-sources/remove", async (req, res) => {
+  try {
+    const config = readConfig();
+    const sourceId = normalizeDiscoverySourceId(
+      req.body.discoverySourceId
+    );
+    const source = config.discovery.sources.find(
+      (configuredSource) => configuredSource.id === sourceId
+    );
+
+    if (!source || source.type === "reddit") {
+      return res.status(400).json({
+        error: "Discovery source is invalid."
+      });
+    }
+
+    await writeConfig({
+      ...config,
+      discovery: {
+        ...config.discovery,
+        sources: config.discovery.sources.filter(
+          (configuredSource) => configuredSource.id !== sourceId
+        )
+      }
+    });
+    res.redirect(303, "/control");
+  } catch (error) {
+    console.error("Unable to remove Discovery source.");
+    res.status(500).json({
+      error: "Discovery source could not be removed."
+    });
+  }
+});
+
+function normalizeDiscoverySourceId(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
 app.get("/api/config", (req, res) => {
   const config = readConfig();
 
@@ -961,7 +1251,8 @@ app.get("/api/config", (req, res) => {
     display: config.display,
     profile: config.profile,
     calendar: createPublicCalendarConfig(config.calendar),
-    sports: config.sports
+    sports: config.sports,
+    discovery: createPublicDiscoveryConfig(config.discovery)
   });
 });
 
@@ -1399,6 +1690,30 @@ function getImageFromContent(content) {
   return imageUrl;
 }
 
+function getBodyFromContent(content, title) {
+  const decodedContent = decodeEntities(content);
+  const bodyMatch = decodedContent.match(
+    /<div[^>]*class=["'][^"']*\bmd\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i
+  );
+
+  if (!bodyMatch) {
+    return null;
+  }
+
+  const body = stripTags(bodyMatch[1]);
+
+  if (
+    !body ||
+    body.localeCompare(title, undefined, {
+      sensitivity: "base"
+    }) === 0
+  ) {
+    return null;
+  }
+
+  return body;
+}
+
 function getSubredditFromLink(link) {
   const match = link.match(/reddit\.com\/r\/([^/]+)/i);
 
@@ -1427,7 +1742,8 @@ function parseRedditFeed(xml) {
         subreddit: getSubredditFromLink(link),
         author,
         publishedAt: published || updated || null,
-        image: getImageFromContent(content)
+        image: getImageFromContent(content),
+        body: getBodyFromContent(content, title)
       };
     })
     .filter((post) => post.title && post.link)
@@ -1874,54 +2190,8 @@ app.get("/api/sports/mlb/sea", async (req, res) => {
 
 app.get("/api/reddit", async (req, res) => {
   try {
-    const cacheIsValid =
-      redditCache.data &&
-      Date.now() - redditCache.timestamp <
-        REDDIT_CACHE_MS;
-
-    if (cacheIsValid) {
-      return res.json(redditCache.data);
-    }
-
-    const redditResponse = await fetch(
-      REDDIT_FEED_URL,
-      {
-        headers: {
-          "User-Agent":
-            "ProjectMosaic/0.1 RaspberryPiDashboard",
-          Accept:
-            "application/atom+xml, application/xml, text/xml"
-        }
-      }
-    );
-
-    if (!redditResponse.ok) {
-      throw new Error(
-        `Reddit RSS request failed: ${redditResponse.status}`
-      );
-    }
-
-    const xml = await redditResponse.text();
-    const posts = parseRedditFeed(xml);
-
-    if (posts.length === 0) {
-      throw new Error(
-        "Reddit RSS feed returned no usable posts."
-      );
-    }
-
-    const responseData = {
-      feed: REDDIT_FEED_URL,
-      posts,
-      updatedAt: new Date().toISOString()
-    };
-
-    redditCache = {
-      timestamp: Date.now(),
-      data: responseData
-    };
-
-    res.json(responseData);
+    await loadRedditPosts();
+    res.json(redditCache.data);
   } catch (error) {
     console.error("Reddit RSS error:", error);
 
@@ -1937,6 +2207,85 @@ app.get("/api/reddit", async (req, res) => {
         "Reddit content is temporarily unavailable."
     });
   }
+});
+
+async function loadRedditPosts() {
+  const cacheIsValid =
+    redditCache.data &&
+    Date.now() - redditCache.timestamp < REDDIT_CACHE_MS;
+
+  if (cacheIsValid) {
+    return redditCache.data.posts;
+  }
+
+  try {
+    const redditResponse = await fetch(REDDIT_FEED_URL, {
+      headers: {
+        "User-Agent": "ProjectMosaic/0.1 RaspberryPiDashboard",
+        Accept: "application/atom+xml, application/xml, text/xml"
+      }
+    });
+
+    if (!redditResponse.ok) {
+      throw new Error("Reddit RSS request failed.");
+    }
+
+    const xml = await redditResponse.text();
+    const posts = parseRedditFeed(xml);
+
+    if (posts.length === 0) {
+      throw new Error("Reddit RSS feed returned no usable posts.");
+    }
+
+    redditCache = {
+      timestamp: Date.now(),
+      data: {
+        feed: REDDIT_FEED_URL,
+        posts,
+        updatedAt: new Date().toISOString()
+      }
+    };
+
+    return posts;
+  } catch (error) {
+    if (redditCache.data?.posts?.length) {
+      return redditCache.data.posts;
+    }
+
+    throw error;
+  }
+}
+
+/* ==========================
+   Discovery Aggregation API
+========================== */
+
+app.get("/api/discovery", async (req, res) => {
+  const config = readConfig();
+
+  if (!config.discovery.enabled) {
+    return res.json({
+      status: "disabled",
+      items: []
+    });
+  }
+
+  const items = await discoveryAggregator.getItems(
+    config.discovery.sources
+  );
+
+  if (items.length === 0) {
+    return res.status(503).json({
+      status: "unavailable",
+      items: []
+    });
+  }
+
+  res.json({
+    status: "available",
+    items,
+    updatedAt: new Date().toISOString()
+  });
 });
 
 /* ==========================

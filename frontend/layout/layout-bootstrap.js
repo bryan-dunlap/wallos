@@ -34,4 +34,16 @@ function initializeMosaicLayout(app) {
     );
 
     sports.mount(sportsSlot);
+
+    const discoverySlot = document.querySelector(
+        ".discovery-card"
+    );
+
+    if (!discoverySlot) return;
+
+    const discovery = app.widgetManager.create(
+        "discovery"
+    );
+
+    discovery.mount(discoverySlot);
 }

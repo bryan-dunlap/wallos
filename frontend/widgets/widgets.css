@@ -572,6 +572,39 @@
 }
 
 
+.hero-resting {
+
+    width: 100%;
+
+    max-width: 94%;
+
+}
+
+
+.hero-resting .hero-title {
+
+    font-size: clamp(2.75rem, 4vw, 4.5rem);
+
+    line-height: 1.08;
+
+    text-wrap: balance;
+
+}
+
+
+.hero-resting .hero-subtitle {
+
+    margin-top: clamp(14px, 1.5vw, 22px);
+
+    font-size: clamp(1.35rem, 2vw, 2rem);
+
+    line-height: 1.35;
+
+    text-wrap: balance;
+
+}
+
+
 .hero-active {
 
     width: 100%;

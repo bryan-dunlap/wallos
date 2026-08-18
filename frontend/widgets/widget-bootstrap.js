@@ -1,5 +1,10 @@
 function registerMosaicWidgets(registry) {
     registry.register(
+        "discovery",
+        DiscoveryWidget
+    );
+
+    registry.register(
         "hero",
         MosaicHero
     );

@@ -18,7 +18,7 @@
     ]
   },
   "display": {
-    "theme": "groovy"
+    "theme": "yacht-rock"
   },
   "profile": {
     "name": "Bryan"
@@ -38,6 +38,18 @@
         "name": "Birthdays",
         "enabled": true,
         "url": "webcal://p53-caldav.icloud.com/published/2/MTY5OTIyODMxMTY5OTIyOEk9PFxmvOSUZ4GA0jWZ-UMUH6-Xgp9VXtQLCmZWpy9uCUfNR-EN82cy_W_3mAFMJVjg1aAJqVUChspWpkeBoQ0"
+      }
+    ]
+  },
+  "discovery": {
+    "enabled": true,
+    "sources": [
+      {
+        "id": "discovery-reddit-default",
+        "name": "Reddit Mix",
+        "type": "reddit",
+        "enabled": true,
+        "config": {}
       }
     ]
   }

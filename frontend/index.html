@@ -174,23 +174,7 @@
 
 <footer class="dashboard-zone discovery-zone">
 
-    <section class="widget discovery-card" aria-label="Discovery">
-
-        <div id="reddit-feed" class="reddit-feed">
-
-            <div class="reddit-source">
-                Loading Reddit
-            </div>
-
-            <div class="reddit-headline">
-                Fetching top posts…
-            </div>
-
-        </div>
-
-        <div id="mosaic-ticker"></div>
-
-    </section>
+    <section class="widget discovery-card" aria-label="Discovery"></section>
 
 </footer>
 
@@ -208,6 +192,8 @@
     <script src="providers/ical-calendar-data-provider.js"></script>
     <script src="providers/calendar-provider.js"></script>
     <script src="providers/calendar-reminder-generator.js"></script>
+    <script src="providers/discovery-rotation-controller.js"></script>
+    <script src="providers/discovery-provider.js"></script>
     <script src="providers/weather-insight-generator.js"></script>
     <script src="providers/weather-provider.js"></script>
     <script src="providers/sports-active-context-generator.js"></script>
@@ -227,6 +213,7 @@
     <script src="widgets/widget-core.js"></script>
     <script src="widgets/active-renderer-registry.js"></script>
     <script src="widgets/baseball-game-renderer.js"></script>
+    <script src="widgets/discovery-widget.js"></script>
     <script src="widgets/hero.js"></script>
     <script src="widgets/weather-widget.js"></script>
     <script src="widgets/sports-widget.js"></script>
@@ -234,7 +221,6 @@
         window.mosaicApp.start();
     </script>
     <script src="js/app.js?v=2"></script>
-    <script src="js/discovery.js?v=2"></script>
 
 </body>
 

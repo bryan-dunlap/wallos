@@ -39,12 +39,14 @@ class MosaicHero {
     renderRestingTemplate(){
         return `
 
-            <div class="hero-title">
-                ${this.state.title}
-            </div>
+            <div class="hero-resting">
+                <div class="hero-title">
+                    ${this.state.title}
+                </div>
 
-            <div class="hero-subtitle">
-                ${this.state.subtitle}
+                <div class="hero-subtitle">
+                    ${this.state.subtitle}
+                </div>
             </div>
 
         `;
