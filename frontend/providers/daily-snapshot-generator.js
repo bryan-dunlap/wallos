@@ -266,17 +266,23 @@ class DailySnapshotGenerator {
             .split(/\s+/)
             .at(-1);
 
-        if (period === "evening") {
-            return `${teamName} game tonight.`;
-        }
-
         const time = new Intl.DateTimeFormat("en-US", {
             hour: "numeric",
             minute: "2-digit"
         }).format(startTime);
+        const daypart = this.getScheduledGameDaypart(startTime);
         const lead = period === "morning" ? "Today: " : "";
 
-        return `${lead}${teamName} play tonight at ${time}.`;
+        return `${lead}${teamName} play ${daypart} at ${time}.`;
+    }
+
+    getScheduledGameDaypart(startTime) {
+        const hour = startTime.getHours();
+
+        if (hour < 12) return "this morning";
+        if (hour < 17) return "this afternoon";
+
+        return "tonight";
     }
 
     isSameLocalDay(first, second) {

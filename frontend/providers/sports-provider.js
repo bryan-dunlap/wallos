@@ -1,22 +1,61 @@
+const SPORTS_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+
 class SportsProvider {
 
     constructor() {
         this.refreshTimer = null;
+        this.refreshInFlight = null;
+        this.unsubscribeSimulationState = null;
+        this.simulationActive = false;
+        this.lifecycleVersion = 0;
         this.mlbDataProvider = new MlbDataProvider();
     }
 
     start() {
         this.stop();
-        this.refreshCycle();
-        this.refreshTimer = setInterval(
-            () => this.refreshCycle(),
-            5 * 60 * 1000
+        const lifecycleVersion = this.lifecycleVersion;
+        this.unsubscribeSimulationState =
+            window.mosaicApp.eventBus.subscribe(
+                "sports-simulation-state",
+                (event) => this.handleSimulationState(
+                    event.payload?.active
+                )
+            );
+
+        this.runRefreshLoop(lifecycleVersion);
+    }
+
+    async runRefreshLoop(lifecycleVersion) {
+        await this.runRefreshCycle();
+
+        if (lifecycleVersion !== this.lifecycleVersion) return;
+
+        this.refreshTimer = setTimeout(
+            () => this.runRefreshLoop(lifecycleVersion),
+            SPORTS_REFRESH_INTERVAL_MS
         );
     }
 
     async refreshCycle() {
         await this.refresh();
-        await this.refreshSportsFacts();
+        return this.refreshSportsFacts();
+    }
+
+    runRefreshCycle() {
+        if (this.refreshInFlight) return this.refreshInFlight;
+
+        this.refreshInFlight = this.refreshCycle()
+            .finally(() => {
+                this.refreshInFlight = null;
+            });
+
+        return this.refreshInFlight;
+    }
+
+    handleSimulationState(active) {
+        this.simulationActive = active === true;
+
+        if (!this.simulationActive) this.runRefreshCycle();
     }
 
     async loadConfig() {
@@ -31,9 +70,12 @@ class SportsProvider {
             )
                 ? config.sports.favoriteTeams
                 : [];
-            // Version 0.1 continues using the first favorite. The collection
-            // later enables multiple games, leagues, and priority selection.
-            const favoriteTeam = favoriteTeams[0] || null;
+            // The current facts adapter is MLB-only. Other league favorites
+            // remain configured for future adapters without being sent to the
+            // MLB data path.
+            const favoriteTeam = favoriteTeams.find(
+                (team) => team?.league === "MLB"
+            ) || null;
 
             return {
                 enabled: config.sports?.enabled !== false,
@@ -67,6 +109,8 @@ class SportsProvider {
         let config = null;
 
         try {
+            if (this.simulationActive) return null;
+
             config = await this.loadConfig();
 
             if (!config.enabled || !config.favoriteTeam) {
@@ -75,7 +119,7 @@ class SportsProvider {
                         config.favoriteTeam
                     )
                 );
-                return;
+                return null;
             }
 
             const facts = await this.mlbDataProvider.getScheduleFacts(
@@ -83,24 +127,37 @@ class SportsProvider {
                 this.getDateKey(new Date())
             );
 
+            if (this.simulationActive) return null;
+
             this.publishSportsFacts(facts);
+            return facts.game?.status || null;
         } catch (error) {
             console.error(
                 "Unable to load favorite-team MLB schedule:",
                 error
             );
-            this.publishSportsFacts(
-                this.mlbDataProvider.createUnavailableFacts(
-                    config?.favoriteTeam
-                )
-            );
+            if (!this.simulationActive) {
+                this.publishSportsFacts(
+                    this.mlbDataProvider.createUnavailableFacts(
+                        config?.favoriteTeam
+                    )
+                );
+            }
+            return null;
         }
     }
 
     stop() {
+        this.lifecycleVersion += 1;
+
+        if (this.unsubscribeSimulationState) {
+            this.unsubscribeSimulationState();
+            this.unsubscribeSimulationState = null;
+        }
+
         if (!this.refreshTimer) return;
 
-        clearInterval(this.refreshTimer);
+        clearTimeout(this.refreshTimer);
         this.refreshTimer = null;
     }
 

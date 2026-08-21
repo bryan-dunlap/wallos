@@ -1,3 +1,5 @@
+const MLB_FACT_REQUESTS_IN_FLIGHT = new Map();
+
 class MlbDataProvider {
 
     async getScheduleFacts(favoriteTeam, date) {
@@ -8,6 +10,29 @@ class MlbDataProvider {
             return this.createUnavailableFacts(favoriteTeam);
         }
 
+        const requestKey = `${favoriteTeam.id}:${date}`;
+        const existingRequest = MLB_FACT_REQUESTS_IN_FLIGHT.get(
+            requestKey
+        );
+
+        if (existingRequest) return existingRequest;
+
+        const request = this.fetchScheduleFacts(favoriteTeam, date)
+            .finally(() => {
+                if (
+                    MLB_FACT_REQUESTS_IN_FLIGHT.get(requestKey) ===
+                    request
+                ) {
+                    MLB_FACT_REQUESTS_IN_FLIGHT.delete(requestKey);
+                }
+            });
+
+        MLB_FACT_REQUESTS_IN_FLIGHT.set(requestKey, request);
+
+        return request;
+    }
+
+    async fetchScheduleFacts(favoriteTeam, date) {
         const response = await fetch(
             `/api/sports/mlb?date=${encodeURIComponent(date)}`
         );

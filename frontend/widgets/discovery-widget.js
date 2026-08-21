@@ -3,6 +3,7 @@ class DiscoveryWidget {
     constructor() {
         this.element = null;
         this.unsubscribe = null;
+        this.imageResizeObserver = null;
         this.failedImageItemIds = new Set();
         this.renderers = new Map([
             ["text", (item, position) =>
@@ -28,6 +29,8 @@ class DiscoveryWidget {
     }
 
     unmount() {
+        this.disconnectImageResizeObserver();
+
         if (this.unsubscribe) {
             this.unsubscribe();
             this.unsubscribe = null;
@@ -47,6 +50,8 @@ class DiscoveryWidget {
 
     render() {
         if (!this.element) return;
+
+        this.disconnectImageResizeObserver();
 
         if (
             this.state.status === "available" &&
@@ -175,12 +180,55 @@ class DiscoveryWidget {
 
         const itemId = this.state.item?.id;
 
+        const sizeImageToVisibleMedia = () => {
+            const media = image.parentElement;
+
+            if (
+                !media ||
+                !media.clientWidth ||
+                !media.clientHeight ||
+                !image.naturalWidth ||
+                !image.naturalHeight
+            ) {
+                return;
+            }
+
+            const mediaRatio = media.clientWidth / media.clientHeight;
+            const imageRatio = image.naturalWidth / image.naturalHeight;
+            const constrainedByWidth = imageRatio >= mediaRatio;
+
+            image.style.width = constrainedByWidth ? "100%" : "auto";
+            image.style.height = constrainedByWidth ? "auto" : "100%";
+        };
+
+        if (image.complete) {
+            sizeImageToVisibleMedia();
+        } else {
+            image.addEventListener("load", sizeImageToVisibleMedia, {
+                once: true
+            });
+        }
+
+        if (typeof ResizeObserver === "function") {
+            this.imageResizeObserver = new ResizeObserver(
+                sizeImageToVisibleMedia
+            );
+            this.imageResizeObserver.observe(image.parentElement);
+        }
+
         image.addEventListener("error", () => {
             if (!itemId || this.state.item?.id !== itemId) return;
 
             this.failedImageItemIds.add(itemId);
             this.render();
         }, { once: true });
+    }
+
+    disconnectImageResizeObserver() {
+        if (!this.imageResizeObserver) return;
+
+        this.imageResizeObserver.disconnect();
+        this.imageResizeObserver = null;
     }
 
     renderStatus(eyebrow, title) {

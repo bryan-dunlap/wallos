@@ -6,6 +6,11 @@ const {
   SPORTS_TEAM_REGISTRY,
   getSportsTeam
 } = require("./sports-team-registry");
+const {
+  sportsSimulationProfileRegistry
+} = require(
+  "../frontend/providers/sports-simulation-profile-registry"
+);
 const CalendarProviderRegistry = require(
   "../frontend/providers/calendar-provider-registry"
 );
@@ -50,6 +55,8 @@ const calendarProviderMetadata =
   calendarProviderRegistry.getMetadata();
 const defaultCalendarProvider =
   calendarProviderRegistry.getDefault().id;
+const sportsSimulationProfiles =
+  sportsSimulationProfileRegistry.getMetadata();
 
 /* ==========================
    Configuration
@@ -107,7 +114,7 @@ const SUPPORTED_THEMES = [
 
 const MARINERS_TEAM_ID = 136;
 const SPORTS_CACHE_MS = 6 * 60 * 60 * 1000;
-const MLB_LIVE_CACHE_MS = 15 * 1000;
+const MLB_LIVE_CACHE_MS = 4 * 1000;
 const MLB_SCHEDULED_CACHE_MS = 5 * 60 * 1000;
 const MLB_FINAL_CACHE_MS = 6 * 60 * 60 * 1000;
 const MLB_PLAYER_SEASON_CACHE_MS = 30 * 60 * 1000;
@@ -272,9 +279,11 @@ function normalizeFavoriteTeams(sportsConfig) {
       name: team.name,
       league: team.league,
       sport: team.sport,
-      renderer: team.renderer,
-      providerId: team.providerId,
-      logo: team.logo
+      ...(team.renderer ? { renderer: team.renderer } : {}),
+      ...(Number.isFinite(team.providerId)
+        ? { providerId: team.providerId }
+        : {}),
+      ...(team.logo ? { logo: team.logo } : {})
     });
 
     return favorites;
@@ -417,19 +426,42 @@ app.get("/control", (req, res) => {
   const favoriteTeamIds = new Set(
     config.sports.favoriteTeams.map((team) => team.id)
   );
-  const teamOptions = SPORTS_TEAM_REGISTRY
-    .filter((team) => !favoriteTeamIds.has(team.id))
+  const availableFavoriteTeams = SPORTS_TEAM_REGISTRY
+    .filter((team) => !favoriteTeamIds.has(team.id));
+  const teamOptions = availableFavoriteTeams
+    .filter((team) => team.league === config.sports.primaryLeague)
     .map((team) =>
       `<option value="${team.id}">${escapeHtml(team.name)} (${team.league})</option>`
     )
     .join("");
+  const favoriteTeamRegistryJson = JSON.stringify(
+    availableFavoriteTeams.map((team) => ({
+      id: team.id,
+      name: team.name,
+      league: team.league
+    }))
+  ).replace(/</g, "\\u003c");
   const favoriteTeamRows = config.sports.favoriteTeams.length > 0
     ? config.sports.favoriteTeams.map((team) => `
         <li class="item-row">
           <span class="item-copy"><strong>${escapeHtml(team.name)}</strong><small>${team.league}</small></span>
-          <button class="button button-quiet" type="submit" name="removeTeamId" value="${team.id}" formaction="/control/favorite-teams/remove" formmethod="post">Remove</button>
+          <button class="button button-quiet" type="submit" form="favorite-team-remove-form" name="removeTeamId" value="${team.id}">Remove</button>
         </li>`).join("")
     : "<li class=\"empty-state\">No favorite teams configured.</li>";
+  const sportsSimulationProfileOptions = sportsSimulationProfiles
+    .map((profile) =>
+      `<option value="${profile.id}">${escapeHtml(profile.name)}</option>`
+    )
+    .join("");
+  const initialSportsSimulationScenarios =
+    sportsSimulationProfiles[0]?.scenarios || [];
+  const sportsSimulationScenarioOptions =
+    initialSportsSimulationScenarios.map((scenario) =>
+      `<option value="${scenario.id}">${escapeHtml(scenario.label)}</option>`
+    ).join("");
+  const sportsSimulationProfilesJson = JSON.stringify(
+    sportsSimulationProfiles
+  ).replace(/</g, "\\u003c");
   const calendarProviderOptions = calendarProviderMetadata.map(
     (provider) =>
       `<option value="${escapeHtml(provider.id)}"${
@@ -507,8 +539,8 @@ app.get("/control", (req, res) => {
     body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 10% 3%, rgba(218, 230, 239, .78), transparent 34%), radial-gradient(circle at 88% 16%, rgba(170, 193, 213, .42), transparent 36%), radial-gradient(circle at 46% 92%, rgba(194, 202, 218, .3), transparent 38%), linear-gradient(145deg, #dfe7ee 0%, #ced9e2 52%, #dae2e9 100%); background-attachment: fixed; }
     button, input, select { font: inherit; }
     button { cursor: pointer; }
-    .control-shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0 64px; }
-    .control-header { margin-bottom: 32px; }
+    .control-shell { width: min(1380px, calc(100% - 32px)); margin: 0 auto; padding: 30px 0 24px; }
+    .control-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
     .eyebrow { margin: 0 0 8px; color: #64748b; font-size: .75rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
     h1 { margin: 0; font-size: clamp(2rem, 5vw, 3rem); letter-spacing: -.04em; }
     .control-intro { max-width: 620px; margin: 10px 0 0; color: #64748b; line-height: 1.6; }
@@ -563,10 +595,79 @@ app.get("/control", (req, res) => {
     .developer-card { background: linear-gradient(150deg, rgba(193, 208, 220, .82), rgba(173, 193, 209, .72)); }
     .save-bar { position: sticky; bottom: 16px; z-index: 5; display: flex; justify-content: flex-end; padding: 12px; border: 1px solid rgba(236, 244, 249, .52); border-radius: 14px; background: rgba(219, 230, 238, .9); box-shadow: 0 10px 30px rgba(15, 23, 42, .12), inset 0 1px 0 rgba(246, 250, 253, .58); backdrop-filter: blur(14px); }
     .save-status { align-self: center; margin-right: auto; padding: 0 10px; color: #64748b; font-size: .86rem; font-weight: 650; }
+    .control-header-copy { min-width: 0; }
+    .command-trigger { display: inline-flex; align-items: center; gap: 10px; min-height: 42px; padding: 9px 13px; color: #475569; border: 1px solid rgba(235, 243, 248, .5); border-radius: 11px; background: rgba(214, 226, 235, .72); box-shadow: inset 0 1px 0 rgba(248, 251, 253, .58); }
+    .command-trigger kbd { padding: 2px 6px; border-radius: 6px; color: #64748b; background: rgba(239, 245, 249, .62); font: inherit; font-size: .72rem; }
+    .control-workspace { display: grid; grid-template-columns: minmax(210px, 22%) minmax(0, 1fr); gap: 18px; align-items: start; transition: grid-template-columns .18s ease; }
+    .control-workspace.is-rail-collapsed { grid-template-columns: 72px minmax(0, 1fr); }
+    .control-sidebar { position: sticky; top: 18px; min-height: 0; padding: 16px 12px; border: 1px solid rgba(241, 247, 251, .5); border-radius: 20px; background: linear-gradient(150deg, rgba(214, 227, 237, .78), rgba(193, 210, 223, .68)); box-shadow: 0 18px 48px rgba(43, 58, 76, .14), inset 0 1px 0 rgba(248, 251, 253, .66); backdrop-filter: blur(20px) saturate(116%); }
+    .sidebar-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 4px 14px; }
+    .sidebar-title { color: #334155; font-size: .82rem; font-weight: 750; }
+    .rail-toggle { width: 34px; height: 34px; padding: 0; border: 0; border-radius: 9px; color: #475569; background: rgba(226, 235, 242, .64); }
+    .control-nav-group + .control-nav-group { margin-top: 20px; }
+    .control-nav-label { margin: 0 8px 7px; color: #738398; font-size: .65rem; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+    .control-nav { display: grid; gap: 4px; }
+    .control-nav-button { position: relative; display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 9px; width: 100%; min-height: 42px; padding: 8px 10px; color: #526174; border: 0; border-radius: 10px; background: transparent; text-align: left; transition: background .16s ease, color .16s ease, transform .16s ease; }
+    .control-nav-button::before { content: ""; position: absolute; left: 0; width: 3px; height: 18px; border-radius: 99px; background: transparent; }
+    .control-nav-button:hover { color: #253449; background: rgba(232, 239, 245, .48); }
+    .control-nav-button[aria-current="page"] { color: #1f3f78; font-weight: 750; background: rgba(224, 235, 244, .82); box-shadow: inset 0 1px 0 rgba(249, 252, 254, .58); }
+    .control-nav-button[aria-current="page"]::before { background: #4777cf; }
+    .nav-glyph { width: 18px; color: #71839a; font-size: .72rem; font-weight: 800; text-align: center; }
+    .nav-count { min-width: 22px; padding: 2px 6px; border-radius: 999px; color: #62748a; background: rgba(185, 204, 219, .46); font-size: .7rem; font-weight: 750; text-align: center; }
+    .is-rail-collapsed .sidebar-title, .is-rail-collapsed .control-nav-label, .is-rail-collapsed .nav-text, .is-rail-collapsed .nav-count { display: none; }
+    .is-rail-collapsed .sidebar-top { justify-content: center; }
+    .is-rail-collapsed .control-nav-button { grid-template-columns: 1fr; justify-items: center; padding-inline: 6px; }
+    .is-rail-collapsed .nav-glyph { font-size: .78rem; }
+    .settings-form { min-width: 0; }
+    .settings-surface { min-height: 0; }
+    .control-panel { animation: panel-in .17s ease both; }
+    .panel-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 22px; padding-bottom: 18px; border-bottom: 1px solid rgba(100, 116, 139, .14); }
+    .panel-kicker { margin: 0 0 6px; color: #64748b; font-size: .7rem; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+    .panel-header h2 { margin: 0; font-size: clamp(1.55rem, 2.4vw, 2.15rem); letter-spacing: -.025em; }
+    .panel-description { margin: 7px 0 0; color: #64748b; line-height: 1.5; }
+    .panel-status { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; color: #64748b; font-size: .78rem; font-weight: 700; }
+    .status-pill { padding: 6px 9px; border-radius: 999px; background: rgba(192, 208, 221, .5); }
+    .status-pill.is-on { color: #15703b; background: rgba(91, 178, 126, .15); }
+    .overview-list { display: grid; gap: 8px; margin-bottom: 24px; }
+    .overview-link { display: grid; grid-template-columns: minmax(110px, .45fr) minmax(0, 1fr) auto; align-items: center; gap: 14px; width: 100%; padding: 13px 15px; color: #334155; border: 1px solid rgba(239, 246, 250, .4); border-radius: 11px; background: rgba(203, 218, 230, .48); text-align: left; }
+    .overview-link strong { font-size: .88rem; }
+    .overview-link span { color: #64748b; }
+    .overview-arrow { font-size: 1.05rem; }
+    .advanced-section { margin-top: 18px; border-top: 1px solid rgba(100, 116, 139, .14); }
+    .advanced-section summary { padding: 16px 2px 4px; color: #526174; cursor: pointer; font-weight: 700; }
+    .advanced-section p { margin: 8px 2px 0; color: #64748b; font-size: .88rem; }
+    .command-palette { position: fixed; inset: 0; z-index: 20; display: grid; place-items: start center; padding: min(14vh, 120px) 18px 18px; background: rgba(42, 55, 70, .22); backdrop-filter: blur(8px); }
+    .command-palette-panel { width: min(620px, 100%); padding: 12px; border: 1px solid rgba(244, 249, 252, .66); border-radius: 18px; background: rgba(213, 226, 236, .95); box-shadow: 0 30px 90px rgba(31, 43, 58, .28), inset 0 1px 0 rgba(255, 255, 255, .72); }
+    .command-search { width: 100%; min-height: 48px; }
+    .command-results { display: grid; gap: 4px; max-height: min(54vh, 480px); margin-top: 10px; overflow-y: auto; }
+    .command-item { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; padding: 11px 12px; color: #334155; border: 0; border-radius: 10px; background: transparent; text-align: left; }
+    .command-item:hover, .command-item:focus-visible { background: rgba(235, 242, 247, .72); }
+    .command-item small { color: #728196; }
+    @keyframes panel-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
     [hidden] { display: none !important; }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }
+    @media (max-width: 920px) {
+      .control-workspace { grid-template-columns: 76px minmax(0, 1fr); }
+      .control-sidebar .sidebar-title, .control-sidebar .control-nav-label, .control-sidebar .nav-text, .control-sidebar .nav-count { display: none; }
+      .control-sidebar .sidebar-top { justify-content: center; }
+      .control-sidebar .control-nav-button { grid-template-columns: 1fr; justify-items: center; padding-inline: 6px; }
+    }
     @media (max-width: 760px) {
       .control-shell { width: min(100% - 20px, 620px); padding-top: 28px; }
+      .control-header { align-items: flex-start; }
+      .control-intro { display: none; }
+      .command-trigger .command-label { display: none; }
+      .control-workspace, .control-workspace.is-rail-collapsed { display: block; }
+      .control-sidebar { position: relative; top: auto; min-height: 0; margin-bottom: 14px; padding: 10px; }
+      .sidebar-top, .control-nav-label { display: none !important; }
+      .control-nav-group + .control-nav-group { margin-top: 6px; }
+      .control-nav { display: flex; gap: 5px; overflow-x: auto; }
+      .control-sidebar .control-nav-button { flex: 0 0 auto; display: flex; width: auto; min-height: 38px; padding: 7px 10px; }
+      .control-sidebar .nav-text { display: inline; }
+      .control-sidebar .nav-count, .control-sidebar .nav-glyph { display: none; }
       .settings-surface { padding: 20px; border-radius: 18px; }
+      .panel-header { display: block; }
+      .panel-status { justify-content: flex-start; margin-top: 12px; }
       .card-grid { grid-template-columns: 1fr; }
       .settings-card-wide, .field-full { grid-column: auto; }
       .inline-form { grid-template-columns: 1fr; }
@@ -574,6 +675,7 @@ app.get("/control", (req, res) => {
       .save-bar { bottom: 8px; }
     }
     @media (max-width: 460px) {
+      .control-header { gap: 12px; }
       .settings-surface { padding: 14px; }
       .settings-card { padding: 18px; border-radius: 14px; }
       .card-header { gap: 12px; }
@@ -585,32 +687,65 @@ app.get("/control", (req, res) => {
 <body>
   <main class="control-shell">
     <header class="control-header">
-      <p class="eyebrow">Mosaic</p>
-      <h1>Control Center</h1>
-      <p class="control-intro">Shape what Mosaic shows and how it supports your day.</p>
+      <div class="control-header-copy">
+        <p class="eyebrow">Mosaic</p>
+        <h1>Control</h1>
+        <p class="control-intro">Shape what Mosaic shows and how it supports your day.</p>
+      </div>
+      <button class="command-trigger" type="button" data-command-open aria-haspopup="true" aria-controls="control-command-palette"><span class="command-label">Search settings</span><kbd>⌘ K</kbd></button>
     </header>
-    <form class="settings-form" method="post" action="/control">
-      <div class="settings-surface">
-      <div class="section-heading"><h2>Personalization</h2><p>Basic details Mosaic uses to make information relevant.</p></div>
-      <div class="card-grid">
-        <section class="settings-card">
-          <div class="field"><label for="profile-name">Display name</label><input id="profile-name" name="profileName" type="text" value="${escapeHtml(config.profile.name)}" placeholder="Bryan"></div>
-        </section>
-        <section class="settings-card">
-          <div class="field"><label for="location-query">City or ZIP code</label><input id="location-query" name="locationQuery" type="text" value="${escapeHtml(config.location.query)}" required></div>
-        </section>
-      </div>
+    <form id="favorite-team-add-form" method="post" action="/control/favorite-teams/add"></form>
+    <form id="favorite-team-remove-form" method="post" action="/control/favorite-teams/remove"></form>
+    <div class="control-workspace" data-control-workspace>
+      <aside class="control-sidebar" aria-label="Control sections">
+        <div class="sidebar-top"><span class="sidebar-title">Settings</span><button class="rail-toggle" type="button" data-rail-toggle aria-label="Collapse navigation" aria-expanded="true">‹</button></div>
+        <div class="control-nav-group">
+          <p class="control-nav-label">General</p>
+          <nav class="control-nav">
+            <button class="control-nav-button" type="button" data-control-nav="overview" title="Overview" aria-current="page"><span class="nav-glyph">OV</span><span class="nav-text">Overview</span></button>
+            <button class="control-nav-button" type="button" data-control-nav="appearance" title="Appearance"><span class="nav-glyph">AP</span><span class="nav-text">Appearance</span></button>
+          </nav>
+        </div>
+        <div class="control-nav-group">
+          <p class="control-nav-label">Information Sources</p>
+          <nav class="control-nav">
+            <button class="control-nav-button" type="button" data-control-nav="calendar" title="Calendar"><span class="nav-glyph">CA</span><span class="nav-text">Calendar</span><span class="nav-count">${config.calendar.sources.length}</span></button>
+            <button class="control-nav-button" type="button" data-control-nav="sports" title="Sports"><span class="nav-glyph">SP</span><span class="nav-text">Sports</span><span class="nav-count">${config.sports.favoriteTeams.length}</span></button>
+            <button class="control-nav-button" type="button" data-control-nav="discovery" title="Discovery"><span class="nav-glyph">DI</span><span class="nav-text">Discovery</span><span class="nav-count">${config.discovery.sources.length}</span></button>
+          </nav>
+        </div>
+        <div class="control-nav-group">
+          <p class="control-nav-label">System</p>
+          <nav class="control-nav">
+            <button class="control-nav-button" type="button" data-control-nav="developer" title="Developer Tools"><span class="nav-glyph">DV</span><span class="nav-text">Developer Tools</span></button>
+          </nav>
+        </div>
+      </aside>
 
-      <div class="section-heading"><h2>Appearance</h2><p>Choose the visual character of your dashboard.</p></div>
-      <div class="card-grid">
-        <section class="settings-card settings-card-wide">
-          <div class="field"><label for="display-theme">Theme</label><select id="display-theme" name="theme">${themeOptions}</select></div>
-        </section>
-      </div>
+      <form class="settings-form" method="post" action="/control">
+        <div class="settings-surface">
+          <section class="control-panel" data-control-panel="overview">
+            <header class="panel-header"><div><p class="panel-kicker">Overview</p><h2>Mosaic</h2><p class="panel-description">Your display configuration at a glance.</p></div><div class="panel-status"><span class="status-pill is-on">Display configured</span></div></header>
+            <div class="overview-list">
+              <button class="overview-link" type="button" data-control-link="appearance"><strong>Theme</strong><span>${escapeHtml(themeLabels[config.display.theme])}</span><span class="overview-arrow">›</span></button>
+              <button class="overview-link" type="button" data-control-link="calendar"><strong>Calendar</strong><span>${config.calendar.enabled ? "Enabled" : "Disabled"} · ${config.calendar.sources.length} sources</span><span class="overview-arrow">›</span></button>
+              <button class="overview-link" type="button" data-control-link="sports"><strong>Sports</strong><span>${config.sports.enabled ? "Enabled" : "Disabled"} · ${config.sports.favoriteTeams.length} favorite teams</span><span class="overview-arrow">›</span></button>
+              <button class="overview-link" type="button" data-control-link="discovery"><strong>Discovery</strong><span>${config.discovery.enabled ? "Enabled" : "Disabled"} · ${config.discovery.sources.length} sources</span><span class="overview-arrow">›</span></button>
+            </div>
+            <div class="card-grid">
+              <section class="settings-card"><div class="field"><label for="profile-name">Display name</label><input id="profile-name" name="profileName" type="text" value="${escapeHtml(config.profile.name)}" placeholder="Bryan"></div></section>
+              <section class="settings-card"><div class="field"><label for="location-query">City or ZIP code</label><input id="location-query" name="locationQuery" type="text" value="${escapeHtml(config.location.query)}" required></div></section>
+            </div>
+          </section>
 
-      <div class="section-heading"><h2>Information Sources</h2><p>Choose which parts of your life Mosaic keeps in view.</p></div>
-      <div class="card-grid">
-        <section class="settings-card" data-feature-card>
+          <section class="control-panel" data-control-panel="appearance" hidden>
+            <header class="panel-header"><div><p class="panel-kicker">Appearance</p><h2>Visual character</h2><p class="panel-description">Choose how Mosaic feels on your display.</p></div><div class="panel-status"><span class="status-pill">${escapeHtml(themeLabels[config.display.theme])}</span></div></header>
+            <div class="card-grid"><section class="settings-card settings-card-wide"><div class="field"><label for="display-theme">Theme</label><select id="display-theme" name="theme">${themeOptions}</select></div></section></div>
+          </section>
+
+          <section class="control-panel" data-control-panel="calendar" hidden>
+            <header class="panel-header"><div><p class="panel-kicker">Calendar</p><h2>Upcoming event awareness</h2><p class="panel-description">Choose calendars for resting context and timely reminders.</p></div><div class="panel-status"><span class="status-pill${config.calendar.enabled ? " is-on" : ""}">${config.calendar.enabled ? "● On" : "Off"}</span><span class="status-pill">${config.calendar.sources.length} sources</span></div></header>
+            <div class="card-grid"><section class="settings-card settings-card-wide" data-feature-card>
           <div class="card-header">
             <div><h3>Calendar</h3><p class="card-description">Upcoming events and timely reminders.</p></div>
             <label class="switch"><input name="calendarEnabled" type="checkbox" value="true" data-feature-toggle aria-label="Enable Calendar" aria-controls="calendar-settings"${config.calendar.enabled ? " checked" : ""}><span class="switch-track"></span><span class="switch-state"></span></label>
@@ -626,9 +761,31 @@ app.get("/control", (req, res) => {
               <button class="button button-secondary" type="submit" formaction="/control/calendar-sources/add" formmethod="post">Add Calendar</button>
             </div>
           </div>
-        </section>
+        </section></div>
+          </section>
 
-        <section class="settings-card" data-feature-card>
+          <section class="control-panel" data-control-panel="sports" hidden>
+            <header class="panel-header"><div><p class="panel-kicker">Sports</p><h2>Favorite-team awareness</h2><p class="panel-description">Follow teams and control live sports context.</p></div><div class="panel-status"><span class="status-pill${config.sports.enabled ? " is-on" : ""}">${config.sports.enabled ? "● On" : "Off"}</span><span class="status-pill">${config.sports.favoriteTeams.length} favorite teams</span></div></header>
+            <div class="card-grid"><section class="settings-card settings-card-wide" data-feature-card>
+          <div class="card-header">
+            <div><h3>Sports</h3><p class="card-description">Favorite teams and game awareness.</p></div>
+            <label class="switch"><input name="sportsEnabled" type="checkbox" value="true" data-feature-toggle aria-label="Enable Sports" aria-controls="sports-settings"${config.sports.enabled ? " checked" : ""}><span class="switch-track"></span><span class="switch-state"></span></label>
+          </div>
+          <div class="settings-content" id="sports-settings" data-feature-content${config.sports.enabled ? "" : " hidden"}>
+            <div class="field"><label for="primary-league">Primary league</label><select id="primary-league" name="primaryLeague">${leagueOptions}</select></div>
+            <h4 class="subsection-title">Favorite teams</h4>
+            <ul class="item-list">${favoriteTeamRows}</ul>
+            <div class="button-row add-team-row">
+              <select id="favorite-team" name="addTeamId" form="favorite-team-add-form" aria-label="Add favorite team"${teamOptions ? "" : " disabled"}>${teamOptions || `<option>No available ${escapeHtml(config.sports.primaryLeague)} teams</option>`}</select>
+              <button class="button button-secondary" type="submit" form="favorite-team-add-form" data-add-favorite-team${teamOptions ? "" : " disabled"}>Add team</button>
+            </div>
+          </div>
+        </section></div>
+          </section>
+
+          <section class="control-panel" data-control-panel="discovery" hidden>
+            <header class="panel-header"><div><p class="panel-kicker">Discovery</p><h2>Passive rotating content</h2><p class="panel-description">Manage the feeds Mosaic uses for ambient discovery.</p></div><div class="panel-status"><span class="status-pill${config.discovery.enabled ? " is-on" : ""}">${config.discovery.enabled ? "● On" : "Off"}</span><span class="status-pill">${config.discovery.sources.length} sources</span></div></header>
+            <div class="card-grid"><section class="settings-card settings-card-wide" data-feature-card>
           <div class="card-header">
             <div><h3>Discovery</h3><p class="card-description">Passive-interest stories, images, and feeds.</p></div>
             <label class="switch"><input name="discoveryEnabled" type="checkbox" value="true" data-feature-toggle aria-label="Enable Discovery" aria-controls="discovery-settings"${config.discovery.enabled ? " checked" : ""}><span class="switch-track"></span><span class="switch-state"></span></label>
@@ -644,48 +801,302 @@ app.get("/control", (req, res) => {
               <button class="button button-secondary" type="submit" formaction="/control/discovery-sources/add" formmethod="post">Add Source</button>
             </div>
           </div>
-        </section>
+        </section></div>
+          </section>
 
-        <section class="settings-card" data-feature-card>
+          <section class="control-panel" data-control-panel="developer" hidden>
+            <header class="panel-header"><div><p class="panel-kicker">Developer Tools</p><h2>Simulation and diagnostics</h2><p class="panel-description">Temporary tools for exercising Mosaic experiences.</p></div><div class="panel-status"><span class="status-pill">Development only</span></div></header>
+            <div class="card-grid"><section class="settings-card settings-card-wide developer-card" data-feature-card>
           <div class="card-header">
-            <div><h3>Sports</h3><p class="card-description">Favorite teams and game awareness.</p></div>
-            <label class="switch"><input name="sportsEnabled" type="checkbox" value="true" data-feature-toggle aria-label="Enable Sports" aria-controls="sports-settings"${config.sports.enabled ? " checked" : ""}><span class="switch-track"></span><span class="switch-state"></span></label>
+            <div><h3>Sports Simulator</h3><p class="card-description">Preview normalized game states on the running dashboard. Simulation state is never saved.</p></div>
+            <label class="switch"><input id="sports-simulator-enabled" type="checkbox" data-feature-toggle aria-label="Enable Sports Simulator" aria-controls="sports-simulator-settings"><span class="switch-track"></span><span class="switch-state"></span></label>
           </div>
-          <div class="settings-content" id="sports-settings" data-feature-content${config.sports.enabled ? "" : " hidden"}>
-            <div class="field"><label for="primary-league">Primary league</label><select id="primary-league" name="primaryLeague">${leagueOptions}</select></div>
-            <h4 class="subsection-title">Favorite teams</h4>
-            <ul class="item-list">${favoriteTeamRows}</ul>
-            <div class="button-row add-team-row">
-              <select id="favorite-team" name="addTeamId" aria-label="Add favorite team"${teamOptions ? "" : " disabled"}>${teamOptions || "<option>All available teams added</option>"}</select>
-              <button class="button button-secondary" type="submit" formaction="/control/favorite-teams/add" formmethod="post"${teamOptions ? "" : " disabled"}>Add team</button>
-            </div>
-          </div>
-        </section>
-      </div>
-
-      <div class="section-heading"><h2>Developer Tools</h2><p>Optional controls for testing Mosaic experiences.</p></div>
-      <div class="card-grid">
-        <section class="settings-card settings-card-wide developer-card" data-feature-card>
-          <div class="card-header">
-            <div><h3>Sports Demo</h3><p class="card-description">Preview simulated game states on the running dashboard. Demo state is never saved.</p></div>
-            <label class="switch"><input id="sports-demo-enabled" type="checkbox" data-feature-toggle aria-label="Enable Sports Demo" aria-controls="sports-demo-settings"><span class="switch-track"></span><span class="switch-state"></span></label>
-          </div>
-          <div class="settings-content" id="sports-demo-settings" data-feature-content hidden>
+          <div class="settings-content" id="sports-simulator-settings" data-feature-content hidden>
+            <label for="sports-simulation-profile">League / Profile</label>
+            <select id="sports-simulation-profile">${sportsSimulationProfileOptions}</select>
+            <label for="sports-simulation-scenario">Scenario</label>
+            <select id="sports-simulation-scenario">${sportsSimulationScenarioOptions}</select>
             <div class="button-row">
-              <button class="button button-secondary" type="button" data-sports-demo-action="scheduled">Scheduled</button>
-              <button class="button button-secondary" type="button" data-sports-demo-action="live">Live</button>
-              <button class="button button-secondary" type="button" data-sports-demo-action="final">Final</button>
-              <button class="button button-quiet" type="button" data-sports-demo-action="clear">Clear</button>
+              <button class="button button-secondary" type="button" data-sports-simulation-run>Run Simulation</button>
+              <button class="button button-quiet" type="button" data-sports-simulation-clear>Clear</button>
             </div>
+            <details class="advanced-section"><summary>Advanced</summary><p>Simulator state is temporary and is never written to Mosaic configuration.</p></details>
           </div>
-        </section>
-      </div>
-      </div>
+        </section></div>
+          </section>
+        </div>
 
-      <div class="save-bar"><span class="save-status" data-save-status role="status" aria-live="polite" hidden>Unsaved changes</span><button class="button button-primary" type="submit">Save Changes</button></div>
-    </form>
+        <div class="save-bar"><span class="save-status" data-save-status role="status" aria-live="polite" hidden>Unsaved changes</span><button class="button button-primary" type="submit">Save Changes</button></div>
+      </form>
+    </div>
   </main>
+  <div class="command-palette" id="control-command-palette" data-command-palette role="dialog" aria-modal="true" aria-label="Search Control" hidden>
+    <div class="command-palette-panel" role="search" aria-label="Control commands">
+      <input class="command-search" type="text" data-command-search placeholder="Search settings and actions" autocomplete="off">
+      <div class="command-results" data-command-results>
+        <button class="command-item" type="button" data-command-section="overview"><span>Open Overview</span><small>General</small></button>
+        <button class="command-item" type="button" data-command-section="appearance"><span>Open Appearance</span><small>General</small></button>
+        <button class="command-item" type="button" data-command-section="calendar"><span>Open Calendar</span><small>Information Source</small></button>
+        <button class="command-item" type="button" data-command-section="sports"><span>Open Sports</span><small>Information Source</small></button>
+        <button class="command-item" type="button" data-command-section="discovery"><span>Open Discovery</span><small>Information Source</small></button>
+        <button class="command-item" type="button" data-command-section="developer"><span>Open Developer Tools</span><small>System</small></button>
+        <button class="command-item" type="button" data-command-section="sports" data-command-focus="favorite-team"><span>Add Favorite Team</span><small>Sports</small></button>
+        <button class="command-item" type="button" data-command-section="calendar" data-command-focus="calendar-source-name"><span>Add Calendar Source</span><small>Calendar</small></button>
+        <button class="command-item" type="button" data-command-section="discovery" data-command-focus="discovery-source-name"><span>Add Discovery Source</span><small>Discovery</small></button>
+        <button class="command-item" type="button" data-command-section="developer" data-command-focus="sports-simulator-enabled"><span>Open Sports Simulator</span><small>Developer Tools</small></button>
+      </div>
+    </div>
+  </div>
   <script>
+    (() => {
+      const sectionStorageKey = "mosaic-control-section";
+      const railStorageKey = "mosaic-control-rail-collapsed";
+      const workspace = document.querySelector(
+        "[data-control-workspace]"
+      );
+      const railToggle = document.querySelector("[data-rail-toggle]");
+      const navButtons = [...document.querySelectorAll(
+        "[data-control-nav]"
+      )];
+      const panels = [...document.querySelectorAll(
+        "[data-control-panel]"
+      )];
+      const validSections = new Set(
+        panels.map((panel) => panel.dataset.controlPanel)
+      );
+
+      const selectSection = (section, focusId = null) => {
+        const selected = validSections.has(section)
+          ? section
+          : "overview";
+
+        panels.forEach((panel) => {
+          panel.hidden = panel.dataset.controlPanel !== selected;
+        });
+        navButtons.forEach((button) => {
+          const isSelected = button.dataset.controlNav === selected;
+          if (isSelected) {
+            button.setAttribute("aria-current", "page");
+          } else {
+            button.removeAttribute("aria-current");
+          }
+        });
+
+        try {
+          sessionStorage.setItem(sectionStorageKey, selected);
+        } catch (error) {}
+
+        window.scrollTo({ top: 0, behavior: "auto" });
+
+        if (focusId) {
+          requestAnimationFrame(() => {
+            document.getElementById(focusId)?.focus();
+          });
+        }
+      };
+
+      let initialSection = "overview";
+      try {
+        initialSection = sessionStorage.getItem(sectionStorageKey) ||
+          initialSection;
+      } catch (error) {}
+      selectSection(initialSection);
+
+      navButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          selectSection(button.dataset.controlNav);
+        });
+      });
+      document.querySelectorAll("[data-control-link]")
+        .forEach((button) => {
+          button.addEventListener("click", () => {
+            selectSection(button.dataset.controlLink);
+          });
+        });
+
+      const syncRail = (collapsed) => {
+        workspace?.classList.toggle("is-rail-collapsed", collapsed);
+        railToggle?.setAttribute("aria-expanded", String(!collapsed));
+        if (railToggle) {
+          railToggle.textContent = collapsed ? "›" : "‹";
+          railToggle.setAttribute(
+            "aria-label",
+            collapsed ? "Expand navigation" : "Collapse navigation"
+          );
+        }
+      };
+
+      let railCollapsed = false;
+      try {
+        railCollapsed =
+          sessionStorage.getItem(railStorageKey) === "true";
+      } catch (error) {}
+      syncRail(railCollapsed);
+
+      railToggle?.addEventListener("click", () => {
+        railCollapsed = !railCollapsed;
+        syncRail(railCollapsed);
+        try {
+          sessionStorage.setItem(
+            railStorageKey,
+            String(railCollapsed)
+          );
+        } catch (error) {}
+      });
+
+      const palette = document.querySelector("[data-command-palette]");
+      const paletteOpen = document.querySelector("[data-command-open]");
+      const search = document.querySelector("[data-command-search]");
+      const commands = [...document.querySelectorAll(
+        "[data-command-section]"
+      )];
+
+      const closePalette = () => {
+        if (!palette || palette.hidden) return;
+        palette.hidden = true;
+        paletteOpen?.setAttribute("aria-expanded", "false");
+        search.value = "";
+        commands.forEach((command) => command.hidden = false);
+        paletteOpen?.focus();
+      };
+
+      const openPalette = () => {
+        if (!palette) return;
+        palette.hidden = false;
+        paletteOpen?.setAttribute("aria-expanded", "true");
+        requestAnimationFrame(() => search?.focus());
+      };
+
+      paletteOpen?.setAttribute("aria-expanded", "false");
+      paletteOpen?.addEventListener("click", openPalette);
+      palette?.addEventListener("click", (event) => {
+        if (event.target === palette) closePalette();
+      });
+      search?.addEventListener("input", () => {
+        const query = search.value.trim().toLowerCase();
+        commands.forEach((command) => {
+          command.hidden = !command.textContent
+            .toLowerCase()
+            .includes(query);
+        });
+      });
+      search?.addEventListener("keydown", (event) => {
+        if (!["ArrowDown", "ArrowUp"].includes(event.key)) return;
+        const visible = commands.filter((command) => !command.hidden);
+        if (visible.length === 0) return;
+        event.preventDefault();
+        (event.key === "ArrowDown" ? visible[0] : visible.at(-1))
+          .focus();
+      });
+      commands.forEach((command, index) => {
+        command.addEventListener("click", () => {
+          const section = command.dataset.commandSection;
+          const focusId = command.dataset.commandFocus || null;
+          closePalette();
+          selectSection(section, focusId);
+        });
+        command.addEventListener("keydown", (event) => {
+          if (!["ArrowDown", "ArrowUp"].includes(event.key)) return;
+          const visible = commands.filter((item) => !item.hidden);
+          const currentIndex = visible.indexOf(command);
+          const offset = event.key === "ArrowDown" ? 1 : -1;
+          const next = visible[
+            (currentIndex + offset + visible.length) % visible.length
+          ];
+          event.preventDefault();
+          next?.focus();
+        });
+      });
+      document.addEventListener("keydown", (event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+          event.preventDefault();
+          palette?.hidden ? openPalette() : closePalette();
+        }
+        if (event.key === "Escape" && !palette?.hidden) {
+          event.preventDefault();
+          closePalette();
+        }
+      });
+
+      window.mosaicControlSelectSection = selectSection;
+    })();
+
+    (() => {
+      const storageKey = "mosaic-control-scroll-position";
+
+      document.addEventListener("submit", (event) => {
+        const form = event.target;
+        const submitter = event.submitter;
+        const action = submitter?.formAction || form?.action;
+
+        if (form?.method?.toLowerCase() !== "post" || !action) return;
+
+        try {
+          const actionUrl = new URL(action, window.location.href);
+
+          if (
+            actionUrl.origin !== window.location.origin ||
+            (
+              actionUrl.pathname !== "/control" &&
+              !actionUrl.pathname.startsWith("/control/")
+            )
+          ) {
+            return;
+          }
+
+          sessionStorage.setItem(storageKey, JSON.stringify({
+            scrollY: window.scrollY,
+            savedAt: Date.now()
+          }));
+        } catch (error) {}
+      }, true);
+    })();
+
+    (() => {
+      const storageKey = "mosaic-control-scroll-position";
+      let savedPosition = null;
+
+      try {
+        savedPosition = JSON.parse(
+          sessionStorage.getItem(storageKey)
+        );
+        sessionStorage.removeItem(storageKey);
+      } catch (error) {
+        return;
+      }
+
+      if (!savedPosition) return;
+
+      const navigation = performance
+        .getEntriesByType("navigation")[0];
+      const isManualRefresh = navigation?.type === "reload";
+      const isRecentControlAction =
+        Number.isFinite(savedPosition.savedAt) &&
+        Date.now() - savedPosition.savedAt < 30 * 1000;
+
+      if (
+        isManualRefresh ||
+        !isRecentControlAction ||
+        !Number.isFinite(savedPosition.scrollY)
+      ) {
+        return;
+      }
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const maximumScroll = Math.max(
+            0,
+            document.documentElement.scrollHeight - window.innerHeight
+          );
+
+          window.scrollTo(
+            0,
+            Math.min(savedPosition.scrollY, maximumScroll)
+          );
+        });
+      });
+    })();
+
     (() => {
       const form = document.querySelector(".settings-form");
       const status = document.querySelector("[data-save-status]");
@@ -708,6 +1119,46 @@ app.get("/control", (req, res) => {
 
       form.addEventListener("input", showPendingState);
       form.addEventListener("change", showPendingState);
+    })();
+
+    (() => {
+      const leagueSelect = document.getElementById("primary-league");
+      const teamSelect = document.getElementById("favorite-team");
+      const addButton = document.querySelector(
+        "[data-add-favorite-team]"
+      );
+      const availableTeams = ${favoriteTeamRegistryJson};
+
+      if (!leagueSelect || !teamSelect || !addButton) return;
+
+      const syncTeamOptions = () => {
+        const teams = availableTeams.filter(
+          (team) => team.league === leagueSelect.value
+        );
+
+        teamSelect.replaceChildren();
+
+        if (teams.length === 0) {
+          const option = document.createElement("option");
+          option.textContent =
+            "No available " + leagueSelect.value + " teams";
+          teamSelect.append(option);
+        } else {
+          teams.forEach((team) => {
+            const option = document.createElement("option");
+            option.value = team.id;
+            option.textContent =
+              team.name + " (" + team.league + ")";
+            teamSelect.append(option);
+          });
+        }
+
+        teamSelect.disabled = teams.length === 0;
+        addButton.disabled = teams.length === 0;
+      };
+
+      leagueSelect.addEventListener("change", syncTeamOptions);
+      syncTeamOptions();
     })();
 
     (() => {
@@ -760,38 +1211,74 @@ app.get("/control", (req, res) => {
     })();
 
     (() => {
-      const buttons = document.querySelectorAll(
-        "[data-sports-demo-action]"
+      const profileSelect = document.getElementById(
+        "sports-simulation-profile"
       );
-      const allowedActions = new Set([
-        "scheduled",
-        "live",
-        "final",
-        "clear"
-      ]);
+      const scenarioSelect = document.getElementById(
+        "sports-simulation-scenario"
+      );
+      const runButton = document.querySelector(
+        "[data-sports-simulation-run]"
+      );
+      const clearButton = document.querySelector(
+        "[data-sports-simulation-clear]"
+      );
+      const profiles = ${sportsSimulationProfilesJson};
+      const controls = [
+        profileSelect,
+        scenarioSelect,
+        runButton,
+        clearButton
+      ].filter(Boolean);
 
       if (typeof BroadcastChannel !== "function") {
-        buttons.forEach((button) => {
-          button.disabled = true;
-          button.title =
-            "Sports Demo requires BroadcastChannel support.";
+        controls.forEach((control) => {
+          control.disabled = true;
+          control.title =
+            "Sports Simulator requires BroadcastChannel support.";
         });
         return;
       }
+
+      if (
+        !profileSelect ||
+        !scenarioSelect ||
+        !runButton ||
+        !clearButton
+      ) return;
 
       const channel = new BroadcastChannel(
         "mosaic-sports-demo"
       );
 
-      buttons.forEach((button) => {
-        button.addEventListener("click", () => {
-          const action = button.dataset.sportsDemoAction;
+      const syncScenarios = () => {
+        const profile = profiles.find(
+          (item) => item.id === profileSelect.value
+        );
 
-          if (!allowedActions.has(action)) return;
+        scenarioSelect.replaceChildren();
+        (profile?.scenarios || []).forEach((scenario) => {
+          const option = document.createElement("option");
+          option.value = scenario.id;
+          option.textContent = scenario.label;
+          scenarioSelect.append(option);
+        });
+        runButton.disabled = scenarioSelect.options.length === 0;
+      };
 
-          channel.postMessage({ action });
+      profileSelect.addEventListener("change", syncScenarios);
+      runButton.addEventListener("click", () => {
+        channel.postMessage({
+          action: "run",
+          profileId: profileSelect.value,
+          scenarioId: scenarioSelect.value
         });
       });
+      clearButton.addEventListener("click", () => {
+        channel.postMessage({ action: "clear" });
+      });
+
+      syncScenarios();
 
       window.addEventListener(
         "pagehide",

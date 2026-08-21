@@ -53,6 +53,13 @@ class SportsActiveContextGenerator {
             return null;
         }
 
+        if (favoriteTeam.sport !== "baseball") {
+            return this.createGenericLiveCandidate(
+                favoriteTeam,
+                game
+            );
+        }
+
         return {
             id: `sports:live:${favoriteTeam.id}`,
             source: "sports",
@@ -89,6 +96,80 @@ class SportsActiveContextGenerator {
             createdAt: new Date().toISOString(),
             expiresAt: null
         };
+    }
+
+    createGenericLiveCandidate(favoriteTeam, game) {
+        const away = game.teams.away;
+        const home = game.teams.home;
+
+        return {
+            id: `sports:live:${favoriteTeam.id}`,
+            source: "sports",
+            type: "sports.live-game",
+            mode: "active",
+            priority: 100,
+            headline: `${away.name} at ${home.name}`,
+            summary: this.formatGenericGameSummary(game),
+            payload: {
+                type: `${favoriteTeam.sport || "sports"}-gamecast`,
+                sport: favoriteTeam.sport || game.sport || null,
+                league: favoriteTeam.league || game.league || null,
+                teams: game.teams,
+                score: game.score,
+                quarter: game.quarter ?? null,
+                period: game.period ?? null,
+                gameClock: game.gameClock ?? null,
+                possession: game.possession ?? null,
+                down: game.down ?? null,
+                distance: game.distance ?? null,
+                yardLine: game.yardLine ?? null,
+                redZone: game.redZone ?? null,
+                strength: game.strength ?? null,
+                powerPlay: game.powerPlay ?? null,
+                shotsOnGoal: game.shotsOnGoal ?? null,
+                teamFouls: game.teamFouls ?? null,
+                timeouts: game.timeouts ?? null,
+                phase: game.phase ?? null
+            },
+            behavior: {
+                sticky: true,
+                durationSeconds: null
+            },
+            createdAt: new Date().toISOString(),
+            expiresAt: null
+        };
+    }
+
+    formatGenericGameSummary(game) {
+        const details = [];
+        const away = game.teams.away;
+        const home = game.teams.home;
+
+        if (
+            Number.isFinite(game.score?.away) &&
+            Number.isFinite(game.score?.home)
+        ) {
+            details.push(
+                `${away.shortName || away.name} ${game.score.away} · ` +
+                `${home.shortName || home.name} ${game.score.home}`
+            );
+        }
+
+        if (game.gameClock) details.push(game.gameClock);
+        if (Number.isInteger(game.quarter)) {
+            details.push(`Q${game.quarter}`);
+        } else if (Number.isInteger(game.period)) {
+            details.push(`P${game.period}`);
+        }
+
+        if (
+            Number.isInteger(game.down) &&
+            Number.isInteger(game.distance)
+        ) {
+            details.push(`${game.down} & ${game.distance}`);
+        }
+
+        return details.join(" · ") || "Game in progress";
     }
 
     getBattingTeam(game) {

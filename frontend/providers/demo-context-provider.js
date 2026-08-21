@@ -73,10 +73,15 @@ class DemoContextProvider {
          * production context generators remain responsible for Hero state.
          */
         window.mosaicDemo.sports = {
-            scheduled: () => this.publishSportsState("scheduled"),
-            live: () => this.publishSportsState("live"),
-            final: () => this.publishSportsState("final"),
-            clear: () => this.clearSportsFacts()
+            run: (profileId, scenarioId) =>
+                this.runSportsSimulation(profileId, scenarioId),
+            scheduled: () =>
+                this.runSportsSimulation("MLB", "scheduled"),
+            live: () =>
+                this.runSportsSimulation("MLB", "live-bottom"),
+            final: () =>
+                this.runSportsSimulation("MLB", "final"),
+            clear: () => this.clearSportsSimulation()
         };
 
         this.startSportsDemoChannel();
@@ -90,22 +95,22 @@ class DemoContextProvider {
             return;
         }
 
-        const actions = {
-            scheduled: () => this.publishSportsState("scheduled"),
-            live: () => this.publishSportsState("live"),
-            final: () => this.publishSportsState("final"),
-            clear: () => this.clearSportsFacts()
-        };
-
         this.sportsDemoChannel = new BroadcastChannel(
             "mosaic-sports-demo"
         );
         this.sportsDemoChannel.addEventListener(
             "message",
             (event) => {
-                const action = actions[event.data?.action];
+                if (event.data?.action === "run") {
+                    this.runSportsSimulation(
+                        event.data.profileId,
+                        event.data.scenarioId
+                    );
+                }
 
-                if (action) action();
+                if (event.data?.action === "clear") {
+                    this.clearSportsSimulation();
+                }
             }
         );
     }
@@ -176,130 +181,31 @@ class DemoContextProvider {
         });
     }
 
-    publishSportsState(status) {
-        const startTime = new Date();
-        startTime.setHours(19, 10, 0, 0);
+    runSportsSimulation(profileId, scenarioId) {
+        const facts = window.sportsSimulationProfileRegistry
+            ?.createFacts(profileId, scenarioId);
 
-        const game = {
-            status,
-            opponent: "Los Angeles Angels",
-            opponentLogo:
-                "https://www.mlbstatic.com/team-logos/108.svg",
-            teams: {
-                away: {
-                    id: "SEA",
-                    name: "Seattle Mariners",
-                    shortName: "Mariners",
-                    logo: "https://www.mlbstatic.com/team-logos/136.svg",
-                    providerId: 136
-                },
-                home: {
-                    id: "LAA",
-                    name: "Los Angeles Angels",
-                    shortName: "Angels",
-                    logo: "https://www.mlbstatic.com/team-logos/108.svg",
-                    providerId: 108
-                }
-            },
-            startTime: startTime.toISOString(),
-            score: null,
-            inning: null,
-            outs: null,
-            count: null,
-            bases: null,
-            lineScore: null,
-            result: null
-        };
+        if (!facts) return;
 
-        if (status === "live") {
-            Object.assign(game, {
-                score: {
-                    away: 3,
-                    home: 2,
-                    favoriteTeam: 3,
-                    opponent: 2
-                },
-                inning: {
-                    half: "bottom",
-                    number: 7
-                },
-                outs: 1,
-                count: {
-                    balls: 2,
-                    strikes: 1
-                },
-                bases: {
-                    first: false,
-                    second: true,
-                    third: false
-                },
-                lineScore: {
-                    teams: game.teams,
-                    innings: [
-                        { number: 1, away: 0, home: 0, favoriteTeam: 0, opponent: 0 },
-                        { number: 2, away: 1, home: 0, favoriteTeam: 1, opponent: 0 },
-                        { number: 3, away: 0, home: 0, favoriteTeam: 0, opponent: 0 },
-                        { number: 4, away: 0, home: 1, favoriteTeam: 0, opponent: 1 },
-                        { number: 5, away: 0, home: 0, favoriteTeam: 0, opponent: 0 },
-                        { number: 6, away: 2, home: 0, favoriteTeam: 2, opponent: 0 },
-                        { number: 7, away: 0, home: 1, favoriteTeam: 0, opponent: 1 }
-                    ],
-                    away: {
-                        runs: 3,
-                        hits: 7,
-                        errors: 0
-                    },
-                    home: {
-                        runs: 2,
-                        hits: 6,
-                        errors: 0
-                    },
-                    favoriteTeam: {
-                        runs: 3,
-                        hits: 7,
-                        errors: 0
-                    },
-                    opponent: {
-                        runs: 2,
-                        hits: 6,
-                        errors: 0
-                    }
-                }
-            });
-        }
-
-        if (status === "final") {
-            Object.assign(game, {
-                score: {
-                    away: 5,
-                    home: 3,
-                    favoriteTeam: 5,
-                    opponent: 3
-                },
-                result: "Mariners win 5-3"
-            });
-        }
-
-        this.publishSportsFacts({
-            status: "available",
-            favoriteTeam: {
-                id: "SEA",
-                name: "Seattle Mariners",
-                logo: "https://www.mlbstatic.com/team-logos/136.svg"
-            },
-            game
-        });
+        this.publishSportsSimulationState(true);
+        this.publishSportsFacts(facts);
     }
 
-    clearSportsFacts() {
+    clearSportsSimulation() {
         this.publishSportsFacts({
             status: "unavailable",
-            favoriteTeam: {
-                id: "SEA",
-                name: "Seattle Mariners",
-                logo: "https://www.mlbstatic.com/team-logos/136.svg"
-            },
+            simulation: true,
+            favoriteTeam: null,
             game: null
+        });
+        this.publishSportsSimulationState(false);
+    }
+
+    publishSportsSimulationState(active) {
+        window.mosaicApp.eventBus.publish({
+            type: "sports-simulation-state",
+            source: "sports-simulator",
+            payload: { active }
         });
     }
 

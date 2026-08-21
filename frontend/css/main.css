@@ -814,6 +814,7 @@ button:focus-visible,
     min-height: 0;
 
     object-fit: contain;
+    border-radius: var(--radius-lg);
 }
 
 .discovery-zone .discovery-image-caption {

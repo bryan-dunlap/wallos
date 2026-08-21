@@ -41,6 +41,11 @@ function registerMosaicProviders(registry) {
     );
 
     registry.register(
+        "mlb-gamecast",
+        MlbGamecastProvider
+    );
+
+    registry.register(
         "sports-active-context",
         SportsActiveContextGenerator
     );
