@@ -59,17 +59,19 @@ class MlbSportsWidgetRenderer {
     }
 
     renderTeam(team, position) {
+        const record = this.formatRecord(team.record);
+
         return `
-            <span class="team-identity sports-scoreboard-team
+            <span class="team-identity sports-widget-team sports-scoreboard-team
                 sports-scoreboard-team-${position}">
                 ${this.renderLogo(team)}
                 <span class="team-identity-text">
                     <span class="team-identity-name">
-                        ${team.name}
+                        ${this.formatTeamName(team)}
                     </span>
-                    <span class="team-identity-record">
-                        ${this.formatRecord(team.record)}
-                    </span>
+                    ${record ? `<span class="team-identity-record">
+                        ${record}
+                    </span>` : ""}
                 </span>
             </span>`;
     }
@@ -93,9 +95,24 @@ class MlbSportsWidgetRenderer {
     }
 
     formatRecord(record) {
-        return record?.wins != null && record?.losses != null
-            ? `(${record.wins}-${record.losses})`
-            : "";
+        if (typeof record === "string") {
+            const normalizedRecord = record.trim();
+            return normalizedRecord ? `(${normalizedRecord})` : "";
+        }
+
+        if (record?.wins == null || record?.losses == null) return "";
+
+        const ties = record.ties ? `-${record.ties}` : "";
+        return `(${record.wins}-${record.losses}${ties})`;
+    }
+
+    formatTeamName(team = {}) {
+        const shortName = String(team.shortName || "").trim();
+
+        if (shortName) return shortName;
+
+        const nameParts = String(team.name || "").trim().split(/\s+/);
+        return nameParts.at(-1) || team.abbreviation || "Team";
     }
 
     hasReachedScheduledStart(state = {}) {

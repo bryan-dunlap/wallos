@@ -392,18 +392,52 @@ test("renderer registry selects MLB without league logic in the queue", () => {
   );
 });
 
-test("MLB widget renderer preserves scoreboard presentation", () => {
-  const [event] = new MlbSportsEventAdapter().adaptGames([
+test("MLB widget renderer uses shared compact team identities", () => {
+  const adapter = new MlbSportsEventAdapter();
+  const [event] = adapter.adaptGames([
     createLegacyMlbGame()
   ]);
-  const presentation = new MlbSportsWidgetRenderer().render(event);
+  const renderer = new MlbSportsWidgetRenderer();
+  event.participants.away.record = "70-58";
+  event.participants.home.record = {
+    wins: 60,
+    losses: 68
+  };
+  const presentation = renderer.render(event);
+  const scheduledEvent = adapter.adaptGame(createLegacyMlbGame({
+    eventId: 54321,
+    scheduledAt: "2099-08-22T18:10:00.000Z",
+    status: { state: "Scheduled", detail: "Scheduled" },
+    awayTeam: {
+      ...createLegacyMlbGame().awayTeam,
+      record: { wins: null, losses: null }
+    },
+    homeTeam: {
+      ...createLegacyMlbGame().homeTeam,
+      record: { wins: null, losses: null }
+    }
+  }));
+  const scheduled = renderer.render(scheduledEvent);
+  const finalEvent = adapter.adaptGame(createLegacyMlbGame({
+    eventId: 54322,
+    status: { state: "Final", detail: "Final" }
+  }));
+  const final = renderer.render(finalEvent);
 
   assert.equal(presentation.status, "Bottom 7th");
-  assert.match(presentation.content, /Seattle Mariners/);
-  assert.match(presentation.content, /Los Angeles Angels/);
+  assert.match(presentation.content, />\s*Mariners\s*</);
+  assert.match(presentation.content, />\s*Angels\s*</);
+  assert.doesNotMatch(presentation.content, /Seattle Mariners/);
+  assert.match(presentation.content, /sports-widget-team/);
+  assert.match(presentation.content, /Mariners\s*<\/span>\s*<span class="team-identity-record">\s*\(70-58\)/);
+  assert.match(presentation.content, /Angels\s*<\/span>\s*<span class="team-identity-record">\s*\(60-68\)/);
   assert.match(presentation.content, /sports-scoreboard-heading">R/);
   assert.match(presentation.content, /sports-scoreboard-team-away/);
   assert.match(presentation.content, /sports-scoreboard-team-home/);
+  assert.equal(scheduled.status, "11:10 AM");
+  assert.doesNotMatch(scheduled.content, /team-identity-record/);
+  assert.equal(final.status, "Final");
+  assert.match(final.content, /sports-scoreboard-heading">R/);
 });
 
 test("NFL adapter normalizes scheduled, live, final, and overtime fixtures", () => {
@@ -425,6 +459,37 @@ test("NFL adapter normalizes scheduled, live, final, and overtime fixtures", () 
   assert.deepEqual(final.scores, { away: 30, home: 27 });
 });
 
+test("NFL adapter safely maps every backend lifecycle state", () => {
+  const adapter = new NflSportsEventAdapter();
+  const lifecycleStates = [
+    ["scheduled", "scheduled"],
+    ["in_progress", "live"],
+    ["final", "final"],
+    ["postponed", "scheduled"],
+    ["canceled", "unknown"],
+    ["delayed", "scheduled"],
+    ["suspended", "unknown"],
+    ["abandoned", "unknown"],
+    ["unknown", "unknown"]
+  ];
+
+  for (const [backendStatus, expectedStatus] of lifecycleStates) {
+    const fixture = createNflFixture("scheduled");
+    fixture.status = {
+      state: backendStatus,
+      detail: `Provider status: ${backendStatus}`
+    };
+    const event = adapter.adaptGame(fixture);
+
+    assert.ok(event, `${backendStatus} should remain renderable`);
+    assert.equal(event.status, expectedStatus);
+    assert.equal(
+      event.state.statusDetail,
+      `Provider status: ${backendStatus}`
+    );
+  }
+});
+
 test("NFL renderer supports scheduled, live fallback, overtime, and final", () => {
   const adapter = new NflSportsEventAdapter();
   const renderer = new NflSportsWidgetRenderer();
@@ -437,15 +502,34 @@ test("NFL renderer supports scheduled, live fallback, overtime, and final", () =
   const overtime = renderer.render(
     adapter.adaptGame(createNflFixture("overtime"))
   );
-  const final = renderer.render(
-    adapter.adaptGame(createNflFixture("final"))
-  );
+  const finalEvent = adapter.adaptGame(createNflFixture("final"));
+  finalEvent.participants.away.record = "11-6";
+  finalEvent.participants.home.record = {
+    wins: 12,
+    losses: 5,
+    ties: 0
+  };
+  const final = renderer.render(finalEvent);
 
   assert.equal(scheduled.status, "7:10 PM");
+  assert.doesNotMatch(scheduled.content, /team-identity-record/);
   assert.equal(live.status, "Q1 08:42");
+  assert.match(live.content, />\s*Q1\s*</);
+  assert.match(live.content, />\s*TOT\s*</);
   assert.equal(overtime.status, "OT 07:22");
   assert.equal(final.status, "Final");
-  assert.match(final.content, /Seattle Seahawks/);
+  assert.match(final.content, />\s*Seahawks\s*</);
+  assert.doesNotMatch(final.content, /Seattle Seahawks/);
+  assert.match(
+    final.content,
+    /Seahawks\s*<\/span>\s*<span class="team-identity-record">\s*\(11-6\)/
+  );
+  assert.match(
+    final.content,
+    /49ers\s*<\/span>\s*<span class="team-identity-record">\s*\(12-5\)/
+  );
+  assert.match(final.content, /team-identity-record/);
+  assert.match(final.content, /sports-widget-team/);
   assert.match(final.content, />\s*30\s*</);
   assert.match(final.content, />\s*Q1\s*</);
   assert.match(final.content, />\s*TOT\s*</);

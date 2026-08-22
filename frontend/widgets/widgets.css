@@ -147,6 +147,10 @@
 
 .sports-widget {
 
+    --sports-widget-team-name-size: 1.45rem;
+    --sports-widget-team-record-size: .65rem;
+    --sports-widget-team-row-gap: 6px;
+
     grid-column: 2;
 
     grid-row: 2;
@@ -298,11 +302,27 @@
 
     color: var(--color-text-muted);
 
-    font-size: .65rem;
+    font-size: var(--sports-widget-team-record-size);
 
     font-weight: 500;
 
     white-space: nowrap;
+
+}
+
+.sports-widget-team {
+
+    gap: var(--sports-widget-team-row-gap);
+
+    overflow: visible;
+
+    color: var(--color-text);
+
+    font-size: var(--sports-widget-team-name-size);
+
+    font-weight: 700;
+
+    text-transform: uppercase;
 
 }
 
@@ -359,23 +379,11 @@
 
 .sports-scoreboard-team {
 
-    overflow: visible;
-
-    gap: 6px;
-
-    color: var(--color-text);
-
-    font-size: 1.45rem;
-
-    font-weight: 700;
-
     white-space: nowrap;
 
     text-align: left;
 
     text-overflow: ellipsis;
-
-    text-transform: uppercase;
 
 }
 
@@ -386,7 +394,7 @@
 
     font-family: "Outfit", sans-serif;
 
-    font-size: 1.3rem;
+    font-size: 1.45rem;
 
     font-variant-numeric: tabular-nums;
 
@@ -406,9 +414,9 @@
 
     width: 100%;
 
-    column-gap: 12px;
+    column-gap: 9px;
 
-    row-gap: 8px;
+    row-gap: 6px;
 
     margin-inline: auto;
 
@@ -416,7 +424,7 @@
 
 .nfl-widget-scoreboard-with-quarters {
 
-    grid-template-columns: minmax(0, 1fr) repeat(5, 2.5ch);
+    grid-template-columns: minmax(0, 1fr) repeat(5, 2.35ch);
 
 }
 
@@ -424,17 +432,17 @@
 
     min-width: 0;
 
-    gap: 6px;
+}
 
-    overflow: visible;
+.nfl-widget-team .team-identity-text {
 
-    color: var(--color-text);
+    flex-direction: row;
 
-    font-size: 1.45rem;
+    align-items: baseline;
 
-    font-weight: 700;
+    gap: 5px;
 
-    text-transform: uppercase;
+    line-height: normal;
 
 }
 
