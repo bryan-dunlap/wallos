@@ -3469,18 +3469,7 @@ app.get("/api/weather", async (req, res) => {
    MLB Daily Schedule API
 ========================== */
 
-async function handleMlbDailySchedule(req, res) {
-  const requestedDate =
-    typeof req.query.date === "string"
-      ? req.query.date
-      : formatLocalDate(new Date());
-
-  if (!isValidDateKey(requestedDate)) {
-    return res.status(400).json({
-      error: "Date must use YYYY-MM-DD format."
-    });
-  }
-
+async function acquireMlbDailySchedule(requestedDate) {
   const cachedSchedule =
     mlbDailyScheduleCache.get(requestedDate);
 
@@ -3491,7 +3480,7 @@ async function handleMlbDailySchedule(req, res) {
         cachedSchedule.ttl;
 
     if (cacheIsValid) {
-      return res.json(cachedSchedule.data);
+      return cachedSchedule.data;
     }
 
     const scheduleParams = new URLSearchParams({
@@ -3543,7 +3532,7 @@ async function handleMlbDailySchedule(req, res) {
       data: responseData
     });
 
-    res.json(responseData);
+    return responseData;
   } catch (error) {
     console.error(
       "MLB daily schedule API error:",
@@ -3551,12 +3540,28 @@ async function handleMlbDailySchedule(req, res) {
     );
 
     if (cachedSchedule?.data) {
-      return res.json({
+      return {
         ...cachedSchedule.data,
         stale: true
-      });
+      };
     }
 
+    throw error;
+  }
+}
+
+async function handleMlbDailySchedule(req, res) {
+  const requestedDate = resolveSportsDate(req.query.date);
+
+  if (!requestedDate) {
+    return res.status(400).json({
+      error: "Date must use YYYY-MM-DD format."
+    });
+  }
+
+  try {
+    res.json(await acquireMlbDailySchedule(requestedDate));
+  } catch (error) {
     res.status(500).json({
       error:
         "MLB daily schedule is temporarily unavailable."
@@ -3564,21 +3569,139 @@ async function handleMlbDailySchedule(req, res) {
   }
 }
 
-app.get("/api/sports", (req, res) => {
-  const primaryLeague = readConfig().sports.primaryLeague;
+function resolveSportsDate(queryDate) {
+  const requestedDate = typeof queryDate === "string"
+    ? queryDate
+    : formatLocalDate(new Date());
 
-  if (primaryLeague === "MLB") {
-    return handleMlbDailySchedule(req, res);
+  return isValidDateKey(requestedDate)
+    ? requestedDate
+    : null;
+}
+
+const sportsWidgetAcquisitionRegistry = new Map([
+  ["MLB", {
+    id: "MLB",
+    acquire: acquireMlbDailySchedule
+  }]
+]);
+
+async function acquireSportsWidgetLeague(
+  league,
+  requestedDate,
+  registry = sportsWidgetAcquisitionRegistry
+) {
+  const normalizedLeague = String(league || "")
+    .trim()
+    .toUpperCase();
+  const provider = registry.get(normalizedLeague);
+
+  if (!provider) {
+    return {
+      league: normalizedLeague,
+      availability: "unsupported",
+      sportsEvents: []
+    };
   }
 
-  return res.status(501).json({
-    error: {
-      code: "LEAGUE_NOT_IMPLEMENTED",
-      message: `${primaryLeague} data is not yet implemented.`
-    },
-    sport: primaryLeague,
-    sportsEvents: []
-  });
+  try {
+    const schedule = await provider.acquire(requestedDate);
+
+    return {
+      league: normalizedLeague,
+      availability: "available",
+      sportsEvents: Array.isArray(schedule.sportsEvents)
+        ? schedule.sportsEvents
+        : [],
+      updatedAt: schedule.updatedAt,
+      ...(schedule.stale === true ? { stale: true } : {})
+    };
+  } catch (error) {
+    console.error(
+      `${normalizedLeague} Sports Widget acquisition failed.`,
+      error
+    );
+
+    return {
+      league: normalizedLeague,
+      availability: "unavailable",
+      sportsEvents: []
+    };
+  }
+}
+
+async function acquireSportsWidgetLeagues(
+  leagues,
+  requestedDate,
+  registry = sportsWidgetAcquisitionRegistry
+) {
+  const uniqueLeagues = [
+    ...new Set(
+      (Array.isArray(leagues) ? leagues : [])
+        .filter((league) => typeof league === "string")
+        .map((league) => league.trim().toUpperCase())
+        .filter(Boolean)
+    )
+  ];
+
+  return Promise.all(
+    uniqueLeagues.map((league) =>
+      acquireSportsWidgetLeague(
+        league,
+        requestedDate,
+        registry
+      )
+    )
+  );
+}
+
+async function buildSportsWidgetAcquisitionResponse(
+  sportsConfig,
+  requestedDate,
+  registry = sportsWidgetAcquisitionRegistry
+) {
+  const widgetConfig = sportsConfig?.widget || {};
+  const leagues = widgetConfig.enabled === false
+    ? []
+    : await acquireSportsWidgetLeagues(
+        widgetConfig.leagues,
+        requestedDate,
+        registry
+      );
+  const compatibilityLeague = leagues.find(
+    (league) => league.availability === "available"
+  );
+
+  return {
+    date: requestedDate,
+    leagues,
+    sport: compatibilityLeague?.league || null,
+    sportsEvents: compatibilityLeague?.sportsEvents || [],
+    updatedAt:
+      compatibilityLeague?.updatedAt || new Date().toISOString(),
+    ...(compatibilityLeague?.stale === true
+      ? { stale: true }
+      : {})
+  };
+}
+
+app.get("/api/sports", async (req, res) => {
+  const requestedDate = resolveSportsDate(req.query.date);
+
+  if (!requestedDate) {
+    return res.status(400).json({
+      error: "Date must use YYYY-MM-DD format."
+    });
+  }
+
+  const config = readConfig();
+
+  res.json(
+    await buildSportsWidgetAcquisitionResponse(
+      config.sports,
+      requestedDate
+    )
+  );
 });
 
 app.get("/api/sports/mlb", handleMlbDailySchedule);
@@ -3833,8 +3956,21 @@ app.get("/api/discovery", async (req, res) => {
    Server Startup
 ========================== */
 
-app.listen(PORT, () => {
-  console.log(
-    `Project Mosaic running at http://localhost:${PORT}`
-  );
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(
+      `Project Mosaic running at http://localhost:${PORT}`
+    );
+  });
+}
+
+module.exports = {
+  app,
+  acquireMlbDailySchedule,
+  acquireSportsWidgetLeague,
+  acquireSportsWidgetLeagues,
+  buildSportsWidgetAcquisitionResponse,
+  mlbDailyScheduleCache,
+  resolveSportsDate,
+  sportsWidgetAcquisitionRegistry
+};
