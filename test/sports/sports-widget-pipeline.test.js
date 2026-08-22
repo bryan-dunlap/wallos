@@ -90,6 +90,17 @@ function createNflFixture(scenarioId) {
   );
   const game = facts.game;
   const score = game.score || {};
+  const quarterScoring = {
+    q1: { away: [7], home: [3] },
+    q2: { away: [7, 3], home: [3, 7] },
+    halftime: { away: [7, 10], home: [3, 10] },
+    q3: { away: [7, 3, 10], home: [3, 7, 6] },
+    q4: { away: [7, 3, 7, 7], home: [3, 7, 6, 7] },
+    "red-zone": { away: [7, 3, 7, 7], home: [3, 7, 6, 7] },
+    "two-minute": { away: [7, 3, 7, 7], home: [3, 7, 7, 10] },
+    overtime: { away: [7, 3, 7, 10, 0], home: [3, 7, 7, 10, 0] },
+    final: { away: [7, 3, 7, 13], home: [3, 7, 7, 10] }
+  }[scenarioId] || { away: [], home: [] };
 
   return {
     eventId: `simulation:NFL:${scenarioId}`,
@@ -110,8 +121,9 @@ function createNflFixture(scenarioId) {
       score: score.home ?? null
     },
     state: {
-      quarter: game.quarter,
-      gameClock: game.gameClock,
+      period: game.quarter,
+      clock: game.gameClock,
+      quarters: quarterScoring,
       phase: game.phase,
       possession: game.possession,
       down: game.down,
@@ -403,10 +415,12 @@ test("NFL adapter normalizes scheduled, live, final, and overtime fixtures", () 
 
   assert.equal(scheduled.status, "scheduled");
   assert.equal(live.status, "live");
-  assert.equal(live.details.football.quarter, 4);
+  assert.equal(live.state.period, 4);
+  assert.equal(live.state.clock, "04:09");
+  assert.deepEqual(live.details.football.quarters.away, [7, 3, 7, 7]);
   assert.equal(live.details.football.possession, "home");
   assert.equal(overtime.details.football.phase, "overtime");
-  assert.equal(overtime.details.football.quarter, 5);
+  assert.equal(overtime.state.period, 5);
   assert.equal(final.status, "final");
   assert.deepEqual(final.scores, { away: 30, home: 27 });
 });
@@ -432,7 +446,9 @@ test("NFL renderer supports scheduled, live fallback, overtime, and final", () =
   assert.equal(overtime.status, "OT 07:22");
   assert.equal(final.status, "Final");
   assert.match(final.content, /Seattle Seahawks/);
-  assert.match(final.content, />30</);
+  assert.match(final.content, />\s*30\s*</);
+  assert.match(final.content, />\s*Q1\s*</);
+  assert.match(final.content, />\s*TOT\s*</);
 });
 
 test("NFL renderer registers through the existing league registry", () => {

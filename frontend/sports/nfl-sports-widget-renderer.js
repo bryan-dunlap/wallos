@@ -2,21 +2,50 @@ class NflSportsWidgetRenderer {
 
     render(event) {
         const football = event.details?.football || {};
+        const showQuarterScoring = event.status !== "scheduled";
 
         return {
             status: this.formatStatus(event, football),
-            content: this.renderScoreboard(event)
+            content: this.renderScoreboard(
+                event,
+                football,
+                showQuarterScoring
+            )
         };
     }
 
-    renderScoreboard(event) {
+    renderScoreboard(event, football, showQuarterScoring) {
         return `
-            <span class="nfl-widget-scoreboard">
+            <span class="nfl-widget-scoreboard${showQuarterScoring
+                ? " nfl-widget-scoreboard-with-quarters"
+                : ""}">
+                ${showQuarterScoring ? this.renderHeadings() : ""}
                 ${this.renderTeam(event.participants.away, "away")}
-                ${this.renderScore(event.scores.away, event.status)}
+                ${showQuarterScoring
+                    ? this.renderQuarterValues(
+                        football.quarters?.away,
+                        event.scores.away
+                    )
+                    : ""}
                 ${this.renderTeam(event.participants.home, "home")}
-                ${this.renderScore(event.scores.home, event.status)}
+                ${showQuarterScoring
+                    ? this.renderQuarterValues(
+                        football.quarters?.home,
+                        event.scores.home
+                    )
+                    : ""}
             </span>`;
+    }
+
+    renderHeadings() {
+        return `
+            <span class="nfl-widget-scoreboard-corner"></span>
+            ${["Q1", "Q2", "Q3", "Q4", "TOT"].map(
+                (heading) => `
+                    <span class="sports-scoreboard-heading">
+                        ${heading}
+                    </span>`
+            ).join("")}`;
     }
 
     renderTeam(team, position) {
@@ -46,10 +75,18 @@ class NflSportsWidgetRenderer {
                 aria-hidden="true">—</span>`;
     }
 
-    renderScore(score, status) {
-        const value = status === "scheduled" ? "—" : score ?? "—";
+    renderQuarterValues(quarters, total) {
+        const visibleQuarters = Array.from(
+            { length: 4 },
+            (_, index) => quarters?.[index] ?? "—"
+        );
 
-        return `<span class="nfl-widget-score">${value}</span>`;
+        return [...visibleQuarters, total ?? "—"].map(
+            (value) => `
+                <span class="sports-scoreboard-value">
+                    ${value}
+                </span>`
+        ).join("");
     }
 
     formatStatus(event, football) {
@@ -63,13 +100,13 @@ class NflSportsWidgetRenderer {
             if (football.phase === "halftime") return "Halftime";
 
             const period = football.phase === "overtime" ||
-                football.quarter > 4
+                event.state?.period > 4
                 ? "OT"
-                : football.quarter
-                    ? `Q${football.quarter}`
+                : event.state?.period
+                    ? `Q${event.state.period}`
                     : "Live";
 
-            return [period, football.gameClock]
+            return [period, event.state?.clock]
                 .filter(Boolean)
                 .join(" ");
         }

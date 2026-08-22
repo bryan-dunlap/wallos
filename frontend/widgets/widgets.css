@@ -402,7 +402,7 @@
 
     display: grid;
 
-    grid-template-columns: minmax(0, 1fr) 3ch;
+    grid-template-columns: minmax(0, 1fr);
 
     width: 100%;
 
@@ -411,6 +411,12 @@
     row-gap: 8px;
 
     margin-inline: auto;
+
+}
+
+.nfl-widget-scoreboard-with-quarters {
+
+    grid-template-columns: minmax(0, 1fr) repeat(5, 2.5ch);
 
 }
 
@@ -431,25 +437,6 @@
     text-transform: uppercase;
 
 }
-
-.nfl-widget-score {
-
-    align-self: center;
-
-    color: var(--color-text);
-
-    font-family: "Outfit", sans-serif;
-
-    font-size: 1.3rem;
-
-    font-variant-numeric: tabular-nums;
-
-    font-weight: 700;
-
-    text-align: center;
-
-}
-
 
 /* ==========================
    Weather Widget

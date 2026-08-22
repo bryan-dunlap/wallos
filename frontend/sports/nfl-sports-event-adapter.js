@@ -36,12 +36,20 @@ class NflSportsEventAdapter {
             state: {
                 scheduledAt: game.scheduledAt || null,
                 scheduledTime: game.scheduledTime || null,
-                statusDetail: game.status?.detail || ""
+                statusDetail: game.status?.detail || "",
+                period: football.period ?? football.quarter ?? null,
+                clock: football.clock || football.gameClock || null
             },
             details: {
                 football: {
-                    quarter: football.quarter ?? null,
-                    gameClock: football.gameClock || null,
+                    quarters: {
+                        away: Array.isArray(football.quarters?.away)
+                            ? [...football.quarters.away]
+                            : [],
+                        home: Array.isArray(football.quarters?.home)
+                            ? [...football.quarters.home]
+                            : []
+                    },
                     phase: football.phase || null,
                     possession: football.possession || null,
                     down: football.down ?? null,
