@@ -59,13 +59,6 @@ class SportsWidget {
 
     applyEventState() {
         const payload = this.state.payload || {};
-
-        if (!this.isLeagueAllowed(payload.sport)) {
-            this.queue.clear();
-            this.render();
-            return;
-        }
-
         const games = Array.isArray(payload.games)
             ? payload.games
             : [];
@@ -75,8 +68,12 @@ class SportsWidget {
         const normalizedEvents = adapter
             ? adapter.adaptGames(games)
             : [];
+        const configuredEvents = filterSportsWidgetEvents(
+            normalizedEvents,
+            this.widgetConfig
+        );
 
-        this.queue.replace(normalizedEvents);
+        this.queue.replace(configuredEvents);
         this.render();
 
         if (this.queue.size() > 1) {

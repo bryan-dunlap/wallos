@@ -11,6 +11,11 @@ const {
   SportsWidgetQueue
 } = require("../../frontend/sports/sports-widget-queue");
 const {
+  filterSportsWidgetEvents
+} = require(
+  "../../frontend/sports/sports-widget-event-filter"
+);
+const {
   SportsWidgetRendererRegistry
 } = require(
   "../../frontend/sports/sports-widget-renderer-registry"
@@ -120,6 +125,54 @@ test("Sports Widget queue owns ordering, advancement, and empty state", () => {
   queue.clear();
   assert.equal(queue.size(), 0);
   assert.equal(queue.current(), null);
+});
+
+test("Sports Widget configuration filters normalized events before queueing", () => {
+  const events = new MlbSportsEventAdapter().adaptGames([
+    createLegacyMlbGame({ eventId: 1 })
+  ]);
+
+  assert.equal(filterSportsWidgetEvents(events, {
+    enabled: true,
+    leagues: new Set(["MLB"])
+  }).length, 1);
+  assert.deepEqual(filterSportsWidgetEvents(events, {
+    enabled: true,
+    leagues: new Set()
+  }), []);
+  assert.deepEqual(filterSportsWidgetEvents(events, {
+    enabled: true,
+    leagues: new Set(["NFL"])
+  }), []);
+  assert.deepEqual(filterSportsWidgetEvents(events, {
+    enabled: false,
+    leagues: new Set(["MLB"])
+  }), []);
+});
+
+test("Sports Widget filtering safely handles future league events", () => {
+  const futureEvent = createNormalizedSportsEvent({
+    league: "FUTURE",
+    id: "future-1",
+    type: "game",
+    status: "scheduled",
+    participants: {
+      away: { name: "Future Away" },
+      home: { name: "Future Home" }
+    },
+    scores: {},
+    state: {},
+    details: {}
+  });
+
+  assert.deepEqual(filterSportsWidgetEvents([futureEvent], {
+    enabled: true,
+    leagues: ["MLB"]
+  }), []);
+  assert.deepEqual(filterSportsWidgetEvents([futureEvent], {
+    enabled: true,
+    leagues: ["future"]
+  }), [futureEvent]);
 });
 
 test("renderer registry selects MLB without league logic in the queue", () => {
