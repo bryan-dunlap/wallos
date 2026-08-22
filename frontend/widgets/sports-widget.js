@@ -11,7 +11,8 @@ class SportsWidget {
         };
         this.queue = new SportsWidgetQueue();
         this.adapters = new Map([
-            ["MLB", new MlbSportsEventAdapter()]
+            ["MLB", new MlbSportsEventAdapter()],
+            ["NFL", new NflSportsEventAdapter()]
         ]);
         this.rendererRegistry =
             window.mosaicSportsWidgetRendererRegistry;

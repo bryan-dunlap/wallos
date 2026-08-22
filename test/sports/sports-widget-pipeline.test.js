@@ -24,6 +24,17 @@ const {
   MlbSportsWidgetRenderer
 } = require("../../frontend/sports/mlb-sports-widget-renderer");
 const {
+  NflSportsEventAdapter
+} = require("../../frontend/sports/nfl-sports-event-adapter");
+const {
+  NflSportsWidgetRenderer
+} = require("../../frontend/sports/nfl-sports-widget-renderer");
+const {
+  sportsSimulationProfileRegistry
+} = require(
+  "../../frontend/providers/sports-simulation-profile-registry"
+);
+const {
   normalizeSportsScheduleLeagues
 } = require("../../frontend/providers/sports-provider");
 const {
@@ -69,6 +80,47 @@ function createLegacyMlbGame(overrides = {}) {
       pitcher: { name: "Logan Gilbert" }
     },
     ...overrides
+  };
+}
+
+function createNflFixture(scenarioId) {
+  const facts = sportsSimulationProfileRegistry.createFacts(
+    "NFL",
+    scenarioId
+  );
+  const game = facts.game;
+  const score = game.score || {};
+
+  return {
+    eventId: `simulation:NFL:${scenarioId}`,
+    scheduledAt: game.startTime,
+    scheduledTime: "7:10 PM",
+    status: {
+      state: game.status,
+      detail: scenarioId
+    },
+    awayTeam: {
+      ...game.teams.away,
+      abbreviation: game.teams.away.id.replace("NFL:", ""),
+      score: score.away ?? null
+    },
+    homeTeam: {
+      ...game.teams.home,
+      abbreviation: game.teams.home.id.replace("NFL:", ""),
+      score: score.home ?? null
+    },
+    state: {
+      quarter: game.quarter,
+      gameClock: game.gameClock,
+      phase: game.phase,
+      possession: game.possession,
+      down: game.down,
+      distance: game.distance,
+      yardLine: game.yardLine,
+      redZone: game.redZone,
+      timeouts: game.timeouts
+    },
+    result: game.result
   };
 }
 
@@ -340,4 +392,69 @@ test("MLB widget renderer preserves scoreboard presentation", () => {
   assert.match(presentation.content, /sports-scoreboard-heading">R/);
   assert.match(presentation.content, /sports-scoreboard-team-away/);
   assert.match(presentation.content, /sports-scoreboard-team-home/);
+});
+
+test("NFL adapter normalizes scheduled, live, final, and overtime fixtures", () => {
+  const adapter = new NflSportsEventAdapter();
+  const scheduled = adapter.adaptGame(createNflFixture("scheduled"));
+  const live = adapter.adaptGame(createNflFixture("q4"));
+  const overtime = adapter.adaptGame(createNflFixture("overtime"));
+  const final = adapter.adaptGame(createNflFixture("final"));
+
+  assert.equal(scheduled.status, "scheduled");
+  assert.equal(live.status, "live");
+  assert.equal(live.details.football.quarter, 4);
+  assert.equal(live.details.football.possession, "home");
+  assert.equal(overtime.details.football.phase, "overtime");
+  assert.equal(overtime.details.football.quarter, 5);
+  assert.equal(final.status, "final");
+  assert.deepEqual(final.scores, { away: 30, home: 27 });
+});
+
+test("NFL renderer supports scheduled, live fallback, overtime, and final", () => {
+  const adapter = new NflSportsEventAdapter();
+  const renderer = new NflSportsWidgetRenderer();
+  const scheduled = renderer.render(
+    adapter.adaptGame(createNflFixture("scheduled"))
+  );
+  const live = renderer.render(
+    adapter.adaptGame(createNflFixture("q1"))
+  );
+  const overtime = renderer.render(
+    adapter.adaptGame(createNflFixture("overtime"))
+  );
+  const final = renderer.render(
+    adapter.adaptGame(createNflFixture("final"))
+  );
+
+  assert.equal(scheduled.status, "7:10 PM");
+  assert.equal(live.status, "Q1 08:42");
+  assert.equal(overtime.status, "OT 07:22");
+  assert.equal(final.status, "Final");
+  assert.match(final.content, /Seattle Seahawks/);
+  assert.match(final.content, />30</);
+});
+
+test("NFL renderer registers through the existing league registry", () => {
+  const registry = new SportsWidgetRendererRegistry();
+  const renderer = new NflSportsWidgetRenderer();
+
+  assert.equal(registry.register("NFL", renderer), true);
+  assert.equal(registry.get("NFL"), renderer);
+});
+
+test("normalized MLB and NFL events coexist in the existing queue", () => {
+  const mlbEvent = new MlbSportsEventAdapter().adaptGame(
+    createLegacyMlbGame({ eventId: 1 })
+  );
+  const nflEvent = new NflSportsEventAdapter().adaptGame(
+    createNflFixture("q2")
+  );
+  const queue = new SportsWidgetQueue();
+
+  queue.replace([mlbEvent, nflEvent]);
+
+  assert.equal(queue.size(), 2);
+  assert.equal(queue.current().league, "MLB");
+  assert.equal(queue.next().league, "NFL");
 });
