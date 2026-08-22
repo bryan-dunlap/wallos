@@ -47,10 +47,39 @@ class MosaicHero {
                 <div class="hero-subtitle">
                     ${this.state.subtitle}
                 </div>
+
+                ${this.renderRestingHighlights()}
             </div>
 
         `;
 
+    }
+
+
+    renderRestingHighlights(){
+        const highlights = Array.isArray(
+            this.state.payload?.highlights
+        )
+            ? this.state.payload.highlights
+            : [];
+
+        return highlights.map((highlight) => {
+            const significant =
+                highlight.emphasis === "significant";
+
+            return `
+                <div class="hero-resting-highlight${
+                    significant ? " is-significant" : ""
+                }">
+                    <div class="hero-resting-highlight-title">
+                        ${significant ? "⚠ " : ""}${highlight.headline}
+                    </div>
+                    <div class="hero-resting-highlight-summary">
+                        ${highlight.summary}
+                    </div>
+                </div>
+            `;
+        }).join("");
     }
 
 

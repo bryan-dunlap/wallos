@@ -1,10 +1,16 @@
 {
   "location": {
-    "query": "98424"
+    "query": "98402"
   },
   "sports": {
     "primaryLeague": "MLB",
     "enabled": true,
+    "widget": {
+      "enabled": true,
+      "leagues": [
+        "MLB"
+      ]
+    },
     "favoriteTeams": [
       {
         "id": "SEA",
@@ -20,17 +26,11 @@
         "name": "Seattle Seahawks",
         "league": "NFL",
         "sport": "football"
-      },
-      {
-        "id": "NHL:SEA",
-        "name": "Seattle Kraken",
-        "league": "NHL",
-        "sport": "hockey"
       }
     ]
   },
   "display": {
-    "theme": "yacht-rock"
+    "theme": "mosaic"
   },
   "profile": {
     "name": "Bryan"

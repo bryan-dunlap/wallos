@@ -4,8 +4,10 @@ class DailySnapshotGenerator {
         this.profile = { name: "" };
         this.calendarFacts = null;
         this.sportsFacts = null;
+        this.weatherInsights = [];
         this.unsubscribeCalendar = null;
         this.unsubscribeSports = null;
+        this.unsubscribeWeatherInsights = null;
     }
 
     async start() {
@@ -18,6 +20,11 @@ class DailySnapshotGenerator {
             window.mosaicApp.eventBus.subscribe(
                 "sports-facts",
                 (event) => this.receiveSportsFacts(event.payload)
+            );
+        this.unsubscribeWeatherInsights =
+            window.mosaicApp.eventBus.subscribe(
+                "weather-insights",
+                (event) => this.receiveWeatherInsights(event.payload)
             );
         this.profile = await this.loadProfile();
 
@@ -52,10 +59,18 @@ class DailySnapshotGenerator {
         this.publishSnapshot();
     }
 
+    receiveWeatherInsights(payload) {
+        this.weatherInsights = Array.isArray(payload?.insights)
+            ? payload.insights
+            : [];
+        this.publishSnapshot();
+    }
+
     publishSnapshot() {
         const facts = this.getPlaceholderFacts();
         const now = new Date();
         const snapshot = this.createSnapshot(facts, now);
+        const highlights = this.createRestingHighlights(now);
 
         window.mosaicApp.eventBus.publish({
             type: "hero-candidate",
@@ -76,6 +91,9 @@ class DailySnapshotGenerator {
                         this.profile.name
                     ),
                     summary: snapshot.summary,
+                    payload: highlights.length > 0
+                        ? { highlights }
+                        : null,
                     createdAt: now.toISOString(),
                     expiresAt: null
                 }
@@ -93,6 +111,33 @@ class DailySnapshotGenerator {
         else greeting = "Good evening";
 
         return name ? `${greeting} ${name}` : greeting;
+    }
+
+    createRestingHighlights(now) {
+        const currentInsights = this.weatherInsights
+            .filter((insight) => {
+                const expiration = Date.parse(insight?.expiresAt);
+
+                return insight?.headline &&
+                    insight?.summary &&
+                    (
+                        !Number.isFinite(expiration) ||
+                        expiration > now.getTime()
+                    );
+            })
+            .sort((first, second) =>
+                (second.priority || 0) - (first.priority || 0)
+            );
+        const insight = currentInsights[0];
+
+        if (!insight) return [];
+
+        return [{
+            type: insight.type,
+            emphasis: insight.emphasis || "standard",
+            headline: insight.headline,
+            summary: insight.summary
+        }];
     }
 
     createSnapshot(facts, now) {

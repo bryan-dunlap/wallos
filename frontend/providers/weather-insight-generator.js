@@ -2,7 +2,6 @@ class WeatherInsightGenerator {
 
     constructor() {
         this.unsubscribe = null;
-        this.activeCandidateIds = new Map();
     }
 
     start() {
@@ -22,63 +21,24 @@ class WeatherInsightGenerator {
     }
 
     evaluate(facts) {
-        this.updateCandidate(
-            "hot-afternoon",
-            this.createHotAfternoonCandidate(facts)
-        );
-        this.updateCandidate(
-            "rain-arriving",
-            this.createRainArrivingCandidate(facts)
-        );
-    }
-
-    updateCandidate(rule, candidate) {
-        const activeCandidateId =
-            this.activeCandidateIds.get(rule);
-
-        if (!candidate) {
-            this.withdrawCandidate(rule);
-            return;
-        }
-
-        if (
-            activeCandidateId &&
-            activeCandidateId !== candidate.id
-        ) {
-            this.publishWithdrawal(activeCandidateId);
-        }
+        const insights = [
+            this.createRainArrivingInsight(facts),
+            this.createHotAfternoonInsight(facts)
+        ].filter(Boolean);
 
         window.mosaicApp.eventBus.publish({
-            type: "hero-candidate",
+            type: "weather-insights",
             source: "weather",
             payload: {
-                candidate
-            }
-        });
-        this.activeCandidateIds.set(rule, candidate.id);
-    }
-
-    withdrawCandidate(rule) {
-        const activeCandidateId =
-            this.activeCandidateIds.get(rule);
-
-        if (!activeCandidateId) return;
-
-        this.publishWithdrawal(activeCandidateId);
-        this.activeCandidateIds.delete(rule);
-    }
-
-    publishWithdrawal(id) {
-        window.mosaicApp.eventBus.publish({
-            type: "hero-candidate-withdraw",
-            source: "weather",
-            payload: {
-                id
+                status: facts?.status === "available"
+                    ? "available"
+                    : "unavailable",
+                insights
             }
         });
     }
 
-    createRainArrivingCandidate(facts) {
+    createRainArrivingInsight(facts) {
         if (
             facts?.status !== "available" ||
             !facts.today?.date ||
@@ -167,12 +127,8 @@ class WeatherInsightGenerator {
             id: `weather:rain-arriving:${facts.today.date}`,
             source: "weather",
             type: "weather.rain-arriving",
-            mode: "resting",
-            behavior: {
-                sticky: false,
-                durationSeconds: null
-            },
             priority: 70,
+            emphasis: "significant",
             headline: "Rain arriving later today",
             summary:
                 `Rain chances increase to about ` +
@@ -183,7 +139,7 @@ class WeatherInsightGenerator {
         };
     }
 
-    createHotAfternoonCandidate(facts) {
+    createHotAfternoonInsight(facts) {
         if (
             facts?.status !== "available" ||
             facts.current?.temperature == null ||
@@ -260,12 +216,8 @@ class WeatherInsightGenerator {
             id: `weather:hot-afternoon:${facts.today.date}`,
             source: "weather",
             type: "weather.hot-afternoon",
-            mode: "resting",
-            behavior: {
-                sticky: false,
-                durationSeconds: null
-            },
             priority: 60,
+            emphasis: "significant",
             headline: "Hot afternoon ahead",
             summary:
                 `It is ${facts.current.temperature}° now, ` +

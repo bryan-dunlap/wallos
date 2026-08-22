@@ -51,8 +51,6 @@ const calendarProviderRegistry = new CalendarProviderRegistry();
 calendarProviderRegistry.register(new DemoCalendarDataProvider());
 const icalCalendarProvider = new IcalCalendarProvider();
 calendarProviderRegistry.register(icalCalendarProvider);
-const calendarProviderMetadata =
-  calendarProviderRegistry.getMetadata();
 const defaultCalendarProvider =
   calendarProviderRegistry.getDefault().id;
 const sportsSimulationProfiles =
@@ -71,6 +69,10 @@ const DEFAULT_CONFIG = {
   sports: {
     primaryLeague: "MLB",
     enabled: true,
+    widget: {
+      enabled: true,
+      leagues: ["MLB"]
+    },
     favoriteTeams: [
       {
         id: "SEA",
@@ -186,6 +188,9 @@ function readConfig() {
     const locationQuery = savedConfig?.location?.query;
     const primaryLeague = savedConfig?.sports?.primaryLeague;
     const sportsEnabled = savedConfig?.sports?.enabled;
+    const sportsWidget = normalizeSportsWidget(
+      savedConfig?.sports?.widget
+    );
     const favoriteTeams = normalizeFavoriteTeams(
       savedConfig?.sports
     );
@@ -225,6 +230,7 @@ function readConfig() {
         enabled: typeof sportsEnabled === "boolean"
           ? sportsEnabled
           : DEFAULT_CONFIG.sports.enabled,
+        widget: sportsWidget,
         favoriteTeams
       },
       display: {
@@ -290,6 +296,153 @@ function normalizeFavoriteTeams(sportsConfig) {
   }, []);
 }
 
+function normalizeSportsWidget(widgetConfig) {
+  const configuredLeagues = Array.isArray(widgetConfig?.leagues)
+    ? widgetConfig.leagues
+    : DEFAULT_CONFIG.sports.widget.leagues;
+
+  return {
+    enabled: typeof widgetConfig?.enabled === "boolean"
+      ? widgetConfig.enabled
+      : DEFAULT_CONFIG.sports.widget.enabled,
+    leagues: [
+      ...new Set(
+        configuredLeagues.filter((league) =>
+          SUPPORTED_LEAGUES.includes(league)
+        )
+      )
+    ]
+  };
+}
+
+function resolveCalendarSourceDraft(value, configuredSources) {
+  let draft = null;
+
+  try {
+    draft = JSON.parse(value);
+  } catch (error) {
+    throw new Error("Calendar sources are invalid.");
+  }
+
+  if (!Array.isArray(draft)) {
+    throw new Error("Calendar sources are invalid.");
+  }
+
+  const configuredById = new Map(
+    configuredSources.map((source) => [source.id, source])
+  );
+  const seenIds = new Set();
+  const resolvedSources = draft.map((entry) => {
+    const id = typeof entry?.id === "string"
+      ? entry.id.trim()
+      : "";
+
+    if (!id || seenIds.has(id)) {
+      throw new Error("Calendar sources are invalid.");
+    }
+
+    seenIds.add(id);
+    const configuredSource = configuredById.get(id);
+
+    if (configuredSource) {
+      return {
+        ...configuredSource,
+        enabled: entry.enabled !== false
+      };
+    }
+
+    const [newSource] = normalizeCalendarSources([entry]);
+
+    if (!newSource) {
+      throw new Error("Calendar sources are invalid.");
+    }
+
+    return newSource;
+  });
+  const sourceUrls = resolvedSources.map((source) => source.url);
+
+  if (new Set(sourceUrls).size !== sourceUrls.length) {
+    throw new Error("That Calendar source is already configured.");
+  }
+
+  return resolvedSources;
+}
+
+function resolveDiscoverySourceDraft(value, configuredSources) {
+  let draft = null;
+
+  try {
+    draft = JSON.parse(value);
+  } catch (error) {
+    throw new Error("Discovery sources are invalid.");
+  }
+
+  if (!Array.isArray(draft)) {
+    throw new Error("Discovery sources are invalid.");
+  }
+
+  const configuredById = new Map(
+    configuredSources.map((source) => [source.id, source])
+  );
+  const seenIds = new Set();
+  const resolvedSources = draft.map((entry) => {
+    const id = typeof entry?.id === "string"
+      ? entry.id.trim()
+      : "";
+
+    if (!id || seenIds.has(id)) {
+      throw new Error("Discovery sources are invalid.");
+    }
+
+    seenIds.add(id);
+    const configuredSource = configuredById.get(id);
+
+    if (configuredSource) {
+      return {
+        ...configuredSource,
+        enabled: entry.enabled !== false
+      };
+    }
+
+    const adapterMetadata = discoverySourceTypeMetadata.find(
+      (metadata) =>
+        metadata.type === entry?.type && metadata.userAddable
+    );
+    const normalizedSource = normalizeDiscoverySources([entry])
+      .find((source) => source.id === id);
+
+    if (!adapterMetadata || !normalizedSource) {
+      throw new Error("Discovery sources are invalid.");
+    }
+
+    return normalizedSource;
+  });
+  const builtInSources = configuredSources.filter((source) => {
+    const metadata = discoverySourceTypeMetadata.find(
+      (candidate) => candidate.type === source.type
+    );
+
+    return metadata?.userAddable !== true;
+  });
+
+  builtInSources.forEach((source) => {
+    if (!seenIds.has(source.id)) {
+      resolvedSources.unshift(source);
+      seenIds.add(source.id);
+    }
+  });
+
+  const sourceKeys = resolvedSources
+    .filter((source) => source.config?.url)
+    .map((source) => `${source.type}:${source.config.url}`);
+
+  if (new Set(sourceKeys).size !== sourceKeys.length) {
+    throw new Error("That Discovery source is already configured.");
+  }
+
+  return resolvedSources;
+}
+
 function validateConfigUpdate(
   locationQuery,
   primaryLeague,
@@ -299,6 +452,8 @@ function validateConfigUpdate(
   calendarProvider,
   calendarSources,
   sportsEnabled,
+  sportsWidgetEnabled,
+  sportsWidgetLeagues,
   favoriteTeams,
   discoveryEnabled,
   discoverySources
@@ -334,6 +489,19 @@ function validateConfigUpdate(
     throw new Error("Sports enabled must be a boolean.");
   }
 
+  if (typeof sportsWidgetEnabled !== "boolean") {
+    throw new Error("Sports Widget enabled must be a boolean.");
+  }
+
+  if (
+    !Array.isArray(sportsWidgetLeagues) ||
+    sportsWidgetLeagues.some(
+      (league) => !SUPPORTED_LEAGUES.includes(league)
+    )
+  ) {
+    throw new Error("Sports Widget leagues are invalid.");
+  }
+
   if (!Array.isArray(favoriteTeams)) {
     throw new Error("Favorite teams must be an array.");
   }
@@ -353,6 +521,10 @@ function validateConfigUpdate(
     sports: {
       primaryLeague,
       enabled: sportsEnabled,
+      widget: normalizeSportsWidget({
+        enabled: sportsWidgetEnabled,
+        leagues: sportsWidgetLeagues
+      }),
       favoriteTeams: normalizeFavoriteTeams({ favoriteTeams })
     },
     display: {
@@ -400,12 +572,33 @@ function escapeHtml(value) {
 
 app.get("/control", (req, res) => {
   const config = readConfig();
+  const configurationSaved = req.query?.saved === "1";
   const leagueOptions = SUPPORTED_LEAGUES.map(
     (league) =>
       `<option value="${league}"${
         league === config.sports.primaryLeague ? " selected" : ""
       }>${league}</option>`
   ).join("");
+  const selectedSportsWidgetLeagues = new Set(
+    config.sports.widget.leagues
+  );
+  const sportsWidgetLeagueRows = config.sports.widget.leagues
+    .map((league) => `
+      <li class="item-row" data-sports-widget-league-row data-league="${league}">
+        <span class="item-copy"><strong>${league}</strong></span>
+        <button class="button button-quiet" type="button" data-remove-sports-widget-league>Remove</button>
+        <input name="sportsWidgetLeagues" type="hidden" value="${league}">
+      </li>`)
+    .join("");
+  const availableSportsWidgetLeagues = SUPPORTED_LEAGUES.filter(
+    (league) => !selectedSportsWidgetLeagues.has(league)
+  );
+  const sportsWidgetLeagueOptions = availableSportsWidgetLeagues
+    .map((league) => `<option value="${league}">${league}</option>`)
+    .join("");
+  const supportedSportsWidgetLeaguesJson = JSON.stringify(
+    SUPPORTED_LEAGUES
+  );
   const themeLabels = {
     mosaic: "Mosaic",
     terminal: "Terminal",
@@ -435,19 +628,19 @@ app.get("/control", (req, res) => {
     )
     .join("");
   const favoriteTeamRegistryJson = JSON.stringify(
-    availableFavoriteTeams.map((team) => ({
+    SPORTS_TEAM_REGISTRY.map((team) => ({
       id: team.id,
       name: team.name,
       league: team.league
     }))
   ).replace(/</g, "\\u003c");
-  const favoriteTeamRows = config.sports.favoriteTeams.length > 0
-    ? config.sports.favoriteTeams.map((team) => `
-        <li class="item-row">
+  const favoriteTeamRows = config.sports.favoriteTeams
+    .map((team) => `
+        <li class="item-row" data-favorite-team-row data-team-id="${escapeHtml(team.id)}">
           <span class="item-copy"><strong>${escapeHtml(team.name)}</strong><small>${team.league}</small></span>
-          <button class="button button-quiet" type="submit" form="favorite-team-remove-form" name="removeTeamId" value="${team.id}">Remove</button>
-        </li>`).join("")
-    : "<li class=\"empty-state\">No favorite teams configured.</li>";
+          <button class="button button-quiet" type="button" data-remove-favorite-team>Remove</button>
+          <input name="favoriteTeams" type="hidden" value="${escapeHtml(team.id)}">
+        </li>`).join("");
   const sportsSimulationProfileOptions = sportsSimulationProfiles
     .map((profile) =>
       `<option value="${profile.id}">${escapeHtml(profile.name)}</option>`
@@ -462,18 +655,18 @@ app.get("/control", (req, res) => {
   const sportsSimulationProfilesJson = JSON.stringify(
     sportsSimulationProfiles
   ).replace(/</g, "\\u003c");
-  const calendarProviderOptions = calendarProviderMetadata.map(
-    (provider) =>
-      `<option value="${escapeHtml(provider.id)}"${
-        provider.id === config.calendar.provider ? " selected" : ""
-      }>${escapeHtml(provider.name)}</option>`
-  ).join("");
-  const calendarSourceRows = config.calendar.sources.length > 0
-    ? config.calendar.sources.map((source) => `
-        <li class="item-row">
+  const calendarSourceDraft = JSON.stringify(
+    config.calendar.sources.map((source) => ({
+      id: source.id,
+      enabled: source.enabled
+    }))
+  );
+  const calendarSourceRows = config.calendar.sources
+    .map((source) => `
+        <li class="item-row" data-calendar-source-row data-source-id="${escapeHtml(source.id)}">
           <span class="item-copy"><strong><span class="status-dot${source.enabled ? " is-enabled" : ""}"></span>${escapeHtml(source.name)}</strong><small>${source.enabled ? "Enabled" : "Disabled"}</small></span>
           <span data-calendar-source-actions>
-            <button class="button button-quiet" type="submit" name="calendarSourceId" value="${escapeHtml(source.id)}" formaction="/control/calendar-sources/toggle" formmethod="post">${source.enabled ? "Disable" : "Enable"}</button>
+            <button class="button button-quiet" type="button" data-toggle-calendar-source>${source.enabled ? "Disable" : "Enable"}</button>
             <button class="button button-quiet" type="button" data-remove-calendar-source>Remove</button>
           </span>
           <div class="inline-confirmation" data-calendar-source-confirmation hidden>
@@ -481,11 +674,10 @@ app.get("/control", (req, res) => {
             <p>This will stop Mosaic from displaying events from this calendar.</p>
             <div class="button-row">
               <button class="button button-quiet" type="button" data-cancel-calendar-source-removal>Cancel</button>
-              <button class="button button-danger" type="submit" name="calendarSourceId" value="${escapeHtml(source.id)}" formaction="/control/calendar-sources/remove" formmethod="post">Remove Calendar</button>
+              <button class="button button-danger" type="button" data-confirm-calendar-source-removal>Remove Calendar</button>
             </div>
           </div>
-        </li>`).join("")
-    : "<li class=\"empty-state\">No Calendar sources configured.</li>";
+        </li>`).join("");
   const discoveryTypeLabels = new Map(
     discoverySourceTypeMetadata.map((metadata) => [
       metadata.type,
@@ -498,15 +690,28 @@ app.get("/control", (req, res) => {
       `<option value="${escapeHtml(metadata.type)}">${escapeHtml(metadata.name)}</option>`
     )
     .join("");
-  const discoverySourceRows = config.discovery.sources.length > 0
-    ? config.discovery.sources.map((source) => {
-        const canRemove = source.type !== "reddit";
+  const discoverySourceDraft = JSON.stringify(
+    config.discovery.sources.map((source) => ({
+      id: source.id,
+      enabled: source.enabled
+    }))
+  );
+  const discoverySourceRows = config.discovery.sources
+    .map((source) => {
+        const sourceMetadata = discoverySourceTypeMetadata.find(
+          (metadata) => metadata.type === source.type
+        );
+        const canRemove = sourceMetadata?.userAddable === true;
+        const sourceStatus = source.enabled ? "Enabled" : "Disabled";
+        const sourceKind = escapeHtml(
+          discoveryTypeLabels.get(source.type) || source.type
+        );
 
         return `
-        <li class="item-row">
-          <span class="item-copy"><strong><span class="status-dot${source.enabled ? " is-enabled" : ""}"></span>${escapeHtml(source.name)}</strong><small>${escapeHtml(discoveryTypeLabels.get(source.type) || source.type)} · ${source.enabled ? "Enabled" : "Disabled"}</small></span>
+        <li class="item-row" data-discovery-source-row data-source-id="${escapeHtml(source.id)}" data-source-removable="${canRemove}">
+          <span class="item-copy"><strong><span class="status-dot${source.enabled ? " is-enabled" : ""}"></span>${escapeHtml(source.name)}</strong><small>${sourceKind} · ${sourceStatus}${canRemove ? "" : " · Built-in"}</small></span>
           <span data-discovery-source-actions>
-            <button class="button button-quiet" type="submit" name="discoverySourceId" value="${escapeHtml(source.id)}" formaction="/control/discovery-sources/toggle" formmethod="post">${source.enabled ? "Disable" : "Enable"}</button>
+            <button class="button button-quiet" type="button" data-toggle-discovery-source>${source.enabled ? "Disable" : "Enable"}</button>
             ${canRemove ? "<button class=\"button button-quiet\" type=\"button\" data-remove-discovery-source>Remove</button>" : ""}
           </span>
           ${canRemove ? `
@@ -515,12 +720,11 @@ app.get("/control", (req, res) => {
             <p>This will stop Mosaic from displaying items from this source.</p>
             <div class="button-row">
               <button class="button button-quiet" type="button" data-cancel-discovery-source-removal>Cancel</button>
-              <button class="button button-danger" type="submit" name="discoverySourceId" value="${escapeHtml(source.id)}" formaction="/control/discovery-sources/remove" formmethod="post">Remove Source</button>
+              <button class="button button-danger" type="button" data-confirm-discovery-source-removal>Remove Source</button>
             </div>
           </div>` : ""}
         </li>`;
-      }).join("")
-    : "<li class=\"empty-state\">No Discovery sources configured.</li>";
+      }).join("");
 
   res.type("html").send(`<!doctype html>
 <html lang="en">
@@ -530,6 +734,7 @@ app.get("/control", (req, res) => {
   <title>Mosaic Control</title>
   <style>
     :root {
+      --control-selector-width: 360px;
       color-scheme: light;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       color: #18222f;
@@ -560,7 +765,9 @@ app.get("/control", (req, res) => {
     .field { display: grid; gap: 7px; }
     .field-full { grid-column: 1 / -1; }
     .field label { color: #334155; font-size: .84rem; font-weight: 650; }
-    input[type="text"], input[type="url"], select { width: 100%; min-height: 44px; padding: 10px 12px; color: #172033; border: 1px solid rgba(91, 115, 139, .24); border-radius: 10px; background: rgba(229, 238, 245, .78); box-shadow: inset 0 1px 2px rgba(43, 58, 76, .065), 0 1px 0 rgba(246, 250, 253, .55); backdrop-filter: blur(8px); }
+    input[type="text"], input[type="url"], select { min-height: 44px; padding: 10px 12px; color: #172033; border: 1px solid rgba(91, 115, 139, .24); border-radius: 10px; background: rgba(229, 238, 245, .78); box-shadow: inset 0 1px 2px rgba(43, 58, 76, .065), 0 1px 0 rgba(246, 250, 253, .55); backdrop-filter: blur(8px); }
+    input[type="text"], input[type="url"] { width: 100%; }
+    select { width: min(100%, var(--control-selector-width)); max-width: 100%; }
     input:focus, select:focus, button:focus-visible { outline: 3px solid rgba(37, 99, 235, .16); outline-offset: 2px; border-color: rgba(37, 99, 235, .58); }
     .switch { position: relative; display: inline-flex; align-items: center; gap: 9px; color: #64748b; font-size: .78rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
     .switch input { position: absolute; opacity: 0; pointer-events: none; }
@@ -581,7 +788,13 @@ app.get("/control", (req, res) => {
     .status-dot.is-enabled { background: #16a34a; box-shadow: 0 0 0 3px rgba(22, 163, 74, .12); }
     .empty-state { padding: 16px; color: #64748b; border: 1px dashed #cbd5e1; border-radius: 11px; text-align: center; }
     .button-row { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; }
-    .add-team-row { margin-top: 14px; }
+    .control-selection-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; width: min(100%, var(--control-selector-width)); min-width: 0; }
+    .control-selection-row + .control-selection-row { margin-top: 14px; }
+    .control-selection-row-with-action { display: flex; align-items: flex-end; gap: 9px; width: fit-content; max-width: 100%; margin-top: 18px; }
+    .control-selection-row select { width: var(--control-selector-width); max-width: 100%; min-width: 0; min-height: 44px; }
+    .selection-control { display: grid; flex: 0 1 var(--control-selector-width); gap: 7px; width: var(--control-selector-width); min-width: 0; }
+    .selection-control label { color: #334155; font-size: .84rem; font-weight: 650; }
+    .control-selection-row-with-action .button { min-height: 44px; white-space: nowrap; }
     .button { min-height: 40px; padding: 9px 14px; border: 0; border-radius: 9px; font-weight: 700; }
     .button-primary { color: #fff; background: linear-gradient(145deg, #2b61d5, #1d4fc0); box-shadow: 0 5px 14px rgba(29, 78, 216, .2), inset 0 1px 0 rgba(255, 255, 255, .2); }
     .button-secondary { color: #1d4ed8; background: rgba(210, 224, 241, .78); box-shadow: inset 0 1px 0 rgba(243, 248, 252, .52); }
@@ -589,7 +802,7 @@ app.get("/control", (req, res) => {
     .button-danger { color: #fff; background: #b42318; }
     .button:disabled { cursor: not-allowed; opacity: .5; }
     .inline-form { display: grid; grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr) auto; gap: 10px; align-items: end; }
-    .discovery-source-form { grid-template-columns: minmax(0, .65fr) minmax(150px, .45fr) minmax(0, 1.3fr) auto; }
+    .discovery-source-form { grid-template-columns: minmax(0, .65fr) var(--control-selector-width) minmax(0, 1.3fr) auto; }
     .inline-confirmation { grid-column: 1 / -1; padding: 14px; border-left: 3px solid #b42318; border-radius: 8px; background: #fff1f0; }
     .inline-confirmation p { margin: 5px 0 12px; color: #7f1d1d; font-size: .88rem; }
     .developer-card { background: linear-gradient(150deg, rgba(193, 208, 220, .82), rgba(173, 193, 209, .72)); }
@@ -628,11 +841,17 @@ app.get("/control", (req, res) => {
     .panel-status { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; color: #64748b; font-size: .78rem; font-weight: 700; }
     .status-pill { padding: 6px 9px; border-radius: 999px; background: rgba(192, 208, 221, .5); }
     .status-pill.is-on { color: #15703b; background: rgba(91, 178, 126, .15); }
-    .overview-list { display: grid; gap: 8px; margin-bottom: 24px; }
+    .overview-section { display: grid; gap: 12px; }
+    .overview-section + .overview-section { margin-top: 24px; }
+    .overview-section-title { margin: 0; color: #334155; font-size: 1rem; }
+    .overview-list { display: grid; gap: 8px; }
     .overview-link { display: grid; grid-template-columns: minmax(110px, .45fr) minmax(0, 1fr) auto; align-items: center; gap: 14px; width: 100%; padding: 13px 15px; color: #334155; border: 1px solid rgba(239, 246, 250, .4); border-radius: 11px; background: rgba(203, 218, 230, .48); text-align: left; }
     .overview-link strong { font-size: .88rem; }
     .overview-link span { color: #64748b; }
     .overview-arrow { font-size: 1.05rem; }
+    .settings-category-layout { min-width: 0; }
+    .settings-category-content { min-width: 0; }
+    .settings-category-panel { display: grid; gap: 12px; animation: panel-in .17s ease both; }
     .advanced-section { margin-top: 18px; border-top: 1px solid rgba(100, 116, 139, .14); }
     .advanced-section summary { padding: 16px 2px 4px; color: #526174; cursor: pointer; font-weight: 700; }
     .advanced-section p { margin: 8px 2px 0; color: #64748b; font-size: .88rem; }
@@ -651,6 +870,7 @@ app.get("/control", (req, res) => {
       .control-sidebar .sidebar-title, .control-sidebar .control-nav-label, .control-sidebar .nav-text, .control-sidebar .nav-count { display: none; }
       .control-sidebar .sidebar-top { justify-content: center; }
       .control-sidebar .control-nav-button { grid-template-columns: 1fr; justify-items: center; padding-inline: 6px; }
+      .discovery-source-form { grid-template-columns: 1fr; }
     }
     @media (max-width: 760px) {
       .control-shell { width: min(100% - 20px, 620px); padding-top: 28px; }
@@ -694,24 +914,22 @@ app.get("/control", (req, res) => {
       </div>
       <button class="command-trigger" type="button" data-command-open aria-haspopup="true" aria-controls="control-command-palette"><span class="command-label">Search settings</span><kbd>⌘ K</kbd></button>
     </header>
-    <form id="favorite-team-add-form" method="post" action="/control/favorite-teams/add"></form>
-    <form id="favorite-team-remove-form" method="post" action="/control/favorite-teams/remove"></form>
     <div class="control-workspace" data-control-workspace>
       <aside class="control-sidebar" aria-label="Control sections">
         <div class="sidebar-top"><span class="sidebar-title">Settings</span><button class="rail-toggle" type="button" data-rail-toggle aria-label="Collapse navigation" aria-expanded="true">‹</button></div>
         <div class="control-nav-group">
-          <p class="control-nav-label">General</p>
           <nav class="control-nav">
             <button class="control-nav-button" type="button" data-control-nav="overview" title="Overview" aria-current="page"><span class="nav-glyph">OV</span><span class="nav-text">Overview</span></button>
-            <button class="control-nav-button" type="button" data-control-nav="appearance" title="Appearance"><span class="nav-glyph">AP</span><span class="nav-text">Appearance</span></button>
           </nav>
         </div>
         <div class="control-nav-group">
-          <p class="control-nav-label">Information Sources</p>
+          <p class="control-nav-label">Settings</p>
           <nav class="control-nav">
-            <button class="control-nav-button" type="button" data-control-nav="calendar" title="Calendar"><span class="nav-glyph">CA</span><span class="nav-text">Calendar</span><span class="nav-count">${config.calendar.sources.length}</span></button>
-            <button class="control-nav-button" type="button" data-control-nav="sports" title="Sports"><span class="nav-glyph">SP</span><span class="nav-text">Sports</span><span class="nav-count">${config.sports.favoriteTeams.length}</span></button>
-            <button class="control-nav-button" type="button" data-control-nav="discovery" title="Discovery"><span class="nav-glyph">DI</span><span class="nav-text">Discovery</span><span class="nav-count">${config.discovery.sources.length}</span></button>
+            <button class="control-nav-button" type="button" data-control-nav="settings" data-settings-target="personalization" title="Personalization"><span class="nav-glyph">PE</span><span class="nav-text">Personalization</span></button>
+            <button class="control-nav-button" type="button" data-control-nav="settings" data-settings-target="appearance" title="Appearance"><span class="nav-glyph">AP</span><span class="nav-text">Appearance</span></button>
+            <button class="control-nav-button" type="button" data-control-nav="settings" data-settings-target="sports" title="Sports"><span class="nav-glyph">SP</span><span class="nav-text">Sports</span></button>
+            <button class="control-nav-button" type="button" data-control-nav="settings" data-settings-target="calendar" title="Calendar"><span class="nav-glyph">CA</span><span class="nav-text">Calendar</span></button>
+            <button class="control-nav-button" type="button" data-control-nav="settings" data-settings-target="discovery" title="Discovery"><span class="nav-glyph">DI</span><span class="nav-text">Discovery</span></button>
           </nav>
         </div>
         <div class="control-nav-group">
@@ -726,82 +944,130 @@ app.get("/control", (req, res) => {
         <div class="settings-surface">
           <section class="control-panel" data-control-panel="overview">
             <header class="panel-header"><div><p class="panel-kicker">Overview</p><h2>Mosaic</h2><p class="panel-description">Your display configuration at a glance.</p></div><div class="panel-status"><span class="status-pill is-on">Display configured</span></div></header>
-            <div class="overview-list">
-              <button class="overview-link" type="button" data-control-link="appearance"><strong>Theme</strong><span>${escapeHtml(themeLabels[config.display.theme])}</span><span class="overview-arrow">›</span></button>
-              <button class="overview-link" type="button" data-control-link="calendar"><strong>Calendar</strong><span>${config.calendar.enabled ? "Enabled" : "Disabled"} · ${config.calendar.sources.length} sources</span><span class="overview-arrow">›</span></button>
-              <button class="overview-link" type="button" data-control-link="sports"><strong>Sports</strong><span>${config.sports.enabled ? "Enabled" : "Disabled"} · ${config.sports.favoriteTeams.length} favorite teams</span><span class="overview-arrow">›</span></button>
-              <button class="overview-link" type="button" data-control-link="discovery"><strong>Discovery</strong><span>${config.discovery.enabled ? "Enabled" : "Disabled"} · ${config.discovery.sources.length} sources</span><span class="overview-arrow">›</span></button>
-            </div>
-            <div class="card-grid">
-              <section class="settings-card"><div class="field"><label for="profile-name">Display name</label><input id="profile-name" name="profileName" type="text" value="${escapeHtml(config.profile.name)}" placeholder="Bryan"></div></section>
-              <section class="settings-card"><div class="field"><label for="location-query">City or ZIP code</label><input id="location-query" name="locationQuery" type="text" value="${escapeHtml(config.location.query)}" required></div></section>
+            <div class="overview-section">
+              <h3 class="overview-section-title">Current Status</h3>
+              <section class="settings-card settings-card-wide">
+                <div class="overview-list">
+                  <button class="overview-link" type="button" data-control-link="settings" data-control-focus="profile-name"><strong>Personalization</strong><span>${escapeHtml(config.profile.name || "No display name")} · ${escapeHtml(config.location.query)}</span><span class="overview-arrow">›</span></button>
+                  <button class="overview-link" type="button" data-control-link="settings" data-control-focus="display-theme"><strong>Theme</strong><span>${escapeHtml(themeLabels[config.display.theme])}</span><span class="overview-arrow">›</span></button>
+                  <button class="overview-link" type="button" data-control-link="settings" data-control-focus="calendar-enabled"><strong>Calendar</strong><span>${config.calendar.enabled ? "Enabled" : "Disabled"} · ${config.calendar.sources.length} sources</span><span class="overview-arrow">›</span></button>
+                  <button class="overview-link" type="button" data-control-link="settings" data-control-focus="sports-enabled"><strong>Sports</strong><span>${config.sports.enabled ? "Enabled" : "Disabled"} · ${config.sports.favoriteTeams.length} favorite teams</span><span class="overview-arrow">›</span></button>
+                  <button class="overview-link" type="button" data-control-link="settings" data-control-focus="discovery-enabled"><strong>Discovery</strong><span>${config.discovery.enabled ? "Enabled" : "Disabled"} · ${config.discovery.sources.length} sources</span><span class="overview-arrow">›</span></button>
+                </div>
+              </section>
             </div>
           </section>
 
-          <section class="control-panel" data-control-panel="appearance" hidden>
-            <header class="panel-header"><div><p class="panel-kicker">Appearance</p><h2>Visual character</h2><p class="panel-description">Choose how Mosaic feels on your display.</p></div><div class="panel-status"><span class="status-pill">${escapeHtml(themeLabels[config.display.theme])}</span></div></header>
-            <div class="card-grid"><section class="settings-card settings-card-wide"><div class="field"><label for="display-theme">Theme</label><select id="display-theme" name="theme">${themeOptions}</select></div></section></div>
-          </section>
+          <section class="control-panel" data-control-panel="settings" hidden>
+            <header class="panel-header"><div><p class="panel-kicker">Settings</p><h2>Display configuration</h2><p class="panel-description">Personalize Mosaic and manage its information sources.</p></div></header>
+            <div class="settings-category-layout">
+              <div class="settings-category-content">
+            <section class="settings-category-panel" data-settings-panel="personalization">
+              <h3 class="overview-section-title">Personalization</h3>
+              <div class="card-grid">
+                <section class="settings-card settings-card-wide"><div class="field"><label for="profile-name">Display name</label><input id="profile-name" name="profileName" type="text" value="${escapeHtml(config.profile.name)}" placeholder="Bryan"></div></section>
+                <section class="settings-card settings-card-wide"><div class="field"><label for="location-query">City or ZIP code</label><input id="location-query" name="locationQuery" type="text" value="${escapeHtml(config.location.query)}" required></div></section>
+              </div>
+            </section>
+            <section class="settings-category-panel" data-settings-panel="appearance" hidden>
+              <h3 class="overview-section-title">Appearance</h3>
+              <div class="card-grid"><section class="settings-card settings-card-wide"><div class="field control-selection-row"><label for="display-theme">Theme</label><select id="display-theme" name="theme">${themeOptions}</select></div></section></div>
+            </section>
 
-          <section class="control-panel" data-control-panel="calendar" hidden>
-            <header class="panel-header"><div><p class="panel-kicker">Calendar</p><h2>Upcoming event awareness</h2><p class="panel-description">Choose calendars for resting context and timely reminders.</p></div><div class="panel-status"><span class="status-pill${config.calendar.enabled ? " is-on" : ""}">${config.calendar.enabled ? "● On" : "Off"}</span><span class="status-pill">${config.calendar.sources.length} sources</span></div></header>
+            <section class="settings-category-panel" data-settings-panel="calendar" hidden>
+              <h3 class="overview-section-title">Calendar</h3>
             <div class="card-grid"><section class="settings-card settings-card-wide" data-feature-card>
           <div class="card-header">
             <div><h3>Calendar</h3><p class="card-description">Upcoming events and timely reminders.</p></div>
-            <label class="switch"><input name="calendarEnabled" type="checkbox" value="true" data-feature-toggle aria-label="Enable Calendar" aria-controls="calendar-settings"${config.calendar.enabled ? " checked" : ""}><span class="switch-track"></span><span class="switch-state"></span></label>
+            <label class="switch"><input id="calendar-enabled" name="calendarEnabled" type="checkbox" value="true" data-feature-toggle aria-label="Enable Calendar" aria-controls="calendar-settings"${config.calendar.enabled ? " checked" : ""}><span class="switch-track"></span><span class="switch-state"></span></label>
           </div>
           <div class="settings-content" id="calendar-settings" data-feature-content${config.calendar.enabled ? "" : " hidden"}>
-            <div class="field"><label for="calendar-provider">Calendar service</label><select id="calendar-provider" name="calendarProvider">${calendarProviderOptions}</select></div>
-            <h4 class="subsection-title">Your calendars</h4>
-            <ul class="item-list">${calendarSourceRows}</ul>
-            <h4 class="subsection-title">Add a calendar</h4>
+            <input id="calendar-provider" name="calendarProvider" type="hidden" value="${escapeHtml(config.calendar.provider)}">
+            <h4 class="subsection-title">Add Calendar Source</h4>
             <div class="inline-form">
               <div class="field"><label for="calendar-source-name">Nickname</label><input id="calendar-source-name" name="calendarSourceName" type="text" placeholder="Personal"></div>
               <div class="field"><label for="calendar-source-url">iCal address</label><input id="calendar-source-url" name="calendarSourceUrl" type="url" placeholder="https://calendar.example.com/feed.ics"></div>
-              <button class="button button-secondary" type="submit" formaction="/control/calendar-sources/add" formmethod="post">Add Calendar</button>
+              <button class="button button-secondary" type="button" data-add-calendar-source>Add</button>
             </div>
+            <h4 class="subsection-title">Configured Sources</h4>
+            <ul class="item-list" data-calendar-source-list>
+              ${calendarSourceRows}
+              <li class="empty-state" data-calendar-source-empty${config.calendar.sources.length > 0 ? " hidden" : ""}>No Calendar sources configured.</li>
+            </ul>
+            <input name="calendarSourcesDraft" type="hidden" value="${escapeHtml(calendarSourceDraft)}">
           </div>
         </section></div>
-          </section>
+            </section>
 
-          <section class="control-panel" data-control-panel="sports" hidden>
-            <header class="panel-header"><div><p class="panel-kicker">Sports</p><h2>Favorite-team awareness</h2><p class="panel-description">Follow teams and control live sports context.</p></div><div class="panel-status"><span class="status-pill${config.sports.enabled ? " is-on" : ""}">${config.sports.enabled ? "● On" : "Off"}</span><span class="status-pill">${config.sports.favoriteTeams.length} favorite teams</span></div></header>
+            <section class="settings-category-panel" data-settings-panel="sports" hidden>
+              <h3 class="overview-section-title">Sports</h3>
             <div class="card-grid"><section class="settings-card settings-card-wide" data-feature-card>
           <div class="card-header">
-            <div><h3>Sports</h3><p class="card-description">Favorite teams and game awareness.</p></div>
-            <label class="switch"><input name="sportsEnabled" type="checkbox" value="true" data-feature-toggle aria-label="Enable Sports" aria-controls="sports-settings"${config.sports.enabled ? " checked" : ""}><span class="switch-track"></span><span class="switch-state"></span></label>
+            <div><h3>Favorite Sports</h3><p class="card-description">Favorite teams and game awareness.</p></div>
+            <label class="switch"><input id="sports-enabled" name="sportsEnabled" type="checkbox" value="true" data-feature-toggle aria-label="Enable Sports" aria-controls="sports-settings"${config.sports.enabled ? " checked" : ""}><span class="switch-track"></span><span class="switch-state"></span></label>
           </div>
           <div class="settings-content" id="sports-settings" data-feature-content${config.sports.enabled ? "" : " hidden"}>
-            <div class="field"><label for="primary-league">Primary league</label><select id="primary-league" name="primaryLeague">${leagueOptions}</select></div>
-            <h4 class="subsection-title">Favorite teams</h4>
-            <ul class="item-list">${favoriteTeamRows}</ul>
-            <div class="button-row add-team-row">
-              <select id="favorite-team" name="addTeamId" form="favorite-team-add-form" aria-label="Add favorite team"${teamOptions ? "" : " disabled"}>${teamOptions || `<option>No available ${escapeHtml(config.sports.primaryLeague)} teams</option>`}</select>
-              <button class="button button-secondary" type="submit" form="favorite-team-add-form" data-add-favorite-team${teamOptions ? "" : " disabled"}>Add team</button>
+            <div class="field control-selection-row"><label for="primary-league">Primary league</label><select id="primary-league" name="primaryLeague">${leagueOptions}</select></div>
+            <div class="control-selection-row control-selection-row-with-action">
+              <div class="selection-control">
+                <label for="favorite-team">Favorite team</label>
+                <select id="favorite-team" name="addTeamId"${teamOptions ? "" : " disabled"}>${teamOptions || `<option value="">No available ${escapeHtml(config.sports.primaryLeague)} teams</option>`}</select>
+              </div>
+              <button class="button button-secondary" type="button" data-add-favorite-team${teamOptions ? "" : " disabled"}>Add team</button>
             </div>
+            <h4 class="subsection-title">Selected teams</h4>
+            <ul class="item-list" data-favorite-team-list>
+              ${favoriteTeamRows}
+              <li class="empty-state" data-favorite-team-empty${config.sports.favoriteTeams.length > 0 ? " hidden" : ""}>No favorite teams configured.</li>
+            </ul>
           </div>
+        </section>
+        <section class="settings-card settings-card-wide">
+          <div class="card-header">
+            <div><h3>Sports Widget</h3><p class="card-description">Choose the professional leagues included in the universal Sports Widget feed.</p></div>
+            <label class="switch"><input name="sportsWidgetEnabled" type="checkbox" value="true" aria-label="Enable Sports Widget"${config.sports.widget.enabled ? " checked" : ""}><span class="switch-track"></span><span class="switch-state"></span></label>
+          </div>
+          <div class="control-selection-row control-selection-row-with-action">
+            <div class="selection-control">
+              <label for="sports-widget-league">Add league</label>
+              <select id="sports-widget-league"${availableSportsWidgetLeagues.length > 0 ? "" : " disabled"}>${sportsWidgetLeagueOptions || "<option value=\"\">All leagues selected</option>"}</select>
+            </div>
+            <button class="button button-secondary" type="button" data-add-sports-widget-league${availableSportsWidgetLeagues.length > 0 ? "" : " disabled"}>Add</button>
+          </div>
+          <h4 class="subsection-title">Selected leagues</h4>
+          <ul class="item-list" data-sports-widget-league-list>
+            ${sportsWidgetLeagueRows}
+            <li class="empty-state" data-sports-widget-league-empty${config.sports.widget.leagues.length > 0 ? " hidden" : ""}>No leagues selected.</li>
+          </ul>
         </section></div>
-          </section>
+            </section>
 
-          <section class="control-panel" data-control-panel="discovery" hidden>
-            <header class="panel-header"><div><p class="panel-kicker">Discovery</p><h2>Passive rotating content</h2><p class="panel-description">Manage the feeds Mosaic uses for ambient discovery.</p></div><div class="panel-status"><span class="status-pill${config.discovery.enabled ? " is-on" : ""}">${config.discovery.enabled ? "● On" : "Off"}</span><span class="status-pill">${config.discovery.sources.length} sources</span></div></header>
+            <section class="settings-category-panel" data-settings-panel="discovery" hidden>
+              <h3 class="overview-section-title">Discovery</h3>
             <div class="card-grid"><section class="settings-card settings-card-wide" data-feature-card>
           <div class="card-header">
             <div><h3>Discovery</h3><p class="card-description">Passive-interest stories, images, and feeds.</p></div>
-            <label class="switch"><input name="discoveryEnabled" type="checkbox" value="true" data-feature-toggle aria-label="Enable Discovery" aria-controls="discovery-settings"${config.discovery.enabled ? " checked" : ""}><span class="switch-track"></span><span class="switch-state"></span></label>
+            <label class="switch"><input id="discovery-enabled" name="discoveryEnabled" type="checkbox" value="true" data-feature-toggle aria-label="Enable Discovery" aria-controls="discovery-settings"${config.discovery.enabled ? " checked" : ""}><span class="switch-track"></span><span class="switch-state"></span></label>
           </div>
           <div class="settings-content" id="discovery-settings" data-feature-content${config.discovery.enabled ? "" : " hidden"}>
-            <h4 class="subsection-title">Sources</h4>
-            <ul class="item-list">${discoverySourceRows}</ul>
-            <h4 class="subsection-title">Add a source</h4>
+            <h4 class="subsection-title">Add Source</h4>
             <div class="inline-form discovery-source-form">
               <div class="field"><label for="discovery-source-name">Nickname</label><input id="discovery-source-name" name="discoverySourceName" type="text" placeholder="Technology News"></div>
               <div class="field"><label for="discovery-source-type">Source type</label><select id="discovery-source-type" name="discoverySourceType">${discoverySourceTypeOptions}</select></div>
               <div class="field"><label for="discovery-source-url">Feed address</label><input id="discovery-source-url" name="discoverySourceUrl" type="url" placeholder="https://example.com/feed.xml"></div>
-              <button class="button button-secondary" type="submit" formaction="/control/discovery-sources/add" formmethod="post">Add Source</button>
+              <button class="button button-secondary" type="button" data-add-discovery-source>Add</button>
             </div>
+            <h4 class="subsection-title">Configured Sources</h4>
+            <ul class="item-list" data-discovery-source-list>
+              ${discoverySourceRows}
+              <li class="empty-state" data-discovery-source-empty${config.discovery.sources.length > 0 ? " hidden" : ""}>No Discovery sources configured.</li>
+            </ul>
+            <input name="discoverySourcesDraft" type="hidden" value="${escapeHtml(discoverySourceDraft)}">
           </div>
         </section></div>
+            </section>
+              </div>
+            </div>
           </section>
 
           <section class="control-panel" data-control-panel="developer" hidden>
@@ -812,10 +1078,14 @@ app.get("/control", (req, res) => {
             <label class="switch"><input id="sports-simulator-enabled" type="checkbox" data-feature-toggle aria-label="Enable Sports Simulator" aria-controls="sports-simulator-settings"><span class="switch-track"></span><span class="switch-state"></span></label>
           </div>
           <div class="settings-content" id="sports-simulator-settings" data-feature-content hidden>
-            <label for="sports-simulation-profile">League / Profile</label>
-            <select id="sports-simulation-profile">${sportsSimulationProfileOptions}</select>
-            <label for="sports-simulation-scenario">Scenario</label>
-            <select id="sports-simulation-scenario">${sportsSimulationScenarioOptions}</select>
+            <div class="field control-selection-row">
+              <label for="sports-simulation-profile">League / Profile</label>
+              <select id="sports-simulation-profile">${sportsSimulationProfileOptions}</select>
+            </div>
+            <div class="field control-selection-row">
+              <label for="sports-simulation-scenario">Scenario</label>
+              <select id="sports-simulation-scenario">${sportsSimulationScenarioOptions}</select>
+            </div>
             <div class="button-row">
               <button class="button button-secondary" type="button" data-sports-simulation-run>Run Simulation</button>
               <button class="button button-quiet" type="button" data-sports-simulation-clear>Clear</button>
@@ -826,7 +1096,7 @@ app.get("/control", (req, res) => {
           </section>
         </div>
 
-        <div class="save-bar"><span class="save-status" data-save-status role="status" aria-live="polite" hidden>Unsaved changes</span><button class="button button-primary" type="submit">Save Changes</button></div>
+        <div class="save-bar" data-settings-save-bar hidden><span class="save-status" data-save-status role="status" aria-live="polite" hidden>Unsaved changes</span><button class="button button-primary" type="submit">Save Changes</button></div>
       </form>
     </div>
   </main>
@@ -835,14 +1105,15 @@ app.get("/control", (req, res) => {
       <input class="command-search" type="text" data-command-search placeholder="Search settings and actions" autocomplete="off">
       <div class="command-results" data-command-results>
         <button class="command-item" type="button" data-command-section="overview"><span>Open Overview</span><small>General</small></button>
-        <button class="command-item" type="button" data-command-section="appearance"><span>Open Appearance</span><small>General</small></button>
-        <button class="command-item" type="button" data-command-section="calendar"><span>Open Calendar</span><small>Information Source</small></button>
-        <button class="command-item" type="button" data-command-section="sports"><span>Open Sports</span><small>Information Source</small></button>
-        <button class="command-item" type="button" data-command-section="discovery"><span>Open Discovery</span><small>Information Source</small></button>
+        <button class="command-item" type="button" data-command-section="settings" data-command-focus="profile-name"><span>Open Personalization</span><small>Settings</small></button>
+        <button class="command-item" type="button" data-command-section="settings" data-command-focus="display-theme"><span>Open Appearance</span><small>Settings</small></button>
+        <button class="command-item" type="button" data-command-section="settings" data-command-focus="calendar-enabled"><span>Open Calendar</span><small>Settings</small></button>
+        <button class="command-item" type="button" data-command-section="settings" data-command-focus="sports-enabled"><span>Open Sports</span><small>Settings</small></button>
+        <button class="command-item" type="button" data-command-section="settings" data-command-focus="discovery-enabled"><span>Open Discovery</span><small>Settings</small></button>
         <button class="command-item" type="button" data-command-section="developer"><span>Open Developer Tools</span><small>System</small></button>
-        <button class="command-item" type="button" data-command-section="sports" data-command-focus="favorite-team"><span>Add Favorite Team</span><small>Sports</small></button>
-        <button class="command-item" type="button" data-command-section="calendar" data-command-focus="calendar-source-name"><span>Add Calendar Source</span><small>Calendar</small></button>
-        <button class="command-item" type="button" data-command-section="discovery" data-command-focus="discovery-source-name"><span>Add Discovery Source</span><small>Discovery</small></button>
+        <button class="command-item" type="button" data-command-section="settings" data-command-focus="favorite-team"><span>Add Favorite Team</span><small>Sports</small></button>
+        <button class="command-item" type="button" data-command-section="settings" data-command-focus="calendar-source-name"><span>Add Calendar Source</span><small>Calendar</small></button>
+        <button class="command-item" type="button" data-command-section="settings" data-command-focus="discovery-source-name"><span>Add Discovery Source</span><small>Discovery</small></button>
         <button class="command-item" type="button" data-command-section="developer" data-command-focus="sports-simulator-enabled"><span>Open Sports Simulator</span><small>Developer Tools</small></button>
       </div>
     </div>
@@ -850,6 +1121,8 @@ app.get("/control", (req, res) => {
   <script>
     (() => {
       const sectionStorageKey = "mosaic-control-section";
+      const settingsCategoryStorageKey =
+        "mosaic-control-settings-category";
       const railStorageKey = "mosaic-control-rail-collapsed";
       const workspace = document.querySelector(
         "[data-control-workspace]"
@@ -861,11 +1134,64 @@ app.get("/control", (req, res) => {
       const panels = [...document.querySelectorAll(
         "[data-control-panel]"
       )];
+      const saveBar = document.querySelector(
+        "[data-settings-save-bar]"
+      );
+      const settingsNavButtons = navButtons.filter(
+        (button) => button.dataset.settingsTarget
+      );
+      const settingsPanels = [...document.querySelectorAll(
+        "[data-settings-panel]"
+      )];
+      const settingsControlPanel = panels.find(
+        (panel) => panel.dataset.controlPanel === "settings"
+      );
       const validSections = new Set(
         panels.map((panel) => panel.dataset.controlPanel)
       );
+      const validSettingsCategories = new Set(
+        settingsPanels.map((panel) => panel.dataset.settingsPanel)
+      );
+      let selectedSettingsCategory = "personalization";
 
-      const selectSection = (section, focusId = null) => {
+      try {
+        selectedSettingsCategory =
+          sessionStorage.getItem(settingsCategoryStorageKey) ||
+          selectedSettingsCategory;
+      } catch (error) {}
+
+      const selectSettingsCategory = (category) => {
+        const selected = validSettingsCategories.has(category)
+          ? category
+          : "personalization";
+
+        settingsPanels.forEach((panel) => {
+          panel.hidden = panel.dataset.settingsPanel !== selected;
+        });
+        selectedSettingsCategory = selected;
+
+        if (settingsControlPanel && !settingsControlPanel.hidden) {
+          settingsNavButtons.forEach((button) => {
+            const isSelected =
+              button.dataset.settingsTarget === selected;
+            if (isSelected) {
+              button.setAttribute("aria-current", "page");
+            } else {
+              button.removeAttribute("aria-current");
+            }
+          });
+        }
+
+        try {
+          sessionStorage.setItem(settingsCategoryStorageKey, selected);
+        } catch (error) {}
+      };
+
+      const selectSection = (
+        section,
+        focusId = null,
+        settingsCategory = null
+      ) => {
         const selected = validSections.has(section)
           ? section
           : "overview";
@@ -873,8 +1199,29 @@ app.get("/control", (req, res) => {
         panels.forEach((panel) => {
           panel.hidden = panel.dataset.controlPanel !== selected;
         });
+        if (saveBar) saveBar.hidden = selected !== "settings";
+
+        if (selected === "settings") {
+          const focusedPanel = focusId
+            ? document.getElementById(focusId)?.closest(
+                "[data-settings-panel]"
+              )
+            : null;
+          selectSettingsCategory(
+            settingsCategory ||
+              focusedPanel?.dataset.settingsPanel ||
+              selectedSettingsCategory
+          );
+        }
+
         navButtons.forEach((button) => {
-          const isSelected = button.dataset.controlNav === selected;
+          const isSelected =
+            button.dataset.controlNav === selected &&
+            (
+              selected !== "settings" ||
+              button.dataset.settingsTarget ===
+                selectedSettingsCategory
+            );
           if (isSelected) {
             button.setAttribute("aria-current", "page");
           } else {
@@ -900,17 +1247,33 @@ app.get("/control", (req, res) => {
         initialSection = sessionStorage.getItem(sectionStorageKey) ||
           initialSection;
       } catch (error) {}
+      if ([
+        "appearance",
+        "calendar",
+        "sports",
+        "discovery"
+      ].includes(initialSection)) {
+        selectedSettingsCategory = initialSection;
+        initialSection = "settings";
+      }
       selectSection(initialSection);
 
       navButtons.forEach((button) => {
         button.addEventListener("click", () => {
-          selectSection(button.dataset.controlNav);
+          selectSection(
+            button.dataset.controlNav,
+            null,
+            button.dataset.settingsTarget || null
+          );
         });
       });
       document.querySelectorAll("[data-control-link]")
         .forEach((button) => {
           button.addEventListener("click", () => {
-            selectSection(button.dataset.controlLink);
+            selectSection(
+              button.dataset.controlLink,
+              button.dataset.controlFocus || null
+            );
           });
         });
 
@@ -1019,6 +1382,8 @@ app.get("/control", (req, res) => {
       });
 
       window.mosaicControlSelectSection = selectSection;
+      window.mosaicControlSelectSettingsCategory =
+        selectSettingsCategory;
     })();
 
     (() => {
@@ -1106,8 +1471,13 @@ app.get("/control", (req, res) => {
         "theme",
         "calendarEnabled",
         "calendarProvider",
+        "calendarSourcesDraft",
         "discoveryEnabled",
+        "discoverySourcesDraft",
         "sportsEnabled",
+        "sportsWidgetEnabled",
+        "sportsWidgetLeagues",
+        "favoriteTeams",
         "primaryLeague"
       ]);
 
@@ -1119,6 +1489,153 @@ app.get("/control", (req, res) => {
 
       form.addEventListener("input", showPendingState);
       form.addEventListener("change", showPendingState);
+      form.addEventListener("invalid", (event) => {
+        const settingsPanel = event.target.closest(
+          "[data-settings-panel]"
+        );
+
+        if (!settingsPanel) return;
+
+        window.mosaicControlSelectSection?.("settings");
+        window.mosaicControlSelectSettingsCategory?.(
+          settingsPanel.dataset.settingsPanel
+        );
+      }, true);
+    })();
+
+    (() => {
+      const list = document.querySelector(
+        "[data-sports-widget-league-list]"
+      );
+      const emptyState = document.querySelector(
+        "[data-sports-widget-league-empty]"
+      );
+      const select = document.getElementById(
+        "sports-widget-league"
+      );
+      const addButton = document.querySelector(
+        "[data-add-sports-widget-league]"
+      );
+      const saveStatus = document.querySelector(
+        "[data-save-status]"
+      );
+      const supportedLeagues = ${supportedSportsWidgetLeaguesJson};
+
+      if (!list || !emptyState || !select || !addButton) return;
+
+      const getSelectedRows = () => [
+        ...list.querySelectorAll(
+          "[data-sports-widget-league-row]"
+        )
+      ];
+
+      const markUnsaved = () => {
+        if (saveStatus) saveStatus.hidden = false;
+      };
+
+      const syncControls = () => {
+        const hasOptions = [...select.options].some(
+          (option) => option.value
+        );
+
+        if (!hasOptions) {
+          select.replaceChildren();
+          const option = document.createElement("option");
+          option.value = "";
+          option.textContent = "All leagues selected";
+          select.append(option);
+        }
+
+        select.disabled = !hasOptions;
+        addButton.disabled = !hasOptions;
+        emptyState.hidden = getSelectedRows().length > 0;
+      };
+
+      const addAvailableOption = (league) => {
+        if ([...select.options].some(
+          (option) => option.value === league
+        )) return;
+
+        const options = [...select.options]
+          .filter((option) => option.value)
+          .map((option) => option.value);
+        options.push(league);
+        options.sort(
+          (first, second) =>
+            supportedLeagues.indexOf(first) -
+            supportedLeagues.indexOf(second)
+        );
+        select.replaceChildren();
+        options.forEach((value) => {
+          const option = document.createElement("option");
+          option.value = value;
+          option.textContent = value;
+          select.append(option);
+        });
+      };
+
+      const createLeagueRow = (league) => {
+        const row = document.createElement("li");
+        row.className = "item-row";
+        row.dataset.sportsWidgetLeagueRow = "";
+        row.dataset.league = league;
+
+        const copy = document.createElement("span");
+        copy.className = "item-copy";
+        const name = document.createElement("strong");
+        name.textContent = league;
+        copy.append(name);
+
+        const removeButton = document.createElement("button");
+        removeButton.className = "button button-quiet";
+        removeButton.type = "button";
+        removeButton.dataset.removeSportsWidgetLeague = "";
+        removeButton.textContent = "Remove";
+
+        const field = document.createElement("input");
+        field.type = "hidden";
+        field.name = "sportsWidgetLeagues";
+        field.value = league;
+
+        row.append(copy, removeButton, field);
+        return row;
+      };
+
+      addButton.addEventListener("click", () => {
+        const league = select.value;
+        const duplicate = getSelectedRows().some(
+          (row) => row.dataset.league === league
+        );
+
+        if (!league || duplicate) return;
+
+        list.insertBefore(createLeagueRow(league), emptyState);
+        select.selectedOptions[0]?.remove();
+        syncControls();
+        markUnsaved();
+      });
+
+      list.addEventListener("click", (event) => {
+        const removeButton = event.target.closest(
+          "[data-remove-sports-widget-league]"
+        );
+
+        if (!removeButton) return;
+
+        const row = removeButton.closest(
+          "[data-sports-widget-league-row]"
+        );
+        const league = row?.dataset.league;
+
+        if (!row || !supportedLeagues.includes(league)) return;
+
+        row.remove();
+        addAvailableOption(league);
+        syncControls();
+        markUnsaved();
+      });
+
+      syncControls();
     })();
 
     (() => {
@@ -1127,24 +1644,53 @@ app.get("/control", (req, res) => {
       const addButton = document.querySelector(
         "[data-add-favorite-team]"
       );
-      const availableTeams = ${favoriteTeamRegistryJson};
+      const list = document.querySelector(
+        "[data-favorite-team-list]"
+      );
+      const emptyState = document.querySelector(
+        "[data-favorite-team-empty]"
+      );
+      const saveStatus = document.querySelector(
+        "[data-save-status]"
+      );
+      const teams = ${favoriteTeamRegistryJson};
 
-      if (!leagueSelect || !teamSelect || !addButton) return;
+      if (
+        !leagueSelect ||
+        !teamSelect ||
+        !addButton ||
+        !list ||
+        !emptyState
+      ) return;
+
+      const getSelectedRows = () => [
+        ...list.querySelectorAll("[data-favorite-team-row]")
+      ];
+
+      const markUnsaved = () => {
+        if (saveStatus) saveStatus.hidden = false;
+      };
 
       const syncTeamOptions = () => {
-        const teams = availableTeams.filter(
-          (team) => team.league === leagueSelect.value
+        const selectedIds = new Set(
+          getSelectedRows().map((row) => row.dataset.teamId)
+        );
+        const availableTeams = teams.filter(
+          (team) =>
+            team.league === leagueSelect.value &&
+            !selectedIds.has(team.id)
         );
 
         teamSelect.replaceChildren();
 
-        if (teams.length === 0) {
+        if (availableTeams.length === 0) {
           const option = document.createElement("option");
+          option.value = "";
           option.textContent =
             "No available " + leagueSelect.value + " teams";
           teamSelect.append(option);
         } else {
-          teams.forEach((team) => {
+          availableTeams.forEach((team) => {
             const option = document.createElement("option");
             option.value = team.id;
             option.textContent =
@@ -1153,9 +1699,72 @@ app.get("/control", (req, res) => {
           });
         }
 
-        teamSelect.disabled = teams.length === 0;
-        addButton.disabled = teams.length === 0;
+        teamSelect.disabled = availableTeams.length === 0;
+        addButton.disabled = availableTeams.length === 0;
+        emptyState.hidden = getSelectedRows().length > 0;
       };
+
+      const createTeamRow = (team) => {
+        const row = document.createElement("li");
+        row.className = "item-row";
+        row.dataset.favoriteTeamRow = "";
+        row.dataset.teamId = team.id;
+
+        const copy = document.createElement("span");
+        copy.className = "item-copy";
+        const name = document.createElement("strong");
+        name.textContent = team.name;
+        const league = document.createElement("small");
+        league.textContent = team.league;
+        copy.append(name, league);
+
+        const removeButton = document.createElement("button");
+        removeButton.className = "button button-quiet";
+        removeButton.type = "button";
+        removeButton.dataset.removeFavoriteTeam = "";
+        removeButton.textContent = "Remove";
+
+        const field = document.createElement("input");
+        field.type = "hidden";
+        field.name = "favoriteTeams";
+        field.value = team.id;
+
+        row.append(copy, removeButton, field);
+        return row;
+      };
+
+      addButton.addEventListener("click", () => {
+        const team = teams.find(
+          (candidate) => candidate.id === teamSelect.value
+        );
+        const duplicate = getSelectedRows().some(
+          (row) => row.dataset.teamId === team?.id
+        );
+
+        if (!team || duplicate) return;
+
+        list.insertBefore(createTeamRow(team), emptyState);
+        syncTeamOptions();
+        markUnsaved();
+      });
+
+      list.addEventListener("click", (event) => {
+        const removeButton = event.target.closest(
+          "[data-remove-favorite-team]"
+        );
+
+        if (!removeButton) return;
+
+        const row = removeButton.closest(
+          "[data-favorite-team-row]"
+        );
+
+        if (!row) return;
+
+        row.remove();
+        syncTeamOptions();
+        markUnsaved();
+      });
 
       leagueSelect.addEventListener("change", syncTeamOptions);
       syncTeamOptions();
@@ -1180,34 +1789,25 @@ app.get("/control", (req, res) => {
 
           toggle.addEventListener("change", syncDisclosure);
           syncDisclosure();
-        });
+      });
     })();
 
     (() => {
+      const configurationSaved = ${configurationSaved};
       const themeSelect = document.getElementById("display-theme");
 
       if (
+        !configurationSaved ||
         !themeSelect ||
         typeof BroadcastChannel !== "function"
-      ) {
-        return;
-      }
+      ) return;
 
       const channel = new BroadcastChannel(
         "mosaic-theme-preview"
       );
 
-      themeSelect.addEventListener("change", () => {
-        channel.postMessage({
-          theme: themeSelect.value
-        });
-      });
-
-      window.addEventListener(
-        "pagehide",
-        () => channel.close(),
-        { once: true }
-      );
+      channel.postMessage({ theme: themeSelect.value });
+      channel.close();
     })();
 
     (() => {
@@ -1288,75 +1888,507 @@ app.get("/control", (req, res) => {
     })();
 
     (() => {
-      document.querySelectorAll(
-        "[data-remove-calendar-source]"
-      ).forEach((button) => {
-        button.addEventListener("click", () => {
-          const row = button.closest("li");
-          const actions = row.querySelector(
-            "[data-calendar-source-actions]"
-          );
-          const confirmation = row.querySelector(
-            "[data-calendar-source-confirmation]"
-          );
+      const list = document.querySelector(
+        "[data-calendar-source-list]"
+      );
+      const emptyState = document.querySelector(
+        "[data-calendar-source-empty]"
+      );
+      const draftField = document.querySelector(
+        "[name=calendarSourcesDraft]"
+      );
+      const nameInput = document.getElementById(
+        "calendar-source-name"
+      );
+      const urlInput = document.getElementById(
+        "calendar-source-url"
+      );
+      const providerField = document.getElementById(
+        "calendar-provider"
+      );
+      const addButton = document.querySelector(
+        "[data-add-calendar-source]"
+      );
+      const saveStatus = document.querySelector(
+        "[data-save-status]"
+      );
+      let draft = [];
 
+      if (
+        !list ||
+        !emptyState ||
+        !draftField ||
+        !nameInput ||
+        !urlInput ||
+        !addButton
+      ) return;
+
+      try {
+        draft = JSON.parse(draftField.value);
+      } catch (error) {
+        draft = [];
+      }
+
+      const markUnsaved = () => {
+        if (saveStatus) saveStatus.hidden = false;
+      };
+
+      const syncDraft = () => {
+        draftField.value = JSON.stringify(draft);
+        emptyState.hidden = draft.length > 0;
+      };
+
+      const createSourceId = () => {
+        let id = "";
+
+        do {
+          const suffix = window.crypto?.randomUUID
+            ? window.crypto.randomUUID()
+            : Date.now().toString(36) +
+              Math.random().toString(36).slice(2);
+          id = "calendar-" + suffix;
+        } while (draft.some((source) => source.id === id));
+
+        return id;
+      };
+
+      const createSourceRow = (source) => {
+        const row = document.createElement("li");
+        row.className = "item-row";
+        row.dataset.calendarSourceRow = "";
+        row.dataset.sourceId = source.id;
+
+        const copy = document.createElement("span");
+        copy.className = "item-copy";
+        const name = document.createElement("strong");
+        const dot = document.createElement("span");
+        dot.className = "status-dot is-enabled";
+        name.append(dot, document.createTextNode(source.name));
+        const status = document.createElement("small");
+        status.textContent = "Enabled";
+        copy.append(name, status);
+
+        const actions = document.createElement("span");
+        actions.dataset.calendarSourceActions = "";
+        const toggle = document.createElement("button");
+        toggle.className = "button button-quiet";
+        toggle.type = "button";
+        toggle.dataset.toggleCalendarSource = "";
+        toggle.textContent = "Disable";
+        const remove = document.createElement("button");
+        remove.className = "button button-quiet";
+        remove.type = "button";
+        remove.dataset.removeCalendarSource = "";
+        remove.textContent = "Remove";
+        actions.append(toggle, remove);
+
+        const confirmation = document.createElement("div");
+        confirmation.className = "inline-confirmation";
+        confirmation.dataset.calendarSourceConfirmation = "";
+        confirmation.hidden = true;
+        const question = document.createElement("strong");
+        question.textContent = "Remove " + source.name + "?";
+        const explanation = document.createElement("p");
+        explanation.textContent =
+          "This will stop Mosaic from displaying events from this calendar.";
+        const confirmationActions = document.createElement("div");
+        confirmationActions.className = "button-row";
+        const cancel = document.createElement("button");
+        cancel.className = "button button-quiet";
+        cancel.type = "button";
+        cancel.dataset.cancelCalendarSourceRemoval = "";
+        cancel.textContent = "Cancel";
+        const confirm = document.createElement("button");
+        confirm.className = "button button-danger";
+        confirm.type = "button";
+        confirm.dataset.confirmCalendarSourceRemoval = "";
+        confirm.textContent = "Remove Calendar";
+        confirmationActions.append(cancel, confirm);
+        confirmation.append(
+          question,
+          explanation,
+          confirmationActions
+        );
+
+        row.append(copy, actions, confirmation);
+        return row;
+      };
+
+      const updateSourceRow = (row, enabled) => {
+        row.querySelector(".status-dot")?.classList.toggle(
+          "is-enabled",
+          enabled
+        );
+        const status = row.querySelector(".item-copy small");
+        const toggle = row.querySelector(
+          "[data-toggle-calendar-source]"
+        );
+
+        if (status) status.textContent = enabled
+          ? "Enabled"
+          : "Disabled";
+        if (toggle) toggle.textContent = enabled
+          ? "Disable"
+          : "Enable";
+      };
+
+      addButton.addEventListener("click", () => {
+        const name = nameInput.value.trim();
+        const url = urlInput.value.trim();
+        let parsedUrl = null;
+
+        nameInput.setCustomValidity(
+          name ? "" : "Calendar nickname must not be empty."
+        );
+
+        try {
+          parsedUrl = new URL(url);
+        } catch (error) {}
+
+        const validUrl = parsedUrl &&
+          ["https:", "http:", "webcal:"].includes(
+            parsedUrl.protocol
+          );
+        const duplicateUrl = draft.some(
+          (source) => source.url === url
+        );
+        urlInput.setCustomValidity(
+          !url
+            ? "iCalendar URL must not be empty."
+            : !validUrl
+              ? "iCalendar URL is invalid."
+              : duplicateUrl
+                ? "That Calendar source is already configured."
+                : ""
+        );
+
+        if (!nameInput.reportValidity() || !urlInput.reportValidity()) {
+          return;
+        }
+
+        const source = {
+          id: createSourceId(),
+          name,
+          enabled: true,
+          url
+        };
+        const hadSources = draft.length > 0;
+
+        draft.push(source);
+        list.insertBefore(createSourceRow(source), emptyState);
+        nameInput.value = "";
+        urlInput.value = "";
+
+        if (!hadSources && providerField) {
+          providerField.value = "ical";
+        }
+
+        syncDraft();
+        markUnsaved();
+      });
+
+      list.addEventListener("click", (event) => {
+        const row = event.target.closest(
+          "[data-calendar-source-row]"
+        );
+
+        if (!row) return;
+
+        const sourceIndex = draft.findIndex(
+          (source) => source.id === row.dataset.sourceId
+        );
+
+        if (sourceIndex < 0) return;
+
+        const actions = row.querySelector(
+          "[data-calendar-source-actions]"
+        );
+        const confirmation = row.querySelector(
+          "[data-calendar-source-confirmation]"
+        );
+
+        if (event.target.closest("[data-toggle-calendar-source]")) {
+          draft[sourceIndex].enabled =
+            draft[sourceIndex].enabled === false;
+          updateSourceRow(row, draft[sourceIndex].enabled);
+          syncDraft();
+          markUnsaved();
+        } else if (event.target.closest("[data-remove-calendar-source]")) {
           actions.hidden = true;
           confirmation.hidden = false;
-        });
-      });
-
-      document.querySelectorAll(
-        "[data-cancel-calendar-source-removal]"
-      ).forEach((button) => {
-        button.addEventListener("click", () => {
-          const row = button.closest("li");
-          const actions = row.querySelector(
-            "[data-calendar-source-actions]"
-          );
-          const confirmation = row.querySelector(
-            "[data-calendar-source-confirmation]"
-          );
-
+        } else if (event.target.closest(
+          "[data-cancel-calendar-source-removal]"
+        )) {
           confirmation.hidden = true;
           actions.hidden = false;
-        });
+        } else if (event.target.closest(
+          "[data-confirm-calendar-source-removal]"
+        )) {
+          draft.splice(sourceIndex, 1);
+          row.remove();
+          syncDraft();
+          markUnsaved();
+        }
       });
+
+      syncDraft();
     })();
 
     (() => {
-      document.querySelectorAll(
-        "[data-remove-discovery-source]"
-      ).forEach((button) => {
-        button.addEventListener("click", () => {
-          const row = button.closest("li");
-          const actions = row.querySelector(
-            "[data-discovery-source-actions]"
-          );
-          const confirmation = row.querySelector(
-            "[data-discovery-source-confirmation]"
-          );
+      const list = document.querySelector(
+        "[data-discovery-source-list]"
+      );
+      const emptyState = document.querySelector(
+        "[data-discovery-source-empty]"
+      );
+      const draftField = document.querySelector(
+        "[name=discoverySourcesDraft]"
+      );
+      const nameInput = document.getElementById(
+        "discovery-source-name"
+      );
+      const typeSelect = document.getElementById(
+        "discovery-source-type"
+      );
+      const urlInput = document.getElementById(
+        "discovery-source-url"
+      );
+      const addButton = document.querySelector(
+        "[data-add-discovery-source]"
+      );
+      const saveStatus = document.querySelector(
+        "[data-save-status]"
+      );
+      let draft = [];
 
+      if (
+        !list ||
+        !emptyState ||
+        !draftField ||
+        !nameInput ||
+        !typeSelect ||
+        !urlInput ||
+        !addButton
+      ) return;
+
+      try {
+        draft = JSON.parse(draftField.value);
+      } catch (error) {
+        draft = [];
+      }
+
+      const markUnsaved = () => {
+        if (saveStatus) saveStatus.hidden = false;
+      };
+
+      const syncDraft = () => {
+        draftField.value = JSON.stringify(draft);
+        emptyState.hidden = draft.length > 0;
+      };
+
+      const createSourceId = () => {
+        let id = "";
+
+        do {
+          const suffix = window.crypto?.randomUUID
+            ? window.crypto.randomUUID()
+            : Date.now().toString(36) +
+              Math.random().toString(36).slice(2);
+          id = "discovery-" + suffix;
+        } while (draft.some((source) => source.id === id));
+
+        return id;
+      };
+
+      const createSourceRow = (source) => {
+        const row = document.createElement("li");
+        row.className = "item-row";
+        row.dataset.discoverySourceRow = "";
+        row.dataset.sourceId = source.id;
+        row.dataset.sourceRemovable = "true";
+
+        const copy = document.createElement("span");
+        copy.className = "item-copy";
+        const name = document.createElement("strong");
+        const dot = document.createElement("span");
+        dot.className = "status-dot is-enabled";
+        name.append(dot, document.createTextNode(source.name));
+        const status = document.createElement("small");
+        status.textContent =
+          typeSelect.selectedOptions[0]?.textContent + " · Enabled";
+        copy.append(name, status);
+
+        const actions = document.createElement("span");
+        actions.dataset.discoverySourceActions = "";
+        const toggle = document.createElement("button");
+        toggle.className = "button button-quiet";
+        toggle.type = "button";
+        toggle.dataset.toggleDiscoverySource = "";
+        toggle.textContent = "Disable";
+        const remove = document.createElement("button");
+        remove.className = "button button-quiet";
+        remove.type = "button";
+        remove.dataset.removeDiscoverySource = "";
+        remove.textContent = "Remove";
+        actions.append(toggle, remove);
+
+        const confirmation = document.createElement("div");
+        confirmation.className = "inline-confirmation";
+        confirmation.dataset.discoverySourceConfirmation = "";
+        confirmation.hidden = true;
+        const question = document.createElement("strong");
+        question.textContent = "Remove " + source.name + "?";
+        const explanation = document.createElement("p");
+        explanation.textContent =
+          "This will stop Mosaic from displaying items from this source.";
+        const confirmationActions = document.createElement("div");
+        confirmationActions.className = "button-row";
+        const cancel = document.createElement("button");
+        cancel.className = "button button-quiet";
+        cancel.type = "button";
+        cancel.dataset.cancelDiscoverySourceRemoval = "";
+        cancel.textContent = "Cancel";
+        const confirm = document.createElement("button");
+        confirm.className = "button button-danger";
+        confirm.type = "button";
+        confirm.dataset.confirmDiscoverySourceRemoval = "";
+        confirm.textContent = "Remove Source";
+        confirmationActions.append(cancel, confirm);
+        confirmation.append(
+          question,
+          explanation,
+          confirmationActions
+        );
+
+        row.append(copy, actions, confirmation);
+        return row;
+      };
+
+      const updateSourceRow = (row, enabled) => {
+        row.querySelector(".status-dot")?.classList.toggle(
+          "is-enabled",
+          enabled
+        );
+        const status = row.querySelector(".item-copy small");
+        const toggle = row.querySelector(
+          "[data-toggle-discovery-source]"
+        );
+
+        if (status) {
+          status.textContent = status.textContent.replace(
+            / · (Enabled|Disabled)( · Built-in)?$/,
+            " · " + (enabled ? "Enabled" : "Disabled") +
+              (row.dataset.sourceRemovable === "true"
+                ? ""
+                : " · Built-in")
+          );
+        }
+        if (toggle) toggle.textContent = enabled
+          ? "Disable"
+          : "Enable";
+      };
+
+      addButton.addEventListener("click", () => {
+        const name = nameInput.value.trim();
+        const type = typeSelect.value;
+        const url = urlInput.value.trim();
+        let parsedUrl = null;
+
+        nameInput.setCustomValidity(
+          name ? "" : "Discovery source nickname must not be empty."
+        );
+
+        try {
+          parsedUrl = new URL(url);
+        } catch (error) {}
+
+        const validUrl = parsedUrl &&
+          ["https:", "http:"].includes(parsedUrl.protocol);
+        const duplicateUrl = draft.some(
+          (source) =>
+            source.type === type && source.config?.url === url
+        );
+        urlInput.setCustomValidity(
+          !url
+            ? "Discovery source URL must not be empty."
+            : !validUrl
+              ? "Discovery source configuration is invalid."
+              : duplicateUrl
+                ? "That Discovery source is already configured."
+                : ""
+        );
+
+        if (!nameInput.reportValidity() || !urlInput.reportValidity()) {
+          return;
+        }
+
+        const source = {
+          id: createSourceId(),
+          name,
+          type,
+          enabled: true,
+          config: { url }
+        };
+
+        draft.push(source);
+        list.insertBefore(createSourceRow(source), emptyState);
+        nameInput.value = "";
+        urlInput.value = "";
+        syncDraft();
+        markUnsaved();
+      });
+
+      list.addEventListener("click", (event) => {
+        const row = event.target.closest(
+          "[data-discovery-source-row]"
+        );
+
+        if (!row) return;
+
+        const sourceIndex = draft.findIndex(
+          (source) => source.id === row.dataset.sourceId
+        );
+
+        if (sourceIndex < 0) return;
+
+        const actions = row.querySelector(
+          "[data-discovery-source-actions]"
+        );
+        const confirmation = row.querySelector(
+          "[data-discovery-source-confirmation]"
+        );
+
+        if (event.target.closest("[data-toggle-discovery-source]")) {
+          draft[sourceIndex].enabled =
+            draft[sourceIndex].enabled === false;
+          updateSourceRow(row, draft[sourceIndex].enabled);
+          syncDraft();
+          markUnsaved();
+        } else if (
+          row.dataset.sourceRemovable === "true" &&
+          event.target.closest("[data-remove-discovery-source]")
+        ) {
           actions.hidden = true;
           confirmation.hidden = false;
-        });
-      });
-
-      document.querySelectorAll(
-        "[data-cancel-discovery-source-removal]"
-      ).forEach((button) => {
-        button.addEventListener("click", () => {
-          const row = button.closest("li");
-          const actions = row.querySelector(
-            "[data-discovery-source-actions]"
-          );
-          const confirmation = row.querySelector(
-            "[data-discovery-source-confirmation]"
-          );
-
+        } else if (event.target.closest(
+          "[data-cancel-discovery-source-removal]"
+        )) {
           confirmation.hidden = true;
           actions.hidden = false;
-        });
+        } else if (
+          row.dataset.sourceRemovable === "true" &&
+          event.target.closest(
+            "[data-confirm-discovery-source-removal]"
+          )
+        ) {
+          draft.splice(sourceIndex, 1);
+          row.remove();
+          syncDraft();
+          markUnsaved();
+        }
       });
+
+      syncDraft();
     })();
   </script>
 </body>
@@ -1373,14 +2405,30 @@ app.post("/control", async (req, res) => {
       req.body.profileName,
       req.body.calendarEnabled === "true",
       req.body.calendarProvider,
-      currentConfig.calendar.sources,
+      resolveCalendarSourceDraft(
+        req.body.calendarSourcesDraft,
+        currentConfig.calendar.sources
+      ),
       req.body.sportsEnabled === "true",
-      currentConfig.sports.favoriteTeams,
+      req.body.sportsWidgetEnabled === "true",
+      Array.isArray(req.body.sportsWidgetLeagues)
+        ? req.body.sportsWidgetLeagues
+        : typeof req.body.sportsWidgetLeagues === "string"
+          ? [req.body.sportsWidgetLeagues]
+          : [],
+      Array.isArray(req.body.favoriteTeams)
+        ? req.body.favoriteTeams
+        : typeof req.body.favoriteTeams === "string"
+          ? [req.body.favoriteTeams]
+          : [],
       req.body.discoveryEnabled === "true",
-      currentConfig.discovery.sources
+      resolveDiscoverySourceDraft(
+        req.body.discoverySourcesDraft,
+        currentConfig.discovery.sources
+      )
     );
     await writeConfig(config);
-    res.redirect(303, "/control");
+    res.redirect(303, "/control?saved=1");
   } catch (error) {
     const isValidationError = error instanceof Error &&
       (error.message === "Location must not be empty." ||
@@ -1389,10 +2437,16 @@ app.post("/control", async (req, res) => {
         error.message === "Display name must be a string." ||
         error.message === "Calendar enabled must be a boolean." ||
         error.message === "Calendar provider is invalid." ||
+        error.message === "Calendar sources are invalid." ||
+        error.message === "That Calendar source is already configured." ||
         error.message === "Sports enabled must be a boolean." ||
+        error.message === "Sports Widget enabled must be a boolean." ||
+        error.message === "Sports Widget leagues are invalid." ||
         error.message === "Favorite teams must be an array." ||
         error.message === "Discovery enabled must be a boolean." ||
-        error.message === "Discovery sources must be an array.");
+        error.message === "Discovery sources must be an array." ||
+        error.message === "Discovery sources are invalid." ||
+        error.message === "That Discovery source is already configured.");
 
     if (isValidationError) {
       return res.status(400).json({ error: error.message });

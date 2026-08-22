@@ -9,10 +9,19 @@ class SportsWidget {
                 availability: "loading"
             }
         };
-        this.games = [];
-        this.currentGameIndex = 0;
+        this.queue = new SportsWidgetQueue();
+        this.adapters = new Map([
+            ["MLB", new MlbSportsEventAdapter()]
+        ]);
+        this.rendererRegistry =
+            window.mosaicSportsWidgetRendererRegistry;
         this.rotationTimer = null;
         this.unsubscribe = null;
+        this.configRequest = null;
+        this.widgetConfig = {
+            enabled: true,
+            leagues: new Set(["MLB"])
+        };
     }
 
     mount(element) {
@@ -25,6 +34,9 @@ class SportsWidget {
         this.element = element;
         this.subscribeToEvents();
         this.render();
+        this.refreshWidgetConfig().then(() => {
+            if (this.element) this.applyEventState();
+        });
     }
 
     subscribeToEvents() {
@@ -35,58 +47,93 @@ class SportsWidget {
         );
     }
 
-    showEvent(event) {
+    async showEvent(event) {
         this.stopRotation();
         this.state = event;
-        const games = Array.isArray(event.payload?.games)
-            ? event.payload.games
+        await this.refreshWidgetConfig();
+
+        if (!this.element || this.state !== event) return;
+
+        this.applyEventState();
+    }
+
+    applyEventState() {
+        const payload = this.state.payload || {};
+
+        if (!this.isLeagueAllowed(payload.sport)) {
+            this.queue.clear();
+            this.render();
+            return;
+        }
+
+        const games = Array.isArray(payload.games)
+            ? payload.games
             : [];
-        this.games = this.selectRotatingGames(games);
-        this.currentGameIndex = 0;
+        const adapter = this.adapters.get(
+            String(payload.sport || "").toUpperCase()
+        );
+        const normalizedEvents = adapter
+            ? adapter.adaptGames(games)
+            : [];
+
+        this.queue.replace(normalizedEvents);
         this.render();
 
-        if (this.games.length > 1) {
+        if (this.queue.size() > 1) {
             this.startRotation();
         }
     }
 
-    selectRotatingGames(games) {
-        return games.filter(
-            (game) =>
-                !this.isCancelled(game) &&
-                this.hasUsableMatchup(game)
-        );
+    async refreshWidgetConfig() {
+        if (this.configRequest) return this.configRequest;
+
+        this.configRequest = fetch("/api/config")
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error(
+                        `Config request failed: ${response.status}`
+                    );
+                }
+
+                return response.json();
+            })
+            .then((config) => {
+                const widgetConfig = config.sports?.widget;
+                const leagues = Array.isArray(widgetConfig?.leagues)
+                    ? widgetConfig.leagues
+                    : ["MLB"];
+
+                this.widgetConfig = {
+                    enabled: widgetConfig?.enabled !== false,
+                    leagues: new Set(leagues)
+                };
+            })
+            .catch((error) => {
+                console.error(
+                    "Unable to load Sports Widget configuration:",
+                    error
+                );
+            })
+            .finally(() => {
+                this.configRequest = null;
+            });
+
+        return this.configRequest;
     }
 
-    isInterrupted(game) {
-        return /delayed|postponed|suspended/i.test(
-            game.status?.detail || ""
-        );
-    }
+    isLeagueAllowed(league) {
+        if (!this.widgetConfig.enabled) return false;
+        if (typeof league !== "string") return true;
 
-    isCancelled(game) {
-        const status = [
-            game.status?.state,
-            game.status?.detail
-        ].filter(Boolean).join(" ");
-
-        return /cancelled|canceled/i.test(status);
-    }
-
-    hasUsableMatchup(game) {
-        return [game.awayTeam, game.homeTeam].every(
-            (team) =>
-                team &&
-                typeof team.name === "string" &&
-                team.name.trim() !== "" &&
-                team.name !== "Team TBD"
+        return this.widgetConfig.leagues.has(
+            league.toUpperCase()
         );
     }
 
     startRotation() {
         this.stopRotation();
 
-        if (this.games.length < 2) return;
+        if (this.queue.size() < 2) return;
 
         this.rotationTimer = setInterval(
             () => this.advanceGame(),
@@ -102,12 +149,9 @@ class SportsWidget {
     }
 
     advanceGame() {
-        if (this.games.length < 2) return;
+        if (this.queue.size() < 2) return;
 
-        this.currentGameIndex =
-            (this.currentGameIndex + 1) %
-            this.games.length;
-
+        this.queue.next();
         this.render();
     }
 
@@ -124,20 +168,36 @@ class SportsWidget {
 
     render() {
         const payload = this.state.payload || {};
-        const game =
-            this.games[this.currentGameIndex] || {};
+        const currentEvent = this.queue.current();
         const isLoading =
             payload.availability === "loading";
         const isAvailable =
             payload.availability === "available";
         const sport = payload.sport || "Sports";
+        const isLeagueAllowed = this.isLeagueAllowed(payload.sport);
         const status = isLoading
             ? "Loading"
             : !isAvailable
                 ? "Unavailable"
                 : "Idle";
 
-        if (!isAvailable || this.games.length === 0) {
+        if (!isLeagueAllowed) {
+            this.element.innerHTML = `
+                <div class="widget-header">
+                    <div class="widget-title">Sports</div>
+                    <div class="widget-status">Unavailable</div>
+                </div>
+                <div class="widget-body">
+                    Select leagues in Control
+                </div>
+                <div class="widget-footer">
+                    <span>—</span>
+                </div>
+            `;
+            return;
+        }
+
+        if (!isAvailable || this.queue.size() === 0) {
             this.element.innerHTML = `
                 <div class="widget-header">
                     <div class="widget-title">${sport}</div>
@@ -157,8 +217,12 @@ class SportsWidget {
             return;
         }
 
-        if (sport === "MLB") {
-            const presentation = this.renderMlbGame(game);
+        const renderer = this.rendererRegistry.get(
+            currentEvent.league
+        );
+
+        if (renderer) {
+            const presentation = renderer.render(currentEvent);
 
             this.element.innerHTML = `
                 <div class="widget-header">
@@ -174,151 +238,17 @@ class SportsWidget {
                     <span></span>
                 </div>
             `;
+            return;
         }
-    }
 
-    renderMlbGame(game) {
-        const statusState =
-            game.status?.state || "";
-        const statusDetail =
-            game.status?.detail || "";
-        const interrupted = this.isInterrupted(game);
-        const liveStatus =
-            this.formatInning(game.linescore?.inning);
-        const hasReachedScheduledStart =
-            this.hasReachedScheduledStart(game);
-        const hasGameStarted =
-            hasReachedScheduledStart &&
-            game.linescore?.inning?.number != null;
-        const showStats =
-            statusState === "Final" ||
-            hasGameStarted;
-        const status = interrupted
-            ? statusDetail
-            : statusState === "Scheduled"
-                ? game.scheduledTime || "—"
-                : statusState === "Live"
-                    ? hasGameStarted
-                        ? liveStatus
-                        : game.scheduledTime || "—"
-                    : statusState === "Final"
-                        ? "Final"
-                        : statusDetail || statusState;
-        const formatRecord = (record) => (
-            record?.wins != null &&
-            record?.losses != null
-                ? `(${record.wins}-${record.losses})`
-                : ""
-        );
-        const renderLogo = (team) => (
-            team.logo
-                ? `<span class="team-identity-logo"
-                    aria-hidden="true">
-                    <img class="team-identity-logo-image"
-                        src="${team.logo}" alt=""
-                        onerror="this.hidden=true">
-                </span>`
-                : `<span class="team-identity-logo"
-                    aria-hidden="true">—</span>`
-        );
-        const renderTeam = (team, position) => `
-            <span class="team-identity sports-scoreboard-team
-                sports-scoreboard-team-${position}">
-                ${renderLogo(team)}
-                <span class="team-identity-text">
-                    <span class="team-identity-name">
-                        ${team.name}
-                    </span>
-                    <span class="team-identity-record">
-                        ${formatRecord(team.record)}
-                    </span>
-                </span>
-            </span>
+        this.element.innerHTML = `
+            <div class="widget-header">
+                <div class="widget-title">${sport}</div>
+                <div class="widget-status">Unavailable</div>
+            </div>
+            <div class="widget-body">No Data</div>
+            <div class="widget-footer"><span>—</span></div>
         `;
-        const renderValue = (value) => `
-            <span class="sports-scoreboard-value">
-                ${value ?? "—"}
-            </span>
-        `;
-        const awayTeam = game.awayTeam || {};
-        const homeTeam = game.homeTeam || {};
-
-        return {
-            status,
-            content: `
-                <span class="sports-scoreboard">
-                    ${showStats ? `
-                        <span class="sports-scoreboard-corner"></span>
-                        <span class="sports-scoreboard-heading">R</span>
-                        <span class="sports-scoreboard-heading">H</span>
-                        <span class="sports-scoreboard-heading">E</span>
-                    ` : ""}
-                    ${renderTeam(awayTeam, "away")}
-                    ${showStats
-                        ? renderValue(awayTeam.runs) +
-                            renderValue(awayTeam.hits) +
-                            renderValue(awayTeam.errors)
-                        : ""}
-                    ${renderTeam(homeTeam, "home")}
-                    ${showStats
-                        ? renderValue(homeTeam.runs) +
-                            renderValue(homeTeam.hits) +
-                            renderValue(homeTeam.errors)
-                        : ""}
-                </span>`
-        };
-    }
-
-    hasReachedScheduledStart(game) {
-        const scheduledAt = Date.parse(
-            game.scheduledAt
-        );
-
-        if (!Number.isNaN(scheduledAt)) {
-            return Date.now() >= scheduledAt;
-        }
-
-        const timeMatch = String(
-            game.scheduledTime || ""
-        ).match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-
-        if (!timeMatch) return false;
-
-        const scheduledTime = new Date();
-        let hours = Number(timeMatch[1]) % 12;
-
-        if (timeMatch[3].toUpperCase() === "PM") {
-            hours += 12;
-        }
-
-        scheduledTime.setHours(
-            hours,
-            Number(timeMatch[2]),
-            0,
-            0
-        );
-
-        return Date.now() >= scheduledTime.getTime();
-    }
-
-    formatInning(inning = {}) {
-        const number = inning.number;
-
-        if (number == null) return "—";
-
-        const remainder = number % 100;
-        const suffix = remainder >= 11 && remainder <= 13
-            ? "th"
-            : number % 10 === 1
-                ? "st"
-                : number % 10 === 2
-                    ? "nd"
-                    : number % 10 === 3
-                        ? "rd"
-                        : "th";
-        const half = inning.half || "";
-
-        return `${half} ${number}${suffix}`.trim();
     }
 
 }
