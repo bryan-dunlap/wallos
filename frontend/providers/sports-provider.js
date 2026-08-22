@@ -173,7 +173,6 @@ class SportsProvider {
                 const error = new Error(
                     `Sports request failed: ${response.status}`
                 );
-                error.sport = scheduleData.sport;
                 throw error;
             }
 
@@ -190,7 +189,7 @@ class SportsProvider {
                 error
             );
 
-            this.publishUnavailableEvent(error.sport);
+            this.publishUnavailableEvent();
         }
     }
 
