@@ -59,15 +59,10 @@ class SportsWidget {
 
     applyEventState() {
         const payload = this.state.payload || {};
-        const games = Array.isArray(payload.games)
-            ? payload.games
-            : [];
-        const adapter = this.adapters.get(
-            String(payload.sport || "").toUpperCase()
+        const normalizedEvents = adaptSportsWidgetLeagueEvents(
+            getSportsWidgetPayloadLeagues(payload),
+            this.adapters
         );
-        const normalizedEvents = adapter
-            ? adapter.adaptGames(games)
-            : [];
         const configuredEvents = filterSportsWidgetEvents(
             normalizedEvents,
             this.widgetConfig
@@ -118,15 +113,6 @@ class SportsWidget {
         return this.configRequest;
     }
 
-    isLeagueAllowed(league) {
-        if (!this.widgetConfig.enabled) return false;
-        if (typeof league !== "string") return true;
-
-        return this.widgetConfig.leagues.has(
-            league.toUpperCase()
-        );
-    }
-
     startRotation() {
         this.stopRotation();
 
@@ -170,15 +156,17 @@ class SportsWidget {
             payload.availability === "loading";
         const isAvailable =
             payload.availability === "available";
-        const sport = payload.sport || "Sports";
-        const isLeagueAllowed = this.isLeagueAllowed(payload.sport);
+        const sport = currentEvent?.league || "Sports";
+        const hasSelectedLeagues =
+            this.widgetConfig.enabled &&
+            this.widgetConfig.leagues.size > 0;
         const status = isLoading
             ? "Loading"
             : !isAvailable
                 ? "Unavailable"
                 : "Idle";
 
-        if (!isLeagueAllowed) {
+        if (!hasSelectedLeagues) {
             this.element.innerHTML = `
                 <div class="widget-header">
                     <div class="widget-title">Sports</div>
@@ -214,8 +202,9 @@ class SportsWidget {
             return;
         }
 
-        const renderer = this.rendererRegistry.get(
-            currentEvent.league
+        const renderer = getSportsWidgetRenderer(
+            this.rendererRegistry,
+            currentEvent
         );
 
         if (renderer) {
@@ -248,4 +237,51 @@ class SportsWidget {
         `;
     }
 
+}
+
+function getSportsWidgetPayloadLeagues(payload = {}) {
+    if (Array.isArray(payload.leagues)) {
+        return payload.leagues;
+    }
+
+    return [{
+        league: payload.sport || "",
+        availability: payload.availability || "unavailable",
+        games: Array.isArray(payload.games) ? payload.games : []
+    }];
+}
+
+function adaptSportsWidgetLeagueEvents(leagues, adapters) {
+    if (!Array.isArray(leagues) || !(adapters instanceof Map)) {
+        return [];
+    }
+
+    return leagues.flatMap((entry) => {
+        if (entry?.availability !== "available") return [];
+
+        const league = String(entry.league || "")
+            .trim()
+            .toUpperCase();
+        const adapter = adapters.get(league);
+
+        return adapter && typeof adapter.adaptGames === "function"
+            ? adapter.adaptGames(
+                Array.isArray(entry.games) ? entry.games : []
+            )
+            : [];
+    });
+}
+
+function getSportsWidgetRenderer(registry, currentEvent) {
+    return currentEvent?.league && typeof registry?.get === "function"
+        ? registry.get(currentEvent.league)
+        : null;
+}
+
+if (typeof module !== "undefined" && module.exports) {
+    module.exports = {
+        adaptSportsWidgetLeagueEvents,
+        getSportsWidgetPayloadLeagues,
+        getSportsWidgetRenderer
+    };
 }

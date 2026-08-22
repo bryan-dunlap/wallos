@@ -177,15 +177,13 @@ class SportsProvider {
                 throw error;
             }
 
-            const games = Array.isArray(
-                scheduleData.sportsEvents
-            )
-                ? scheduleData.sportsEvents
-                : [];
-            this.publishSportsEvent(
-                scheduleData.sport || "MLB",
-                games
+            const leagues = normalizeSportsScheduleLeagues(
+                scheduleData,
+                (game, league) => league === "MLB"
+                    ? this.normalizeGame(game)
+                    : game
             );
+            this.publishSportsEvent(leagues);
         } catch (error) {
             console.error(
                 "Unable to load sports:",
@@ -196,20 +194,20 @@ class SportsProvider {
         }
     }
 
-    publishSportsEvent(sport, games) {
-        const normalizedGames = games.map(
-            (game) => this.normalizeGame(game)
+    publishSportsEvent(leagues) {
+        const gameCount = leagues.reduce(
+            (count, league) => count + league.games.length,
+            0
         );
         const event = createMosaicEvent({
             type: "sports",
             title: "Sports Update",
-            subtitle: normalizedGames.length === 1
-                ? "1 MLB game today"
-                : `${normalizedGames.length} MLB games today`,
+            subtitle: gameCount === 1
+                ? "1 game today"
+                : `${gameCount} games today`,
             source: "sports",
             payload: {
-                sport: sport || "MLB",
-                games: normalizedGames,
+                leagues,
                 availability: "available"
             }
         });
@@ -217,15 +215,14 @@ class SportsProvider {
         window.mosaicApp.eventBus.publish(event);
     }
 
-    publishUnavailableEvent(sport = "MLB") {
+    publishUnavailableEvent() {
         const event = createMosaicEvent({
             type: "sports",
             title: "Sports Update",
             subtitle: "Sports unavailable",
             source: "sports",
             payload: {
-                sport,
-                games: [],
+                leagues: [],
                 availability: "unavailable"
             }
         });
@@ -281,4 +278,46 @@ class SportsProvider {
         return `${year}-${month}-${day}`;
     }
 
+}
+
+function normalizeSportsScheduleLeagues(
+    scheduleData = {},
+    normalizeGame = (game) => game
+) {
+    const sourceLeagues = Array.isArray(scheduleData.leagues)
+        ? scheduleData.leagues
+        : [{
+            league: scheduleData.sport || "MLB",
+            availability: "available",
+            sportsEvents: Array.isArray(scheduleData.sportsEvents)
+                ? scheduleData.sportsEvents
+                : [],
+            updatedAt: scheduleData.updatedAt,
+            stale: scheduleData.stale === true
+        }];
+
+    return sourceLeagues
+        .filter((entry) =>
+            typeof entry?.league === "string" &&
+            entry.league.trim()
+        )
+        .map((entry) => {
+            const league = entry.league.trim().toUpperCase();
+
+            return {
+                league,
+                availability: entry.availability || "unavailable",
+                games: Array.isArray(entry.sportsEvents)
+                    ? entry.sportsEvents.map(
+                        (game) => normalizeGame(game, league)
+                    )
+                    : [],
+                updatedAt: entry.updatedAt || null,
+                stale: entry.stale === true
+            };
+        });
+}
+
+if (typeof module !== "undefined" && module.exports) {
+    module.exports = { normalizeSportsScheduleLeagues };
 }

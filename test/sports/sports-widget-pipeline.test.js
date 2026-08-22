@@ -23,6 +23,14 @@ const {
 const {
   MlbSportsWidgetRenderer
 } = require("../../frontend/sports/mlb-sports-widget-renderer");
+const {
+  normalizeSportsScheduleLeagues
+} = require("../../frontend/providers/sports-provider");
+const {
+  adaptSportsWidgetLeagueEvents,
+  getSportsWidgetPayloadLeagues,
+  getSportsWidgetRenderer
+} = require("../../frontend/widgets/sports-widget");
 
 function createLegacyMlbGame(overrides = {}) {
   return {
@@ -175,6 +183,137 @@ test("Sports Widget filtering safely handles future league events", () => {
   }), [futureEvent]);
 });
 
+test("SportsProvider maps aggregate MLB payloads and preserves metadata", () => {
+  const leagues = normalizeSportsScheduleLeagues({
+    leagues: [{
+      league: "mlb",
+      availability: "available",
+      sportsEvents: [createLegacyMlbGame()],
+      updatedAt: "2026-08-22T12:00:00.000Z",
+      stale: true
+    }]
+  }, (game) => ({ ...game, providerNormalized: true }));
+
+  assert.equal(leagues[0].league, "MLB");
+  assert.equal(leagues[0].games[0].providerNormalized, true);
+  assert.equal(leagues[0].availability, "available");
+  assert.equal(leagues[0].updatedAt, "2026-08-22T12:00:00.000Z");
+  assert.equal(leagues[0].stale, true);
+});
+
+test("SportsProvider treats an empty aggregate as authoritative", () => {
+  assert.deepEqual(normalizeSportsScheduleLeagues({
+    leagues: [],
+    sport: "MLB",
+    sportsEvents: [createLegacyMlbGame()]
+  }), []);
+});
+
+test("SportsProvider temporarily supports the legacy schedule shape", () => {
+  const leagues = normalizeSportsScheduleLeagues({
+    sport: "MLB",
+    sportsEvents: [createLegacyMlbGame()],
+    updatedAt: "2026-08-22T12:00:00.000Z",
+    stale: true
+  });
+
+  assert.equal(leagues.length, 1);
+  assert.equal(leagues[0].league, "MLB");
+  assert.equal(leagues[0].games.length, 1);
+  assert.equal(leagues[0].stale, true);
+});
+
+test("SportsWidget flattens available leagues in league and game order", () => {
+  const adapters = new Map([
+    ["MLB", {
+      adaptGames: (games) => games.map((game) => ({
+        league: "MLB",
+        id: game.id
+      }))
+    }],
+    ["NFL", {
+      adaptGames: (games) => games.map((game) => ({
+        league: "NFL",
+        id: game.id
+      }))
+    }]
+  ]);
+  const events = adaptSportsWidgetLeagueEvents([
+    {
+      league: "MLB",
+      availability: "available",
+      games: [{ id: "mlb-1" }, { id: "mlb-2" }]
+    },
+    {
+      league: "NFL",
+      availability: "available",
+      games: [{ id: "nfl-1" }]
+    }
+  ], adapters);
+
+  assert.deepEqual(events.map((event) => event.id), [
+    "mlb-1",
+    "mlb-2",
+    "nfl-1"
+  ]);
+});
+
+test("SportsWidget skips unsupported, unavailable, and missing adapters", () => {
+  const adapters = new Map([
+    ["MLB", { adaptGames: (games) => games }]
+  ]);
+  const events = adaptSportsWidgetLeagueEvents([
+    { league: "MLB", availability: "available", games: [{ id: 1 }] },
+    { league: "NFL", availability: "unsupported", games: [{ id: 2 }] },
+    { league: "NBA", availability: "unavailable", games: [{ id: 3 }] },
+    { league: "NHL", availability: "available", games: [{ id: 4 }] }
+  ], adapters);
+
+  assert.deepEqual(events, [{ id: 1 }]);
+});
+
+test("SportsWidget treats empty aggregate payloads as authoritative", () => {
+  assert.deepEqual(getSportsWidgetPayloadLeagues({
+    leagues: [],
+    sport: "MLB",
+    games: [createLegacyMlbGame()]
+  }), []);
+});
+
+test("SportsWidget temporarily supports legacy event payloads", () => {
+  const games = [createLegacyMlbGame()];
+  const leagues = getSportsWidgetPayloadLeagues({
+    sport: "MLB",
+    games,
+    availability: "available"
+  });
+
+  assert.deepEqual(leagues, [{
+    league: "MLB",
+    games,
+    availability: "available"
+  }]);
+});
+
+test("aggregate events continue through configuration filtering", () => {
+  const events = adaptSportsWidgetLeagueEvents([
+    {
+      league: "MLB",
+      availability: "available",
+      games: [createLegacyMlbGame()]
+    }
+  ], new Map([["MLB", new MlbSportsEventAdapter()]]));
+
+  assert.equal(filterSportsWidgetEvents(events, {
+    enabled: true,
+    leagues: ["MLB"]
+  }).length, 1);
+  assert.deepEqual(filterSportsWidgetEvents(events, {
+    enabled: true,
+    leagues: ["NFL"]
+  }), []);
+});
+
 test("renderer registry selects MLB without league logic in the queue", () => {
   const registry = new SportsWidgetRendererRegistry();
   const renderer = new MlbSportsWidgetRenderer();
@@ -183,6 +322,10 @@ test("renderer registry selects MLB without league logic in the queue", () => {
   assert.equal(registry.register("mlb", renderer), true);
   assert.equal(registry.get("MLB"), renderer);
   assert.equal(registry.get("NFL"), null);
+  assert.equal(
+    getSportsWidgetRenderer(registry, { league: "MLB" }),
+    renderer
+  );
 });
 
 test("MLB widget renderer preserves scoreboard presentation", () => {
