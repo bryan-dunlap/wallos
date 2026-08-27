@@ -722,6 +722,13 @@ button:focus-visible,
 }
 
 .discovery-zone .discovery-item-text {
+    max-height: 100%;
+    min-height: 0;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+
     padding: clamp(14px, 2.6vw, 38px);
 }
 
@@ -771,10 +778,11 @@ button:focus-visible,
 }
 
 .discovery-zone .discovery-text-body {
-    display: -webkit-box;
+    min-height: 0;
+
+    display: block;
+    flex: 0 1 auto;
     overflow: hidden;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 4;
 
     max-width: 980px;
     margin: 16px auto 0;
@@ -847,10 +855,11 @@ button:focus-visible,
 }
 
 .discovery-zone .discovery-image-body {
-    display: -webkit-box;
+    min-height: 0;
+
+    display: block;
+    flex: 0 1 auto;
     overflow: hidden;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 4;
 
     margin-top: 14px;
 
@@ -869,6 +878,12 @@ button:focus-visible,
 
     font-size: .75rem;
     letter-spacing: .18em;
+}
+
+.discovery-zone .discovery-source,
+.discovery-zone .discovery-headline,
+.discovery-zone .discovery-position {
+    flex-shrink: 0;
 }
 
 @keyframes discovery-fade-in {
