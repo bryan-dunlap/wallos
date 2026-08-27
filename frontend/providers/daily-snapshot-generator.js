@@ -1,6 +1,7 @@
 class DailySnapshotGenerator {
 
     constructor() {
+        this.maximumRestingRows = 3;
         this.profile = { name: "" };
         this.calendarFacts = null;
         this.sportsFacts = null;
@@ -69,7 +70,7 @@ class DailySnapshotGenerator {
     publishSnapshot() {
         const facts = this.getPlaceholderFacts();
         const now = new Date();
-        const snapshot = this.createSnapshot(facts, now);
+        const rows = this.createRestingRows(facts, now);
         const highlights = this.createRestingHighlights(now);
 
         window.mosaicApp.eventBus.publish({
@@ -90,9 +91,9 @@ class DailySnapshotGenerator {
                         now,
                         this.profile.name
                     ),
-                    summary: snapshot.summary,
-                    payload: highlights.length > 0
-                        ? { highlights }
+                    summary: "",
+                    payload: rows.length > 0 || highlights.length > 0
+                        ? { rows, highlights }
                         : null,
                     createdAt: now.toISOString(),
                     expiresAt: null
@@ -106,11 +107,95 @@ class DailySnapshotGenerator {
         const name = profileName.trim();
         let greeting;
 
-        if (hour < 12) greeting = "Good morning";
-        else if (hour < 18) greeting = "Good afternoon";
-        else greeting = "Good evening";
+        if (hour < 12) greeting = "Good Morning";
+        else if (hour < 18) greeting = "Good Afternoon";
+        else greeting = "Good Evening";
 
         return name ? `${greeting} ${name}` : greeting;
+    }
+
+    createRestingRows(facts, now = new Date()) {
+        const sportsText = this.createSportsSummary(
+            facts.sports,
+            this.getDayPeriod(now),
+            now
+        ).replace(/^Today: /, "");
+        const calendarLimit = this.maximumRestingRows -
+            (sportsText ? 1 : 0);
+        const calendarRows = this.createCalendarRows(
+            facts.calendar,
+            now
+        ).slice(0, calendarLimit);
+
+        if (sportsText) {
+            calendarRows.push({
+                type: "sports",
+                text: sportsText
+            });
+        }
+
+        return calendarRows;
+    }
+
+    createCalendarRows(calendar, now = new Date()) {
+        if (calendar?.status !== "available") return [];
+
+        const events = [
+            ...(Array.isArray(calendar.allDayEvents)
+                ? calendar.allDayEvents
+                : []),
+            ...(Array.isArray(calendar.timedEvents)
+                ? calendar.timedEvents
+                : [])
+        ];
+
+        return events
+            .filter((event) => this.isRemainingCalendarEvent(event, now))
+            .sort((first, second) =>
+                Date.parse(first.startTime) - Date.parse(second.startTime)
+            )
+            .map((event) => ({
+                type: "calendar",
+                text: this.formatCalendarEvent(event)
+            }))
+            .filter((row) => row.text);
+    }
+
+    isRemainingCalendarEvent(event, now) {
+        if (!event?.title) return false;
+        if (event.allDay === true) return true;
+
+        const end = Date.parse(event.endTime || event.startTime);
+
+        return Number.isFinite(end) && end >= now.getTime();
+    }
+
+    formatCalendarEvent(event) {
+        const title = typeof event?.title === "string"
+            ? event.title.trim()
+            : "";
+
+        if (!title || event.allDay === true) return title;
+
+        const start = new Date(event.startTime);
+
+        if (!Number.isFinite(start.getTime())) return title;
+
+        const time = new Intl.DateTimeFormat("en-US", {
+            hour: "numeric",
+            minute: "2-digit"
+        }).format(start);
+
+        return `${title} — ${time}`;
+    }
+
+    getDayPeriod(now) {
+        const hour = now.getHours();
+
+        if (hour < 12) return "morning";
+        if (hour < 18) return "afternoon";
+
+        return "evening";
     }
 
     createRestingHighlights(now) {

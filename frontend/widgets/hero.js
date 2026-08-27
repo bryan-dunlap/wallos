@@ -37,22 +37,55 @@ class MosaicHero {
 
 
     renderRestingTemplate(){
+        const rows = this.getRestingRows();
+        const legacySubtitle = rows.length === 0 && this.state.subtitle
+            ? `<div class="hero-subtitle">
+                    ${this.escape(this.state.subtitle)}
+                </div>`
+            : "";
+
         return `
 
             <div class="hero-resting">
                 <div class="hero-title">
-                    ${this.state.title}
+                    ${this.escape(this.state.title)}
                 </div>
 
-                <div class="hero-subtitle">
-                    ${this.state.subtitle}
-                </div>
+                ${legacySubtitle}
 
-                ${this.renderRestingHighlights()}
+                ${this.renderRestingRows(rows)}
+
+                ${rows.length === 0
+                    ? this.renderRestingHighlights()
+                    : ""}
             </div>
 
         `;
 
+    }
+
+
+    getRestingRows(){
+        return Array.isArray(this.state.payload?.rows)
+            ? this.state.payload.rows.slice(0, 3)
+            : [];
+    }
+
+
+    renderRestingRows(rows = this.getRestingRows()){
+        if (rows.length === 0) return "";
+
+        return `
+            <div class="hero-resting-rows">
+                ${rows.map((row) => `
+                    <div class="hero-resting-row hero-resting-row-${
+                        row.type === "sports" ? "sports" : "calendar"
+                    }">
+                        ${this.escape(row.text)}
+                    </div>
+                `).join("")}
+            </div>
+        `;
     }
 
 
@@ -72,10 +105,12 @@ class MosaicHero {
                     significant ? " is-significant" : ""
                 }">
                     <div class="hero-resting-highlight-title">
-                        ${significant ? "⚠ " : ""}${highlight.headline}
+                        ${significant ? "⚠ " : ""}${
+                            this.escape(highlight.headline)
+                        }
                     </div>
                     <div class="hero-resting-highlight-summary">
-                        ${highlight.summary}
+                        ${this.escape(highlight.summary)}
                     </div>
                 </div>
             `;
@@ -196,6 +231,16 @@ class MosaicHero {
             payload: candidate.payload ?? null
         };
 
+    }
+
+
+    escape(value){
+        return String(value ?? "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;");
     }
 
 
