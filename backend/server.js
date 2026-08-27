@@ -25,9 +25,7 @@ const {
   createPublicCalendarConfig
 } = require("./calendar/calendar-source-config");
 const {
-  LEGACY_REDDIT_FEED_URL,
   normalizeDiscoverySources,
-  normalizeDiscoverySourceAddress,
   createPublicDiscoveryConfig
 } = require("./discovery/discovery-source-config");
 const {
@@ -36,9 +34,6 @@ const {
 const {
   RssDiscoveryAdapter
 } = require("./discovery/rss-discovery-adapter");
-const {
-  parseRedditFeed
-} = require("./discovery/reddit-feed-parser");
 const {
   DiscoveryAggregator
 } = require("./discovery/discovery-aggregator");
@@ -122,10 +117,6 @@ const MLB_SCHEDULED_CACHE_MS = 5 * 60 * 1000;
 const MLB_FINAL_CACHE_MS = 6 * 60 * 60 * 1000;
 const MLB_PLAYER_SEASON_CACHE_MS = 30 * 60 * 1000;
 
-const REDDIT_FEED_URL = LEGACY_REDDIT_FEED_URL;
-
-const REDDIT_CACHE_MS = 15 * 60 * 1000;
-
 const DISPLAY_TIME_ZONE = "America/Los_Angeles";
 
 /* ==========================
@@ -145,11 +136,6 @@ let marinersCache = {
 
 const mlbDailyScheduleCache = new Map();
 const mlbPlayerSeasonStatsCache = new Map();
-
-let redditCache = {
-  timestamp: 0,
-  data: null
-};
 
 const discoverySourceAdapterRegistry =
   new DiscoverySourceAdapterRegistry();
@@ -2772,145 +2758,6 @@ function normalizeCalendarSourceId(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-app.post("/control/discovery-sources/add", async (req, res) => {
-  try {
-    const name = typeof req.body.discoverySourceName === "string"
-      ? req.body.discoverySourceName.trim()
-      : "";
-    const type = "rss";
-    const url = normalizeDiscoverySourceAddress(
-      req.body.discoverySourceUrl
-    );
-    const adapterMetadata = discoverySourceTypeMetadata.find(
-      (metadata) => metadata.type === type && metadata.userAddable
-    );
-
-    if (!name) {
-      return res.status(400).json({
-        error: "Discovery source nickname must not be empty."
-      });
-    }
-
-    if (
-      !adapterMetadata ||
-      !url
-    ) {
-      return res.status(400).json({
-        error: "Discovery source configuration is invalid."
-      });
-    }
-
-    const config = readConfig();
-
-    if (config.discovery.sources.some(
-      (source) => source.type === type && source.config.url === url
-    )) {
-      return res.status(400).json({
-        error: "That Discovery source is already configured."
-      });
-    }
-
-    const sources = normalizeDiscoverySources([
-      ...config.discovery.sources,
-      {
-        id: `discovery-${randomUUID()}`,
-        name,
-        type,
-        enabled: true,
-        config: { url }
-      }
-    ]);
-
-    await writeConfig({
-      ...config,
-      discovery: {
-        ...config.discovery,
-        sources
-      }
-    });
-    res.redirect(303, "/control");
-  } catch (error) {
-    console.error("Unable to add Discovery source.");
-    res.status(500).json({
-      error: "Discovery source could not be added."
-    });
-  }
-});
-
-app.post("/control/discovery-sources/toggle", async (req, res) => {
-  try {
-    const config = readConfig();
-    const sourceId = normalizeDiscoverySourceId(
-      req.body.discoverySourceId
-    );
-    const sourceExists = config.discovery.sources.some(
-      (source) => source.id === sourceId
-    );
-
-    if (!sourceExists) {
-      return res.status(400).json({
-        error: "Discovery source is invalid."
-      });
-    }
-
-    await writeConfig({
-      ...config,
-      discovery: {
-        ...config.discovery,
-        sources: config.discovery.sources.map((source) =>
-          source.id === sourceId
-            ? { ...source, enabled: !source.enabled }
-            : source
-        )
-      }
-    });
-    res.redirect(303, "/control");
-  } catch (error) {
-    console.error("Unable to update Discovery source.");
-    res.status(500).json({
-      error: "Discovery source could not be updated."
-    });
-  }
-});
-
-app.post("/control/discovery-sources/remove", async (req, res) => {
-  try {
-    const config = readConfig();
-    const sourceId = normalizeDiscoverySourceId(
-      req.body.discoverySourceId
-    );
-    const source = config.discovery.sources.find(
-      (configuredSource) => configuredSource.id === sourceId
-    );
-
-    if (!source) {
-      return res.status(400).json({
-        error: "Discovery source is invalid."
-      });
-    }
-
-    await writeConfig({
-      ...config,
-      discovery: {
-        ...config.discovery,
-        sources: config.discovery.sources.filter(
-          (configuredSource) => configuredSource.id !== sourceId
-        )
-      }
-    });
-    res.redirect(303, "/control");
-  } catch (error) {
-    console.error("Unable to remove Discovery source.");
-    res.status(500).json({
-      error: "Discovery source could not be removed."
-    });
-  }
-});
-
-function normalizeDiscoverySourceId(value) {
-  return typeof value === "string" ? value.trim() : "";
-}
-
 app.get("/api/config", (req, res) => {
   const config = readConfig();
 
@@ -3841,78 +3688,6 @@ app.get("/api/sports/mlb/sea", async (req, res) => {
     });
   }
 });
-
-/* ==========================
-   Reddit RSS API
-========================== */
-
-app.get("/api/reddit", async (req, res) => {
-  try {
-    await loadRedditPosts();
-    res.json(redditCache.data);
-  } catch (error) {
-    console.error("Reddit RSS error:", error);
-
-    if (redditCache.data) {
-      return res.json({
-        ...redditCache.data,
-        stale: true
-      });
-    }
-
-    res.status(500).json({
-      error:
-        "Reddit content is temporarily unavailable."
-    });
-  }
-});
-
-async function loadRedditPosts() {
-  const cacheIsValid =
-    redditCache.data &&
-    Date.now() - redditCache.timestamp < REDDIT_CACHE_MS;
-
-  if (cacheIsValid) {
-    return redditCache.data.posts;
-  }
-
-  try {
-    const redditResponse = await fetch(REDDIT_FEED_URL, {
-      headers: {
-        "User-Agent": "ProjectMosaic/0.1 RaspberryPiDashboard",
-        Accept: "application/atom+xml, application/xml, text/xml"
-      }
-    });
-
-    if (!redditResponse.ok) {
-      throw new Error("Reddit RSS request failed.");
-    }
-
-    const xml = await redditResponse.text();
-    const posts = parseRedditFeed(xml);
-
-    if (posts.length === 0) {
-      throw new Error("Reddit RSS feed returned no usable posts.");
-    }
-
-    redditCache = {
-      timestamp: Date.now(),
-      data: {
-        feed: REDDIT_FEED_URL,
-        posts,
-        updatedAt: new Date().toISOString()
-      }
-    };
-
-    return posts;
-  } catch (error) {
-    if (redditCache.data?.posts?.length) {
-      return redditCache.data.posts;
-    }
-
-    throw error;
-  }
-}
 
 /* ==========================
    Discovery Aggregation API

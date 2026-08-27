@@ -3,10 +3,27 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const {
+  app,
   resolveDiscoverySourceDraft
 } = require("../../backend/server");
 
 const PROJECT_ROOT = path.join(__dirname, "..", "..");
+
+test("legacy Discovery and Reddit routes are absent", () => {
+  const routes = app.router.stack
+    .filter((layer) => layer.route)
+    .flatMap((layer) => Object.keys(layer.route.methods).map(
+      (method) => `${method.toUpperCase()} ${layer.route.path}`
+    ));
+
+  assert.doesNotMatch(routes.join("\n"), /GET \/api\/reddit/);
+  assert.doesNotMatch(
+    routes.join("\n"),
+    /POST \/control\/discovery-sources\/(add|toggle|remove)/
+  );
+  assert.ok(routes.includes("POST /control"));
+  assert.ok(routes.includes("GET /api/discovery"));
+});
 
 test("a migrated Reddit-derived source is removable and is not restored", () => {
   const configuredSources = [{
@@ -175,8 +192,17 @@ test("Discovery source edits remain a local draft until Save Changes", () => {
     /data-add-discovery-source>Add<\/button>/
   );
   assert.match(serverSource, /draft\.push\(source\)/);
+  assert.match(serverSource, /draft\[sourceIndex\] = source/);
+  assert.match(
+    serverSource,
+    /draft\[sourceIndex\]\.enabled =[\s\S]*draft\[sourceIndex\]\.enabled === false/
+  );
   assert.match(serverSource, /draft\.splice\(sourceIndex, 1\)/);
   assert.match(serverSource, /markUnsaved\(\)/);
+  assert.doesNotMatch(
+    serverSource,
+    /app\.post\("\/control\/discovery-sources\//
+  );
 });
 
 test("generic Discovery status copy contains no Reddit assumption", () => {

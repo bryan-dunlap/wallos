@@ -146,6 +146,5 @@ function hashIdentity(value) {
 
 module.exports = {
   isRedditFeedUrl,
-  parseRedditDiscoveryFeed,
-  parseRedditFeed
+  parseRedditDiscoveryFeed
 };
