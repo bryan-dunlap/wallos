@@ -41,6 +41,7 @@ test("Sports scoreboards share an explicit three-row vertical shell", () => {
   const teamRecord = ruleFor(".team-identity-record");
   const sportsTeam = ruleFor(".sports-widget-team");
   const scoreValue = ruleFor(".sports-scoreboard-value");
+  const mlbScoreboard = ruleFor(".mlb-widget-scoreboard");
   const scoreboards = ruleFor(
     ".mlb-widget-scoreboard,\n.nfl-widget-scoreboard,\n" +
       ".sports-widget-scheduled-scoreboard"
@@ -71,11 +72,15 @@ test("Sports scoreboards share an explicit three-row vertical shell", () => {
   );
   assert.match(
     sportsWidget,
+    /--sports-scoreboard-inline-inset:\s*12px\s*;/
+  );
+  assert.match(
+    sportsWidget,
     /--sports-widget-team-name-size:\s*1\.55rem\s*;/
   );
   assert.match(
     sportsWidget,
-    /--sports-widget-team-record-size:\s*\.68rem\s*;/
+    /--sports-widget-team-record-size:\s*\.85rem\s*;/
   );
   assert.match(
     teamLogo,
@@ -94,6 +99,12 @@ test("Sports scoreboards share an explicit three-row vertical shell", () => {
     /font-size:\s*var\(--sports-widget-team-record-size\)\s*;/
   );
   assert.match(scoreValue, /font-size:\s*1\.55rem\s*;/);
+  assert.match(mlbScoreboard, /column-gap:\s*18px\s*;/);
+  assert.match(scoreboards, /box-sizing:\s*border-box\s*;/);
+  assert.match(
+    scoreboards,
+    /padding-inline:\s*var\(--sports-scoreboard-inline-inset\)\s*;/
+  );
   assert.match(
     scoreboards,
     /grid-template-rows:\s*var\(--sports-scoreboard-heading-height\)\s*repeat\(2, var\(--sports-scoreboard-team-row-height\)\)\s*;/

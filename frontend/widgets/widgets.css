@@ -148,7 +148,7 @@
 .sports-widget {
 
     --sports-widget-team-name-size: 1.55rem;
-    --sports-widget-team-record-size: .68rem;
+    --sports-widget-team-record-size: .85rem;
     --sports-widget-team-row-gap: 6px;
     --sports-widget-team-record-gap: 5px;
     --sports-widget-logo-size: 40px;
@@ -156,6 +156,7 @@
     --sports-scoreboard-team-row-height: 36px;
     --sports-scoreboard-heading-height: .75rem;
     --sports-scoreboard-row-gap: 8px;
+    --sports-scoreboard-inline-inset: 12px;
 
     display: flex;
 
@@ -358,6 +359,10 @@
 .nfl-widget-scoreboard,
 .sports-widget-scheduled-scoreboard {
 
+    box-sizing: border-box;
+
+    padding-inline: var(--sports-scoreboard-inline-inset);
+
     grid-template-rows:
         var(--sports-scoreboard-heading-height)
         repeat(2, var(--sports-scoreboard-team-row-height));
@@ -375,7 +380,7 @@
 
     width: 100%;
 
-    column-gap: 12px;
+    column-gap: 18px;
 
     font-size: 1rem;
 
