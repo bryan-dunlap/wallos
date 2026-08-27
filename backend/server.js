@@ -265,7 +265,9 @@ function normalizeFavoriteTeams(sportsConfig) {
     seenTeamIds.add(team.id);
     favorites.push({
       id: team.id,
+      abbreviation: team.abbreviation,
       name: team.name,
+      shortName: team.shortName,
       league: team.league,
       sport: team.sport,
       ...(team.renderer ? { renderer: team.renderer } : {}),

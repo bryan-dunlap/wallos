@@ -286,10 +286,17 @@ class DailySnapshotGenerator {
     createSportsSummary(sports, period, now) {
         const game = sports?.game;
         const startTime = new Date(game?.startTime);
+        const teamName = [
+            sports?.favoriteTeam?.shortName,
+            sports?.favoriteTeam?.name,
+            sports?.favoriteTeam?.abbreviation
+        ].find((value) =>
+            typeof value === "string" && value.trim()
+        )?.trim();
 
         if (
             sports?.status !== "available" ||
-            !sports.favoriteTeam?.name ||
+            !teamName ||
             !Number.isFinite(startTime.getTime()) ||
             !this.isSameLocalDay(startTime, now)
         ) {
@@ -305,11 +312,6 @@ class DailySnapshotGenerator {
         if (game?.status !== "scheduled") {
             return "";
         }
-
-        const teamName = sports.favoriteTeam.name
-            .trim()
-            .split(/\s+/)
-            .at(-1);
 
         const time = new Intl.DateTimeFormat("en-US", {
             hour: "numeric",

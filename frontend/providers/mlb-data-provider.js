@@ -308,7 +308,9 @@ class MlbDataProvider {
     normalizeFavoriteTeam(favoriteTeam) {
         return {
             id: favoriteTeam.id,
+            abbreviation: favoriteTeam.abbreviation,
             name: favoriteTeam.name,
+            shortName: favoriteTeam.shortName,
             league: favoriteTeam.league,
             sport: favoriteTeam.sport,
             renderer: favoriteTeam.renderer,

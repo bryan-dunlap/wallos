@@ -83,16 +83,8 @@ class SportsProvider {
             };
         } catch (error) {
             return {
-                enabled: true,
-                favoriteTeam: {
-                    id: "SEA",
-                    name: "Seattle Mariners",
-                    league: "MLB",
-                    sport: "baseball",
-                    renderer: "baseball-gamecast",
-                    providerId: 136,
-                    logo: "https://www.mlbstatic.com/team-logos/136.svg"
-                }
+                enabled: false,
+                favoriteTeam: null
             };
         }
     }
