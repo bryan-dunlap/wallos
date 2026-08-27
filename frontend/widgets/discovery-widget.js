@@ -4,6 +4,9 @@ class DiscoveryWidget {
         this.element = null;
         this.unsubscribe = null;
         this.imageResizeObserver = null;
+        this.bodyResizeObserver = null;
+        this.bodyResizeHandler = null;
+        this.bodyLayoutFrame = null;
         this.failedImageItemIds = new Set();
         this.renderers = new Map([
             ["text", (item, position) =>
@@ -30,6 +33,7 @@ class DiscoveryWidget {
 
     unmount() {
         this.disconnectImageResizeObserver();
+        this.disconnectBodyLineClipping();
 
         if (this.unsubscribe) {
             this.unsubscribe();
@@ -52,6 +56,7 @@ class DiscoveryWidget {
         if (!this.element) return;
 
         this.disconnectImageResizeObserver();
+        this.disconnectBodyLineClipping();
 
         if (
             this.state.status === "available" &&
@@ -62,6 +67,7 @@ class DiscoveryWidget {
                 this.state.position
             );
             this.bindImageFallback();
+            this.bindBodyLineClipping();
             return;
         }
 
@@ -229,6 +235,100 @@ class DiscoveryWidget {
 
         this.imageResizeObserver.disconnect();
         this.imageResizeObserver = null;
+    }
+
+    calculateVisibleBodyHeight(allocatedHeight, lineHeight) {
+        if (
+            !Number.isFinite(allocatedHeight) ||
+            !Number.isFinite(lineHeight) ||
+            allocatedHeight <= 0 ||
+            lineHeight <= 0
+        ) {
+            return 0;
+        }
+
+        return Math.floor(allocatedHeight / lineHeight) * lineHeight;
+    }
+
+    bindBodyLineClipping() {
+        const bodies = Array.from(this.element?.querySelectorAll(
+            ".discovery-text-body, .discovery-image-body"
+        ) || []);
+
+        if (bodies.length === 0) return;
+
+        const applyWholeLineHeights = () => {
+            this.bodyLayoutFrame = null;
+
+            bodies.forEach((body) => {
+                body.style.maxHeight = "";
+
+                const allocatedHeight = body.getBoundingClientRect().height;
+                const lineHeight = Number.parseFloat(
+                    window.getComputedStyle(body).lineHeight
+                );
+
+                if (
+                    !Number.isFinite(lineHeight) ||
+                    body.scrollHeight <= allocatedHeight + 0.5
+                ) {
+                    return;
+                }
+
+                const visibleHeight = this.calculateVisibleBodyHeight(
+                    allocatedHeight,
+                    lineHeight
+                );
+                body.style.maxHeight = visibleHeight + "px";
+            });
+        };
+
+        const scheduleWholeLineHeights = () => {
+            if (this.bodyLayoutFrame !== null) return;
+
+            this.bodyLayoutFrame = window.requestAnimationFrame(
+                applyWholeLineHeights
+            );
+        };
+
+        scheduleWholeLineHeights();
+
+        if (typeof ResizeObserver === "function") {
+            this.bodyResizeObserver = new ResizeObserver(
+                scheduleWholeLineHeights
+            );
+            this.bodyResizeObserver.observe(this.element);
+        } else {
+            this.bodyResizeHandler = scheduleWholeLineHeights;
+            window.addEventListener("resize", this.bodyResizeHandler);
+        }
+
+        const renderedElement = this.element;
+
+        if (document.fonts?.ready) {
+            document.fonts.ready.then(() => {
+                if (this.element === renderedElement) {
+                    scheduleWholeLineHeights();
+                }
+            });
+        }
+    }
+
+    disconnectBodyLineClipping() {
+        if (this.bodyResizeObserver) {
+            this.bodyResizeObserver.disconnect();
+            this.bodyResizeObserver = null;
+        }
+
+        if (this.bodyResizeHandler) {
+            window.removeEventListener("resize", this.bodyResizeHandler);
+            this.bodyResizeHandler = null;
+        }
+
+        if (this.bodyLayoutFrame !== null) {
+            window.cancelAnimationFrame(this.bodyLayoutFrame);
+            this.bodyLayoutFrame = null;
+        }
     }
 
     renderStatus(eyebrow, title) {
