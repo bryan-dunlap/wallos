@@ -781,7 +781,7 @@ button:focus-visible,
     min-height: 0;
 
     display: block;
-    flex: 0 1 auto;
+    flex: 1 1 auto;
     overflow: hidden;
 
     max-width: 980px;
@@ -858,7 +858,7 @@ button:focus-visible,
     min-height: 0;
 
     display: block;
-    flex: 0 1 auto;
+    flex: 1 1 auto;
     overflow: hidden;
 
     margin-top: 14px;
