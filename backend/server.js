@@ -327,7 +327,11 @@ function resolveCalendarSourceDraft(value, configuredSources) {
     seenIds.add(id);
     const configuredSource = configuredById.get(id);
 
-    if (configuredSource) {
+    if (
+      configuredSource &&
+      (typeof entry?.name !== "string" ||
+        typeof entry?.url !== "string")
+    ) {
       return {
         ...configuredSource,
         enabled: entry.enabled !== false
@@ -642,17 +646,15 @@ app.get("/control", (req, res) => {
     sportsSimulationProfiles
   ).replace(/</g, "\\u003c");
   const calendarSourceDraft = JSON.stringify(
-    config.calendar.sources.map((source) => ({
-      id: source.id,
-      enabled: source.enabled
-    }))
+    config.calendar.sources
   );
   const calendarSourceRows = config.calendar.sources
     .map((source) => `
         <li class="item-row" data-calendar-source-row data-source-id="${escapeHtml(source.id)}">
-          <span class="item-copy"><strong><span class="status-dot${source.enabled ? " is-enabled" : ""}"></span>${escapeHtml(source.name)}</strong><small>${source.enabled ? "Enabled" : "Disabled"}</small></span>
+          <span class="item-copy"><strong><span class="status-dot${source.enabled ? " is-enabled" : ""}"></span><span data-calendar-source-name>${escapeHtml(source.name)}</span></strong><small>${source.enabled ? "Enabled" : "Disabled"}</small><span class="source-address">${escapeHtml(source.url)}</span></span>
           <span data-calendar-source-actions>
             <button class="button button-quiet" type="button" data-toggle-calendar-source>${source.enabled ? "Disable" : "Enable"}</button>
+            <button class="button button-quiet" type="button" data-edit-calendar-source>Edit</button>
             <button class="button button-quiet" type="button" data-remove-calendar-source>Remove</button>
           </span>
           <div class="inline-confirmation" data-calendar-source-confirmation hidden>
@@ -963,11 +965,11 @@ app.get("/control", (req, res) => {
           </div>
           <div class="settings-content" id="calendar-settings" data-feature-content${config.calendar.enabled ? "" : " hidden"}>
             <input id="calendar-provider" name="calendarProvider" type="hidden" value="${escapeHtml(config.calendar.provider)}">
-            <h4 class="subsection-title">Add Calendar Source</h4>
+            <h4 class="subsection-title" data-calendar-source-editor-title>Add Source</h4>
             <div class="inline-form">
               <div class="field"><label for="calendar-source-name">Nickname</label><input id="calendar-source-name" name="calendarSourceName" type="text" placeholder="Personal"></div>
               <div class="field"><label for="calendar-source-url">iCal address</label><input id="calendar-source-url" name="calendarSourceUrl" type="url" placeholder="https://calendar.example.com/feed.ics"></div>
-              <button class="button button-secondary" type="button" data-add-calendar-source>Add</button>
+              <div class="button-row"><button class="button button-secondary" type="button" data-add-calendar-source>Add</button><button class="button button-quiet" type="button" data-cancel-calendar-source-edit hidden>Cancel Edit</button></div>
             </div>
             <h4 class="subsection-title">Configured Sources</h4>
             <ul class="item-list" data-calendar-source-list>
@@ -1888,10 +1890,17 @@ app.get("/control", (req, res) => {
       const addButton = document.querySelector(
         "[data-add-calendar-source]"
       );
+      const cancelEditButton = document.querySelector(
+        "[data-cancel-calendar-source-edit]"
+      );
+      const editorTitle = document.querySelector(
+        "[data-calendar-source-editor-title]"
+      );
       const saveStatus = document.querySelector(
         "[data-save-status]"
       );
       let draft = [];
+      let editingSourceId = null;
 
       if (
         !list ||
@@ -1899,7 +1908,9 @@ app.get("/control", (req, res) => {
         !draftField ||
         !nameInput ||
         !urlInput ||
-        !addButton
+        !addButton ||
+        !cancelEditButton ||
+        !editorTitle
       ) return;
 
       try {
@@ -1915,6 +1926,29 @@ app.get("/control", (req, res) => {
       const syncDraft = () => {
         draftField.value = JSON.stringify(draft);
         emptyState.hidden = draft.length > 0;
+      };
+
+      const resetEditor = () => {
+        editingSourceId = null;
+        nameInput.value = "";
+        urlInput.value = "";
+        nameInput.setCustomValidity("");
+        urlInput.setCustomValidity("");
+        editorTitle.textContent = "Add Source";
+        addButton.textContent = "Add";
+        cancelEditButton.hidden = true;
+      };
+
+      const beginEdit = (source) => {
+        editingSourceId = source.id;
+        nameInput.value = source.name;
+        urlInput.value = source.url;
+        nameInput.setCustomValidity("");
+        urlInput.setCustomValidity("");
+        editorTitle.textContent = "Edit Source";
+        addButton.textContent = "Update";
+        cancelEditButton.hidden = false;
+        nameInput.focus();
       };
 
       const createSourceId = () => {
@@ -1942,10 +1976,16 @@ app.get("/control", (req, res) => {
         const name = document.createElement("strong");
         const dot = document.createElement("span");
         dot.className = "status-dot is-enabled";
-        name.append(dot, document.createTextNode(source.name));
+        const nameText = document.createElement("span");
+        nameText.dataset.calendarSourceName = "";
+        nameText.textContent = source.name;
+        name.append(dot, nameText);
         const status = document.createElement("small");
         status.textContent = "Enabled";
-        copy.append(name, status);
+        const address = document.createElement("span");
+        address.className = "source-address";
+        address.textContent = source.url;
+        copy.append(name, status, address);
 
         const actions = document.createElement("span");
         actions.dataset.calendarSourceActions = "";
@@ -1954,12 +1994,17 @@ app.get("/control", (req, res) => {
         toggle.type = "button";
         toggle.dataset.toggleCalendarSource = "";
         toggle.textContent = "Disable";
+        const edit = document.createElement("button");
+        edit.className = "button button-quiet";
+        edit.type = "button";
+        edit.dataset.editCalendarSource = "";
+        edit.textContent = "Edit";
         const remove = document.createElement("button");
         remove.className = "button button-quiet";
         remove.type = "button";
         remove.dataset.removeCalendarSource = "";
         remove.textContent = "Remove";
-        actions.append(toggle, remove);
+        actions.append(toggle, edit, remove);
 
         const confirmation = document.createElement("div");
         confirmation.className = "inline-confirmation";
@@ -1993,22 +2038,34 @@ app.get("/control", (req, res) => {
         return row;
       };
 
-      const updateSourceRow = (row, enabled) => {
+      const updateSourceRow = (row, source) => {
         row.querySelector(".status-dot")?.classList.toggle(
           "is-enabled",
-          enabled
+          source.enabled
+        );
+        const name = row.querySelector(
+          "[data-calendar-source-name]"
         );
         const status = row.querySelector(".item-copy small");
+        const address = row.querySelector(".source-address");
         const toggle = row.querySelector(
           "[data-toggle-calendar-source]"
         );
 
-        if (status) status.textContent = enabled
+        if (name) name.textContent = source.name;
+        if (status) status.textContent = source.enabled
           ? "Enabled"
           : "Disabled";
-        if (toggle) toggle.textContent = enabled
+        if (address) address.textContent = source.url;
+        if (toggle) toggle.textContent = source.enabled
           ? "Disable"
           : "Enable";
+        const confirmationName = row.querySelector(
+          "[data-calendar-source-confirmation] strong"
+        );
+        if (confirmationName) {
+          confirmationName.textContent = "Remove " + source.name + "?";
+        }
       };
 
       addButton.addEventListener("click", () => {
@@ -2029,7 +2086,8 @@ app.get("/control", (req, res) => {
             parsedUrl.protocol
           );
         const duplicateUrl = draft.some(
-          (source) => source.url === url
+          (source) =>
+            source.id !== editingSourceId && source.url === url
         );
         urlInput.setCustomValidity(
           !url
@@ -2045,18 +2103,44 @@ app.get("/control", (req, res) => {
           return;
         }
 
-        const source = {
-          id: createSourceId(),
-          name,
-          enabled: true,
-          url
-        };
         const hadSources = draft.length > 0;
 
-        draft.push(source);
-        list.insertBefore(createSourceRow(source), emptyState);
-        nameInput.value = "";
-        urlInput.value = "";
+        if (editingSourceId) {
+          const sourceIndex = draft.findIndex(
+            (source) => source.id === editingSourceId
+          );
+
+          if (sourceIndex < 0) {
+            resetEditor();
+            return;
+          }
+
+          const source = {
+            ...draft[sourceIndex],
+            name,
+            url
+          };
+          draft[sourceIndex] = source;
+          const row = Array.from(list.querySelectorAll(
+            "[data-calendar-source-row]"
+          )).find((candidate) =>
+            candidate.dataset.sourceId === editingSourceId
+          );
+
+          if (row) updateSourceRow(row, source);
+        } else {
+          const source = {
+            id: createSourceId(),
+            name,
+            enabled: true,
+            url
+          };
+
+          draft.push(source);
+          list.insertBefore(createSourceRow(source), emptyState);
+        }
+
+        resetEditor();
 
         if (!hadSources && providerField) {
           providerField.value = "ical";
@@ -2065,6 +2149,8 @@ app.get("/control", (req, res) => {
         syncDraft();
         markUnsaved();
       });
+
+      cancelEditButton.addEventListener("click", resetEditor);
 
       list.addEventListener("click", (event) => {
         const row = event.target.closest(
@@ -2089,9 +2175,13 @@ app.get("/control", (req, res) => {
         if (event.target.closest("[data-toggle-calendar-source]")) {
           draft[sourceIndex].enabled =
             draft[sourceIndex].enabled === false;
-          updateSourceRow(row, draft[sourceIndex].enabled);
+          updateSourceRow(row, draft[sourceIndex]);
           syncDraft();
           markUnsaved();
+        } else if (event.target.closest(
+          "[data-edit-calendar-source]"
+        )) {
+          beginEdit(draft[sourceIndex]);
         } else if (event.target.closest("[data-remove-calendar-source]")) {
           actions.hidden = true;
           confirmation.hidden = false;
@@ -2103,6 +2193,9 @@ app.get("/control", (req, res) => {
         } else if (event.target.closest(
           "[data-confirm-calendar-source-removal]"
         )) {
+          if (editingSourceId === draft[sourceIndex].id) {
+            resetEditor();
+          }
           draft.splice(sourceIndex, 1);
           row.remove();
           syncDraft();
@@ -3740,6 +3833,7 @@ module.exports = {
   acquireSportsWidgetLeagues,
   buildSportsWidgetAcquisitionResponse,
   mlbDailyScheduleCache,
+  resolveCalendarSourceDraft,
   resolveDiscoverySourceDraft,
   resolveSportsDate,
   sportsWidgetAcquisitionRegistry
