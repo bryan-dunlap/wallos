@@ -40,7 +40,8 @@ const {
 const {
   adaptSportsWidgetLeagueEvents,
   getSportsWidgetPayloadLeagues,
-  getSportsWidgetRenderer
+  getSportsWidgetRenderer,
+  normalizeSportsWidgetConfig
 } = require("../../frontend/widgets/sports-widget");
 
 function createLegacyMlbGame(overrides = {}) {
@@ -359,6 +360,22 @@ test("SportsWidget temporarily supports legacy event payloads", () => {
   }]);
 });
 
+test("SportsWidget configuration has no transient MLB default", () => {
+  const initial = normalizeSportsWidgetConfig(null, false);
+  const missingLeagues = normalizeSportsWidgetConfig({ enabled: true });
+  const nflOnly = normalizeSportsWidgetConfig({
+    enabled: true,
+    leagues: ["NFL"]
+  });
+
+  assert.equal(initial.available, false);
+  assert.equal(initial.enabled, false);
+  assert.deepEqual([...initial.leagues], []);
+  assert.deepEqual([...missingLeagues.leagues], []);
+  assert.deepEqual([...nflOnly.leagues], ["NFL"]);
+  assert.equal(nflOnly.leagues.has("MLB"), false);
+});
+
 test("aggregate events continue through configuration filtering", () => {
   const events = adaptSportsWidgetLeagueEvents([
     {
@@ -432,11 +449,25 @@ test("MLB widget renderer uses shared compact team identities", () => {
   assert.match(presentation.content, /Mariners\s*<\/span>\s*<span class="team-identity-record">\s*\(70-58\)/);
   assert.match(presentation.content, /Angels\s*<\/span>\s*<span class="team-identity-record">\s*\(60-68\)/);
   assert.match(presentation.content, /sports-scoreboard-heading">R/);
-  assert.match(presentation.content, /sports-scoreboard-team-away/);
-  assert.match(presentation.content, /sports-scoreboard-team-home/);
+  assert.doesNotMatch(
+    presentation.content,
+    /sports-widget-scheduled-scoreboard/
+  );
+  assert.match(presentation.content, /mlb-widget-team-away/);
+  assert.match(presentation.content, /mlb-widget-team-home/);
   assert.equal(scheduled.status, "11:10 AM");
+  assert.match(
+    scheduled.content,
+    /sports-widget-scheduled-scoreboard/
+  );
+  assert.match(scheduled.content, /sports-widget-team-away/);
+  assert.match(scheduled.content, /sports-widget-team-home/);
   assert.doesNotMatch(scheduled.content, /team-identity-record/);
   assert.equal(final.status, "Final");
+  assert.doesNotMatch(
+    final.content,
+    /sports-widget-scheduled-scoreboard/
+  );
   assert.match(final.content, /sports-scoreboard-heading">R/);
 });
 
@@ -512,12 +543,21 @@ test("NFL renderer supports scheduled, live fallback, overtime, and final", () =
   const final = renderer.render(finalEvent);
 
   assert.equal(scheduled.status, "7:10 PM");
+  assert.match(scheduled.content, /sports-widget-scheduled-scoreboard/);
+  assert.doesNotMatch(
+    scheduled.content,
+    /nfl-widget-scoreboard-with-quarters/
+  );
   assert.doesNotMatch(scheduled.content, /team-identity-record/);
   assert.equal(live.status, "Q1 08:42");
+  assert.doesNotMatch(live.content, /sports-widget-scheduled-scoreboard/);
+  assert.match(live.content, /nfl-widget-scoreboard-with-quarters/);
   assert.match(live.content, />\s*Q1\s*</);
   assert.match(live.content, />\s*TOT\s*</);
   assert.equal(overtime.status, "OT 07:22");
   assert.equal(final.status, "Final");
+  assert.doesNotMatch(final.content, /sports-widget-scheduled-scoreboard/);
+  assert.match(final.content, /nfl-widget-scoreboard-with-quarters/);
   assert.match(final.content, />\s*Seahawks\s*</);
   assert.doesNotMatch(final.content, /Seattle Seahawks/);
   assert.match(
@@ -533,6 +573,46 @@ test("NFL renderer supports scheduled, live fallback, overtime, and final", () =
   assert.match(final.content, />\s*30\s*</);
   assert.match(final.content, />\s*Q1\s*</);
   assert.match(final.content, />\s*TOT\s*</);
+});
+
+test("MLB and NFL scheduled games use the identical shared presentation", () => {
+  const mlbEvent = new MlbSportsEventAdapter().adaptGame(
+    createLegacyMlbGame({
+      scheduledAt: "2099-08-22T18:10:00.000Z",
+      status: { state: "Scheduled", detail: "Scheduled" }
+    })
+  );
+  const nflEvent = new NflSportsEventAdapter().adaptGame(
+    createNflFixture("scheduled")
+  );
+  const participants = {
+    away: {
+      name: "Seattle Mariners",
+      logo: "https://example.com/away.svg",
+      record: { wins: 70, losses: 58 }
+    },
+    home: {
+      name: "Los Angeles Angels",
+      logo: "https://example.com/home.svg",
+      record: "60-68"
+    }
+  };
+
+  mlbEvent.participants = participants;
+  nflEvent.participants = participants;
+
+  const mlb = new MlbSportsWidgetRenderer().render(mlbEvent);
+  const nfl = new NflSportsWidgetRenderer().render(nflEvent);
+
+  assert.equal(mlb.content, nfl.content);
+  assert.match(mlb.content, /sports-widget-scheduled-scoreboard/);
+  assert.match(mlb.content, /sports-widget-team-away/);
+  assert.match(mlb.content, /sports-widget-team-home/);
+  assert.match(mlb.content, /team-identity-logo-image/);
+  assert.match(mlb.content, /team-identity-name/);
+  assert.match(mlb.content, /team-identity-record/);
+  assert.doesNotMatch(mlb.content, /mlb-widget-scoreboard/);
+  assert.doesNotMatch(mlb.content, /nfl-widget-scoreboard/);
 });
 
 test("NFL renderer registers through the existing league registry", () => {

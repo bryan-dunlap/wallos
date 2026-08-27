@@ -1,0 +1,129 @@
+{
+  "events": [
+    {
+      "id": "401772510",
+      "date": "2026-09-13T20:25:00Z",
+      "status": {
+        "period": 0,
+        "clock": 0,
+        "displayClock": "0:00",
+        "type": {
+          "name": "STATUS_SCHEDULED",
+          "state": "pre",
+          "description": "Scheduled",
+          "detail": "Sun, September 13th at 1:25 PM PDT",
+          "shortDetail": "9/13 - 1:25 PM PDT"
+        }
+      },
+      "competitions": [
+        {
+          "id": "401772510",
+          "date": "2026-09-13T20:25:00Z",
+          "venue": { "id": "3900", "fullName": "Levi's Stadium" },
+          "competitors": [
+            {
+              "id": "25",
+              "homeAway": "home",
+              "score": "0",
+              "team": {
+                "id": "25",
+                "abbreviation": "SF",
+                "displayName": "San Francisco 49ers",
+                "shortDisplayName": "49ers",
+                "name": "49ers",
+                "logo": "https://a.espncdn.com/i/teamlogos/nfl/500/sf.png"
+              },
+              "records": [{ "type": "total", "summary": "0-0" }],
+              "linescores": []
+            },
+            {
+              "id": "26",
+              "homeAway": "away",
+              "score": "0",
+              "team": {
+                "id": "26",
+                "abbreviation": "SEA",
+                "displayName": "Seattle Seahawks",
+                "shortDisplayName": "Seahawks",
+                "name": "Seahawks",
+                "logo": "https://a.espncdn.com/i/teamlogos/nfl/500/sea.png"
+              },
+              "records": [{ "type": "total", "summary": "0-0" }],
+              "linescores": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401772511",
+      "date": "2026-09-13T17:00:00Z",
+      "status": {
+        "period": 2,
+        "clock": 0,
+        "displayClock": "0:00",
+        "type": {
+          "name": "STATUS_HALFTIME",
+          "state": "in",
+          "description": "Halftime",
+          "detail": "Halftime",
+          "shortDetail": "Halftime"
+        }
+      },
+      "competitions": [
+        {
+          "id": "401772511",
+          "date": "2026-09-13T17:00:00Z",
+          "competitors": [
+            {
+              "homeAway": "away",
+              "score": "10",
+              "team": { "id": "21", "abbreviation": "PHI", "displayName": "Philadelphia Eagles", "shortDisplayName": "Eagles", "logo": "https://a.espncdn.com/i/teamlogos/nfl/500/phi.png" },
+              "records": [{ "type": "total", "summary": "1-0" }],
+              "linescores": [{ "period": 1, "value": 7 }, { "period": 2, "value": 3 }]
+            },
+            {
+              "homeAway": "home",
+              "score": "7",
+              "team": { "id": "6", "abbreviation": "DAL", "displayName": "Dallas Cowboys", "shortDisplayName": "Cowboys", "logo": "https://a.espncdn.com/i/teamlogos/nfl/500/dal.png" },
+              "records": [{ "type": "total", "summary": "0-1" }],
+              "linescores": [{ "period": 1, "value": 0 }, { "period": 2, "value": 7 }]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401772512",
+      "date": "2026-09-13T00:00:00Z",
+      "status": {
+        "period": 5,
+        "clock": 0,
+        "displayClock": "0:00",
+        "type": { "name": "STATUS_FINAL_OVERTIME", "state": "post", "description": "Final/OT", "detail": "Final/OT", "shortDetail": "Final/OT" }
+      },
+      "competitions": [
+        {
+          "id": "401772512",
+          "date": "2026-09-13T00:00:00Z",
+          "competitors": [
+            {
+              "homeAway": "away",
+              "score": "30",
+              "team": { "id": "23", "abbreviation": "PIT", "displayName": "Pittsburgh Steelers", "shortDisplayName": "Steelers", "logo": "https://a.espncdn.com/i/teamlogos/nfl/500/pit.png" },
+              "records": [{ "type": "total", "summary": "1-0" }],
+              "linescores": [{ "period": 1, "value": 7 }, { "period": 2, "value": 3 }, { "period": 3, "value": 7 }, { "period": 4, "value": 7 }, { "period": 5, "value": 6 }]
+            },
+            {
+              "homeAway": "home",
+              "score": "27",
+              "team": { "id": "33", "abbreviation": "BAL", "displayName": "Baltimore Ravens", "shortDisplayName": "Ravens", "logo": "https://a.espncdn.com/i/teamlogos/nfl/500/bal.png" },
+              "records": [{ "type": "total", "summary": "0-1" }],
+              "linescores": [{ "period": 1, "value": 3 }, { "period": 2, "value": 7 }, { "period": 3, "value": 7 }, { "period": 4, "value": 10 }, { "period": 5, "value": 0 }]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

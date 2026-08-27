@@ -1,3 +1,9 @@
+const sharedNflScheduledPresenter =
+    typeof sportsWidgetScheduledPresenter !== "undefined"
+        ? sportsWidgetScheduledPresenter
+        : require("./sports-widget-scheduled-presenter")
+            .sportsWidgetScheduledPresenter;
+
 class NflSportsWidgetRenderer {
 
     render(event) {
@@ -6,11 +12,13 @@ class NflSportsWidgetRenderer {
 
         return {
             status: this.formatStatus(event, football),
-            content: this.renderScoreboard(
-                event,
-                football,
-                showQuarterScoring
-            )
+            content: event.status === "scheduled"
+                ? sharedNflScheduledPresenter.render(event)
+                : this.renderScoreboard(
+                    event,
+                    football,
+                    showQuarterScoring
+                )
         };
     }
 
@@ -52,7 +60,8 @@ class NflSportsWidgetRenderer {
         const record = this.formatRecord(team.record);
 
         return `
-            <span class="team-identity sports-widget-team nfl-widget-team
+            <span class="team-identity sports-widget-team
+                sports-widget-team-${position} nfl-widget-team
                 nfl-widget-team-${position}">
                 ${this.renderLogo(team)}
                 <span class="team-identity-text">

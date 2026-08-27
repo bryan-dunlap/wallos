@@ -147,9 +147,19 @@
 
 .sports-widget {
 
-    --sports-widget-team-name-size: 1.45rem;
-    --sports-widget-team-record-size: .65rem;
+    --sports-widget-team-name-size: 1.55rem;
+    --sports-widget-team-record-size: .68rem;
     --sports-widget-team-row-gap: 6px;
+    --sports-widget-team-record-gap: 5px;
+    --sports-widget-logo-size: 40px;
+    --sports-widget-logo-fallback-size: 1.55rem;
+    --sports-scoreboard-team-row-height: 36px;
+    --sports-scoreboard-heading-height: .75rem;
+    --sports-scoreboard-row-gap: 8px;
+
+    display: flex;
+
+    flex-direction: column;
 
     grid-column: 2;
 
@@ -163,6 +173,15 @@
 /* ==========================
    Sports Widget
 ========================== */
+
+.sports-widget > .widget-body {
+
+    flex: 1 1 auto;
+
+    min-height: 0;
+
+}
+
 
 .sports-matchup-layout {
 
@@ -208,16 +227,18 @@
 
 .team-identity-logo {
 
-    width: 36px;
-    height: 36px;
+    width: var(--sports-widget-logo-size);
+    height: var(--sports-widget-logo-size);
 
-    flex: 0 0 36px;
+    flex: 0 0 var(--sports-widget-logo-size);
 
     display: inline-flex;
 
     align-items: center;
 
     justify-content: center;
+
+    font-size: var(--sports-widget-logo-fallback-size);
 
     overflow: visible;
 
@@ -274,7 +295,7 @@
 
     align-items: baseline;
 
-    gap: 5px;
+    gap: var(--sports-widget-team-record-gap);
 
     overflow: hidden;
 
@@ -322,12 +343,31 @@
 
     font-weight: 700;
 
+    text-align: left;
+
+    text-overflow: ellipsis;
+
     text-transform: uppercase;
+
+    white-space: nowrap;
 
 }
 
 
-.sports-scoreboard {
+.mlb-widget-scoreboard,
+.nfl-widget-scoreboard,
+.sports-widget-scheduled-scoreboard {
+
+    grid-template-rows:
+        var(--sports-scoreboard-heading-height)
+        repeat(2, var(--sports-scoreboard-team-row-height));
+
+    row-gap: var(--sports-scoreboard-row-gap);
+
+}
+
+
+.mlb-widget-scoreboard {
 
     display: grid;
 
@@ -337,8 +377,6 @@
 
     column-gap: 12px;
 
-    row-gap: 8px;
-
     font-size: 1rem;
 
     margin-inline: auto;
@@ -346,7 +384,7 @@
 }
 
 
-.sports-scoreboard-team-away {
+.mlb-widget-team-away {
 
     grid-column: 1;
 
@@ -355,7 +393,7 @@
 }
 
 
-.sports-scoreboard-team-home {
+.mlb-widget-team-home {
 
     grid-column: 1;
 
@@ -372,18 +410,9 @@
 
     font-weight: 600;
 
+    line-height: var(--sports-scoreboard-heading-height);
+
     text-align: center;
-
-}
-
-
-.sports-scoreboard-team {
-
-    white-space: nowrap;
-
-    text-align: left;
-
-    text-overflow: ellipsis;
 
 }
 
@@ -394,7 +423,7 @@
 
     font-family: "Outfit", sans-serif;
 
-    font-size: 1.45rem;
+    font-size: 1.55rem;
 
     font-variant-numeric: tabular-nums;
 
@@ -416,8 +445,6 @@
 
     column-gap: 9px;
 
-    row-gap: 6px;
-
     margin-inline: auto;
 
 }
@@ -428,21 +455,27 @@
 
 }
 
-.nfl-widget-team {
+.sports-widget-scheduled-scoreboard {
 
-    min-width: 0;
+    display: grid;
+
+    grid-template-columns: minmax(0, 1fr);
+
+    width: 100%;
+
+    margin-inline: auto;
 
 }
 
-.nfl-widget-team .team-identity-text {
+.sports-widget-scheduled-scoreboard .sports-widget-team-away {
 
-    flex-direction: row;
+    grid-row: 2;
 
-    align-items: baseline;
+}
 
-    gap: 5px;
+.sports-widget-scheduled-scoreboard .sports-widget-team-home {
 
-    line-height: normal;
+    grid-row: 3;
 
 }
 

@@ -3,6 +3,24 @@ const MLB_FACT_REQUESTS_IN_FLIGHT = new Map();
 class MlbDataProvider {
 
     async getScheduleFacts(favoriteTeam, date) {
+        return this.getFacts(
+            favoriteTeam,
+            date,
+            "schedule",
+            "/api/sports/mlb"
+        );
+    }
+
+    async getGamecastFacts(favoriteTeam, date) {
+        return this.getFacts(
+            favoriteTeam,
+            date,
+            "gamecast",
+            "/api/sports/mlb/gamecast"
+        );
+    }
+
+    async getFacts(favoriteTeam, date, source, endpoint) {
         if (
             !favoriteTeam?.id ||
             favoriteTeam.league !== "MLB"
@@ -10,14 +28,18 @@ class MlbDataProvider {
             return this.createUnavailableFacts(favoriteTeam);
         }
 
-        const requestKey = `${favoriteTeam.id}:${date}`;
+        const requestKey = `${source}:${favoriteTeam.id}:${date}`;
         const existingRequest = MLB_FACT_REQUESTS_IN_FLIGHT.get(
             requestKey
         );
 
         if (existingRequest) return existingRequest;
 
-        const request = this.fetchScheduleFacts(favoriteTeam, date)
+        const request = this.fetchScheduleFacts(
+            favoriteTeam,
+            date,
+            endpoint
+        )
             .finally(() => {
                 if (
                     MLB_FACT_REQUESTS_IN_FLIGHT.get(requestKey) ===
@@ -32,9 +54,13 @@ class MlbDataProvider {
         return request;
     }
 
-    async fetchScheduleFacts(favoriteTeam, date) {
+    async fetchScheduleFacts(
+        favoriteTeam,
+        date,
+        endpoint = "/api/sports/mlb"
+    ) {
         const response = await fetch(
-            `/api/sports/mlb?date=${encodeURIComponent(date)}`
+            `${endpoint}?date=${encodeURIComponent(date)}`
         );
         const schedule = await response.json();
 

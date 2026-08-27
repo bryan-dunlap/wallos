@@ -116,7 +116,7 @@ class MlbGamecastProvider {
             return;
         }
 
-        this.refreshInFlight = this.mlbDataProvider.getScheduleFacts(
+        this.refreshInFlight = this.mlbDataProvider.getGamecastFacts(
             this.favoriteTeam,
             this.getDateKey(new Date())
         );

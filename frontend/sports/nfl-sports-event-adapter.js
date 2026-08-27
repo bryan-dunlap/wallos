@@ -14,7 +14,7 @@ class NflSportsEventAdapter {
     }
 
     adaptGame(game) {
-        if (this.isCancelled(game) || !this.hasUsableMatchup(game)) {
+        if (!this.hasUsableMatchup(game)) {
             return null;
         }
 
@@ -73,29 +73,30 @@ class NflSportsEventAdapter {
     }
 
     normalizeStatus(status) {
-        const normalizedStatus = String(status || "").toLowerCase();
+        const normalizedStatus = String(status || "")
+            .trim()
+            .toLowerCase();
 
         if (
             normalizedStatus === "scheduled" ||
             normalizedStatus === "preview" ||
-            normalizedStatus === "pregame"
+            normalizedStatus === "pregame" ||
+            normalizedStatus === "postponed" ||
+            normalizedStatus === "delayed"
         ) {
             return "scheduled";
         }
 
-        if (normalizedStatus === "live") return "live";
+        if (
+            normalizedStatus === "live" ||
+            normalizedStatus === "in_progress"
+        ) {
+            return "live";
+        }
+
         if (normalizedStatus === "final") return "final";
 
         return "unknown";
-    }
-
-    isCancelled(game) {
-        const status = [
-            game.status?.state,
-            game.status?.detail
-        ].filter(Boolean).join(" ");
-
-        return /cancelled|canceled/i.test(status);
     }
 
     hasUsableMatchup(game) {

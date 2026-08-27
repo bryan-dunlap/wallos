@@ -1,3 +1,9 @@
+const sharedMlbScheduledPresenter =
+    typeof sportsWidgetScheduledPresenter !== "undefined"
+        ? sportsWidgetScheduledPresenter
+        : require("./sports-widget-scheduled-presenter")
+            .sportsWidgetScheduledPresenter;
+
 class MlbSportsWidgetRenderer {
 
     render(event) {
@@ -26,7 +32,9 @@ class MlbSportsWidgetRenderer {
 
         return {
             status,
-            content: this.renderScoreboard(event, baseball, showStats)
+            content: event.status === "scheduled"
+                ? sharedMlbScheduledPresenter.render(event)
+                : this.renderScoreboard(event, baseball, showStats)
         };
     }
 
@@ -34,11 +42,10 @@ class MlbSportsWidgetRenderer {
         const awayTeam = event.participants.away;
         const homeTeam = event.participants.home;
         const teamStats = baseball.teamStats || {};
-
         return `
-            <span class="sports-scoreboard">
+            <span class="mlb-widget-scoreboard">
                 ${showStats ? `
-                    <span class="sports-scoreboard-corner"></span>
+                    <span class="mlb-widget-scoreboard-corner"></span>
                     <span class="sports-scoreboard-heading">R</span>
                     <span class="sports-scoreboard-heading">H</span>
                     <span class="sports-scoreboard-heading">E</span>
@@ -62,8 +69,9 @@ class MlbSportsWidgetRenderer {
         const record = this.formatRecord(team.record);
 
         return `
-            <span class="team-identity sports-widget-team sports-scoreboard-team
-                sports-scoreboard-team-${position}">
+            <span class="team-identity sports-widget-team
+                sports-widget-team-${position} mlb-widget-team
+                mlb-widget-team-${position}">
                 ${this.renderLogo(team)}
                 <span class="team-identity-text">
                     <span class="team-identity-name">

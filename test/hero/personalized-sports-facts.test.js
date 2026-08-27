@@ -217,3 +217,38 @@ test("MLB facts retain short-name metadata and live game behavior", () => {
     { away: 3, home: 2, favoriteTeam: 3, opponent: 2 }
   );
 });
+
+test("normal MLB facts and active Gamecast use separate source routes", async () => {
+  const requests = [];
+  const { Class: MlbDataProvider } = loadClass(
+    "frontend/providers/mlb-data-provider.js",
+    "MlbDataProvider",
+    {
+      Map,
+      fetch: async (url) => {
+        requests.push(url);
+        return {
+          ok: true,
+          json: async () => ({ sportsEvents: [] })
+        };
+      }
+    }
+  );
+  const provider = new MlbDataProvider();
+  const favoriteTeam = {
+    id: "SEA",
+    abbreviation: "SEA",
+    name: "Seattle Mariners",
+    shortName: "Mariners",
+    league: "MLB",
+    sport: "baseball"
+  };
+
+  await provider.getScheduleFacts(favoriteTeam, "2026-08-27");
+  await provider.getGamecastFacts(favoriteTeam, "2026-08-27");
+
+  assert.deepEqual(requests, [
+    "/api/sports/mlb?date=2026-08-27",
+    "/api/sports/mlb/gamecast?date=2026-08-27"
+  ]);
+});

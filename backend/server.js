@@ -7,6 +7,13 @@ const {
   getSportsTeam
 } = require("./sports-team-registry");
 const {
+  acquireNflDailySchedule
+} = require("./sports/nfl-sports-acquirer");
+const {
+  acquireMlbDailySchedule,
+  mlbDailyScheduleCache
+} = require("./sports/mlb-espn-acquirer");
+const {
   sportsSimulationProfileRegistry
 } = require(
   "../frontend/providers/sports-simulation-profile-registry"
@@ -134,7 +141,7 @@ let marinersCache = {
   data: null
 };
 
-const mlbDailyScheduleCache = new Map();
+const mlbGamecastScheduleCache = new Map();
 const mlbPlayerSeasonStatsCache = new Map();
 
 const discoverySourceAdapterRegistry =
@@ -3405,9 +3412,9 @@ app.get("/api/weather", async (req, res) => {
    MLB Daily Schedule API
 ========================== */
 
-async function acquireMlbDailySchedule(requestedDate) {
+async function acquireMlbGamecastSchedule(requestedDate) {
   const cachedSchedule =
-    mlbDailyScheduleCache.get(requestedDate);
+    mlbGamecastScheduleCache.get(requestedDate);
 
   try {
     const cacheIsValid =
@@ -3462,7 +3469,7 @@ async function acquireMlbDailySchedule(requestedDate) {
       updatedAt: new Date().toISOString()
     };
 
-    mlbDailyScheduleCache.set(requestedDate, {
+    mlbGamecastScheduleCache.set(requestedDate, {
       timestamp: Date.now(),
       ttl: getMlbScheduleCacheTtl(sportsEvents),
       data: responseData
@@ -3505,6 +3512,24 @@ async function handleMlbDailySchedule(req, res) {
   }
 }
 
+async function handleMlbGamecastSchedule(req, res) {
+  const requestedDate = resolveSportsDate(req.query.date);
+
+  if (!requestedDate) {
+    return res.status(400).json({
+      error: "Date must use YYYY-MM-DD format."
+    });
+  }
+
+  try {
+    res.json(await acquireMlbGamecastSchedule(requestedDate));
+  } catch (error) {
+    res.status(500).json({
+      error: "MLB Gamecast is temporarily unavailable."
+    });
+  }
+}
+
 function resolveSportsDate(queryDate) {
   const requestedDate = typeof queryDate === "string"
     ? queryDate
@@ -3519,6 +3544,10 @@ const sportsWidgetAcquisitionRegistry = new Map([
   ["MLB", {
     id: "MLB",
     acquire: acquireMlbDailySchedule
+  }],
+  ["NFL", {
+    id: "NFL",
+    acquire: acquireNflDailySchedule
   }]
 ]);
 
@@ -3641,6 +3670,7 @@ app.get("/api/sports", async (req, res) => {
 });
 
 app.get("/api/sports/mlb", handleMlbDailySchedule);
+app.get("/api/sports/mlb/gamecast", handleMlbGamecastSchedule);
 
 /* ==========================
    Mariners Schedule API
@@ -3831,10 +3861,12 @@ if (require.main === module) {
 module.exports = {
   app,
   acquireMlbDailySchedule,
+  acquireMlbGamecastSchedule,
   acquireSportsWidgetLeague,
   acquireSportsWidgetLeagues,
   buildSportsWidgetAcquisitionResponse,
   mlbDailyScheduleCache,
+  mlbGamecastScheduleCache,
   resolveCalendarSourceDraft,
   resolveDiscoverySourceDraft,
   resolveSportsDate,

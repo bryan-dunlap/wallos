@@ -19,10 +19,7 @@ class SportsWidget {
         this.rotationTimer = null;
         this.unsubscribe = null;
         this.configRequest = null;
-        this.widgetConfig = {
-            enabled: true,
-            leagues: new Set(["MLB"])
-        };
+        this.widgetConfig = normalizeSportsWidgetConfig(null, false);
     }
 
     mount(element) {
@@ -94,14 +91,15 @@ class SportsWidget {
                 const widgetConfig = config.sports?.widget;
                 const leagues = Array.isArray(widgetConfig?.leagues)
                     ? widgetConfig.leagues
-                    : ["MLB"];
+                    : [];
 
-                this.widgetConfig = {
-                    enabled: widgetConfig?.enabled !== false,
-                    leagues: new Set(leagues)
-                };
+                this.widgetConfig = normalizeSportsWidgetConfig({
+                    ...widgetConfig,
+                    leagues
+                });
             })
             .catch((error) => {
+                this.widgetConfig = normalizeSportsWidgetConfig(null, false);
                 console.error(
                     "Unable to load Sports Widget configuration:",
                     error
@@ -166,6 +164,18 @@ class SportsWidget {
             : !isAvailable
                 ? "Unavailable"
                 : "Idle";
+
+        if (!this.widgetConfig.available) {
+            this.element.innerHTML = `
+                <div class="widget-header">
+                    <div class="widget-title">Sports</div>
+                    <div class="widget-status">Unavailable</div>
+                </div>
+                <div class="widget-body">No Data</div>
+                <div class="widget-footer"><span>—</span></div>
+            `;
+            return;
+        }
 
         if (!hasSelectedLeagues) {
             this.element.innerHTML = `
@@ -240,6 +250,18 @@ class SportsWidget {
 
 }
 
+function normalizeSportsWidgetConfig(widgetConfig, available = true) {
+    const leagues = Array.isArray(widgetConfig?.leagues)
+        ? widgetConfig.leagues
+        : [];
+
+    return {
+        available,
+        enabled: available && widgetConfig?.enabled !== false,
+        leagues: new Set(leagues)
+    };
+}
+
 function getSportsWidgetPayloadLeagues(payload = {}) {
     if (Array.isArray(payload.leagues)) {
         return payload.leagues;
@@ -283,6 +305,7 @@ if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         adaptSportsWidgetLeagueEvents,
         getSportsWidgetPayloadLeagues,
-        getSportsWidgetRenderer
+        getSportsWidgetRenderer,
+        normalizeSportsWidgetConfig
     };
 }
