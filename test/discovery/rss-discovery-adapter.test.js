@@ -77,3 +77,35 @@ test("a temporary source failure returns its last-known-good items", async () =>
 
   assert.deepEqual(stale, initial);
 });
+
+test("Reddit RSS uses generic acquisition with subreddit enrichment", async () => {
+  const redditSource = {
+    id: "baseball-reddit",
+    name: "Baseball Reddit",
+    type: "rss",
+    enabled: true,
+    config: {
+      url: "https://www.reddit.com/r/baseball/.rss"
+    }
+  };
+  const redditFeed = `
+    <feed><entry>
+      <title>Baseball discovery</title>
+      <link rel="alternate" href="https://www.reddit.com/r/baseball/comments/1/post" />
+      <content>&lt;div class="md"&gt;A useful baseball description.&lt;/div&gt;</content>
+    </entry></feed>`;
+  const adapter = new RssDiscoveryAdapter({
+    fetchImpl: async () => ({
+      ok: true,
+      headers: new Headers(),
+      text: async () => redditFeed
+    })
+  });
+  const [item] = await adapter.getItems(redditSource);
+
+  assert.equal(adapter.type, "rss");
+  assert.equal(item.source, "reddit");
+  assert.equal(item.eyebrow, "r/baseball");
+  assert.equal(item.title, "Baseball discovery");
+  assert.equal(item.body, "A useful baseball description.");
+});

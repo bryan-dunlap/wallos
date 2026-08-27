@@ -25,19 +25,20 @@ const {
   createPublicCalendarConfig
 } = require("./calendar/calendar-source-config");
 const {
+  LEGACY_REDDIT_FEED_URL,
   normalizeDiscoverySources,
-  normalizeFeedUrl,
+  normalizeDiscoverySourceAddress,
   createPublicDiscoveryConfig
 } = require("./discovery/discovery-source-config");
 const {
   DiscoverySourceAdapterRegistry
 } = require("./discovery/discovery-source-adapter-registry");
 const {
-  RedditDiscoveryAdapter
-} = require("./discovery/reddit-discovery-adapter");
-const {
   RssDiscoveryAdapter
 } = require("./discovery/rss-discovery-adapter");
+const {
+  parseRedditFeed
+} = require("./discovery/reddit-feed-parser");
 const {
   DiscoveryAggregator
 } = require("./discovery/discovery-aggregator");
@@ -98,7 +99,7 @@ const DEFAULT_CONFIG = {
   },
   discovery: {
     enabled: true,
-    sources: normalizeDiscoverySources()
+    sources: []
   }
 };
 const SUPPORTED_LEAGUES = ["MLB", "NFL", "NBA", "NHL"];
@@ -121,8 +122,7 @@ const MLB_SCHEDULED_CACHE_MS = 5 * 60 * 1000;
 const MLB_FINAL_CACHE_MS = 6 * 60 * 60 * 1000;
 const MLB_PLAYER_SEASON_CACHE_MS = 30 * 60 * 1000;
 
-const REDDIT_FEED_URL =
-  "https://www.reddit.com/r/news+nottheonion+WeirdNews+OutOFTheLoop+onthisday/.rss?sort=hot";
+const REDDIT_FEED_URL = LEGACY_REDDIT_FEED_URL;
 
 const REDDIT_CACHE_MS = 15 * 60 * 1000;
 
@@ -153,9 +153,6 @@ let redditCache = {
 
 const discoverySourceAdapterRegistry =
   new DiscoverySourceAdapterRegistry();
-discoverySourceAdapterRegistry.register(
-  new RedditDiscoveryAdapter({ loadPosts: loadRedditPosts })
-);
 discoverySourceAdapterRegistry.register(
   new RssDiscoveryAdapter()
 );
@@ -397,7 +394,10 @@ function resolveDiscoverySourceDraft(value, configuredSources) {
     seenIds.add(id);
     const configuredSource = configuredById.get(id);
 
-    if (configuredSource) {
+    if (
+      configuredSource &&
+      (typeof entry?.name !== "string" || !entry?.config)
+    ) {
       return {
         ...configuredSource,
         enabled: entry.enabled !== false
@@ -684,17 +684,8 @@ app.get("/control", (req, res) => {
       metadata.name
     ])
   );
-  const discoverySourceTypeOptions = discoverySourceTypeMetadata
-    .filter((metadata) => metadata.userAddable)
-    .map((metadata) =>
-      `<option value="${escapeHtml(metadata.type)}">${escapeHtml(metadata.name)}</option>`
-    )
-    .join("");
   const discoverySourceDraft = JSON.stringify(
-    config.discovery.sources.map((source) => ({
-      id: source.id,
-      enabled: source.enabled
-    }))
+    config.discovery.sources
   );
   const discoverySourceRows = config.discovery.sources
     .map((source) => {
@@ -706,12 +697,14 @@ app.get("/control", (req, res) => {
         const sourceKind = escapeHtml(
           discoveryTypeLabels.get(source.type) || source.type
         );
+        const sourceUrl = source.config?.url || "";
 
         return `
         <li class="item-row" data-discovery-source-row data-source-id="${escapeHtml(source.id)}" data-source-removable="${canRemove}">
-          <span class="item-copy"><strong><span class="status-dot${source.enabled ? " is-enabled" : ""}"></span>${escapeHtml(source.name)}</strong><small>${sourceKind} · ${sourceStatus}${canRemove ? "" : " · Built-in"}</small></span>
+          <span class="item-copy"><strong><span class="status-dot${source.enabled ? " is-enabled" : ""}"></span><span data-discovery-source-name>${escapeHtml(source.name)}</span></strong><small>${sourceKind} · ${sourceStatus}${canRemove ? "" : " · Built-in"}</small><span class="source-address">${escapeHtml(sourceUrl)}</span></span>
           <span data-discovery-source-actions>
             <button class="button button-quiet" type="button" data-toggle-discovery-source>${source.enabled ? "Disable" : "Enable"}</button>
+            <button class="button button-quiet" type="button" data-edit-discovery-source>Edit</button>
             ${canRemove ? "<button class=\"button button-quiet\" type=\"button\" data-remove-discovery-source>Remove</button>" : ""}
           </span>
           ${canRemove ? `
@@ -783,6 +776,7 @@ app.get("/control", (req, res) => {
     .item-copy { display: grid; gap: 3px; min-width: 0; }
     .item-copy strong { overflow: hidden; text-overflow: ellipsis; }
     .item-copy small { color: #64748b; }
+    .source-address { min-width: 0; color: #526174; font-size: .78rem; line-height: 1.4; overflow-wrap: anywhere; }
     [data-calendar-source-actions], [data-discovery-source-actions] { display: flex; gap: 6px; }
     .status-dot { display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: #94a3b8; }
     .status-dot.is-enabled { background: #16a34a; box-shadow: 0 0 0 3px rgba(22, 163, 74, .12); }
@@ -802,7 +796,7 @@ app.get("/control", (req, res) => {
     .button-danger { color: #fff; background: #b42318; }
     .button:disabled { cursor: not-allowed; opacity: .5; }
     .inline-form { display: grid; grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr) auto; gap: 10px; align-items: end; }
-    .discovery-source-form { grid-template-columns: minmax(0, .65fr) var(--control-selector-width) minmax(0, 1.3fr) auto; }
+    .discovery-source-form { grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr) auto; }
     .inline-confirmation { grid-column: 1 / -1; padding: 14px; border-left: 3px solid #b42318; border-radius: 8px; background: #fff1f0; }
     .inline-confirmation p { margin: 5px 0 12px; color: #7f1d1d; font-size: .88rem; }
     .developer-card { background: linear-gradient(150deg, rgba(193, 208, 220, .82), rgba(173, 193, 209, .72)); }
@@ -1050,12 +1044,11 @@ app.get("/control", (req, res) => {
             <label class="switch"><input id="discovery-enabled" name="discoveryEnabled" type="checkbox" value="true" data-feature-toggle aria-label="Enable Discovery" aria-controls="discovery-settings"${config.discovery.enabled ? " checked" : ""}><span class="switch-track"></span><span class="switch-state"></span></label>
           </div>
           <div class="settings-content" id="discovery-settings" data-feature-content${config.discovery.enabled ? "" : " hidden"}>
-            <h4 class="subsection-title">Add Source</h4>
+            <h4 class="subsection-title" data-discovery-source-editor-title>Add Source</h4>
             <div class="inline-form discovery-source-form">
               <div class="field"><label for="discovery-source-name">Nickname</label><input id="discovery-source-name" name="discoverySourceName" type="text" placeholder="Technology News"></div>
-              <div class="field"><label for="discovery-source-type">Source type</label><select id="discovery-source-type" name="discoverySourceType">${discoverySourceTypeOptions}</select></div>
-              <div class="field"><label for="discovery-source-url">Feed address</label><input id="discovery-source-url" name="discoverySourceUrl" type="url" placeholder="https://example.com/feed.xml"></div>
-              <button class="button button-secondary" type="button" data-add-discovery-source>Add</button>
+              <div class="field"><label for="discovery-source-url">Feed Address</label><input id="discovery-source-url" name="discoverySourceUrl" type="text" inputmode="url" placeholder="Feed URL or r/subreddit"></div>
+              <div class="button-row"><button class="button button-secondary" type="button" data-add-discovery-source>Add</button><button class="button button-quiet" type="button" data-cancel-discovery-source-edit hidden>Cancel Edit</button></div>
             </div>
             <h4 class="subsection-title">Configured Sources</h4>
             <ul class="item-list" data-discovery-source-list>
@@ -2147,28 +2140,33 @@ app.get("/control", (req, res) => {
       const nameInput = document.getElementById(
         "discovery-source-name"
       );
-      const typeSelect = document.getElementById(
-        "discovery-source-type"
-      );
       const urlInput = document.getElementById(
         "discovery-source-url"
       );
       const addButton = document.querySelector(
         "[data-add-discovery-source]"
       );
+      const cancelEditButton = document.querySelector(
+        "[data-cancel-discovery-source-edit]"
+      );
+      const editorTitle = document.querySelector(
+        "[data-discovery-source-editor-title]"
+      );
       const saveStatus = document.querySelector(
         "[data-save-status]"
       );
       let draft = [];
+      let editingSourceId = null;
 
       if (
         !list ||
         !emptyState ||
         !draftField ||
         !nameInput ||
-        !typeSelect ||
         !urlInput ||
-        !addButton
+        !addButton ||
+        !cancelEditButton ||
+        !editorTitle
       ) return;
 
       try {
@@ -2186,6 +2184,29 @@ app.get("/control", (req, res) => {
         emptyState.hidden = draft.length > 0;
       };
 
+      const resetEditor = () => {
+        editingSourceId = null;
+        nameInput.value = "";
+        urlInput.value = "";
+        nameInput.setCustomValidity("");
+        urlInput.setCustomValidity("");
+        editorTitle.textContent = "Add Source";
+        addButton.textContent = "Add";
+        cancelEditButton.hidden = true;
+      };
+
+      const beginEdit = (source) => {
+        editingSourceId = source.id;
+        nameInput.value = source.name;
+        urlInput.value = source.config?.url || "";
+        nameInput.setCustomValidity("");
+        urlInput.setCustomValidity("");
+        editorTitle.textContent = "Edit Source";
+        addButton.textContent = "Update";
+        cancelEditButton.hidden = false;
+        nameInput.focus();
+      };
+
       const createSourceId = () => {
         let id = "";
 
@@ -2200,6 +2221,52 @@ app.get("/control", (req, res) => {
         return id;
       };
 
+      const canonicalizeRedditUrl = (value) => {
+        const input = value.trim();
+        const subredditMatch = input.match(
+          /^(?:r\\/)?([A-Za-z0-9_+]+)\\/?$/i
+        );
+
+        if (subredditMatch) {
+          return "https://www.reddit.com/r/" +
+            subredditMatch[1].toLowerCase() + "/.rss";
+        }
+
+        try {
+          const inputUrl = new URL(input);
+          const hostname = inputUrl.hostname.toLowerCase();
+
+          if (
+            !["http:", "https:"].includes(inputUrl.protocol) ||
+            (hostname !== "reddit.com" &&
+              !hostname.endsWith(".reddit.com"))
+          ) {
+            return "";
+          }
+
+          const path = inputUrl.pathname
+            .replace(/\\/+$/, "")
+            .replace(/\\/\\.rss$/i, "")
+            .replace(
+              /^\\/r\\/([^/]+)/i,
+              (match, subreddit) =>
+                "/r/" + subreddit.toLowerCase()
+            );
+
+          if (!path || path === "/") return "";
+
+          inputUrl.protocol = "https:";
+          inputUrl.hostname = "www.reddit.com";
+          inputUrl.port = "";
+          inputUrl.pathname = path + "/.rss";
+          inputUrl.hash = "";
+
+          return inputUrl.href;
+        } catch (error) {
+          return "";
+        }
+      };
+
       const createSourceRow = (source) => {
         const row = document.createElement("li");
         row.className = "item-row";
@@ -2212,11 +2279,16 @@ app.get("/control", (req, res) => {
         const name = document.createElement("strong");
         const dot = document.createElement("span");
         dot.className = "status-dot is-enabled";
-        name.append(dot, document.createTextNode(source.name));
+        const nameText = document.createElement("span");
+        nameText.dataset.discoverySourceName = "";
+        nameText.textContent = source.name;
+        name.append(dot, nameText);
         const status = document.createElement("small");
-        status.textContent =
-          typeSelect.selectedOptions[0]?.textContent + " · Enabled";
-        copy.append(name, status);
+        status.textContent = "RSS / Atom · Enabled";
+        const address = document.createElement("span");
+        address.className = "source-address";
+        address.textContent = source.config.url;
+        copy.append(name, status, address);
 
         const actions = document.createElement("span");
         actions.dataset.discoverySourceActions = "";
@@ -2225,12 +2297,17 @@ app.get("/control", (req, res) => {
         toggle.type = "button";
         toggle.dataset.toggleDiscoverySource = "";
         toggle.textContent = "Disable";
+        const edit = document.createElement("button");
+        edit.className = "button button-quiet";
+        edit.type = "button";
+        edit.dataset.editDiscoverySource = "";
+        edit.textContent = "Edit";
         const remove = document.createElement("button");
         remove.className = "button button-quiet";
         remove.type = "button";
         remove.dataset.removeDiscoverySource = "";
         remove.textContent = "Remove";
-        actions.append(toggle, remove);
+        actions.append(toggle, edit, remove);
 
         const confirmation = document.createElement("div");
         confirmation.className = "inline-confirmation";
@@ -2264,34 +2341,45 @@ app.get("/control", (req, res) => {
         return row;
       };
 
-      const updateSourceRow = (row, enabled) => {
+      const updateSourceRow = (row, source) => {
         row.querySelector(".status-dot")?.classList.toggle(
           "is-enabled",
-          enabled
+          source.enabled
+        );
+        const name = row.querySelector(
+          "[data-discovery-source-name]"
         );
         const status = row.querySelector(".item-copy small");
+        const address = row.querySelector(".source-address");
         const toggle = row.querySelector(
           "[data-toggle-discovery-source]"
         );
 
+        if (name) name.textContent = source.name;
         if (status) {
-          status.textContent = status.textContent.replace(
-            / · (Enabled|Disabled)( · Built-in)?$/,
-            " · " + (enabled ? "Enabled" : "Disabled") +
-              (row.dataset.sourceRemovable === "true"
-                ? ""
-                : " · Built-in")
-          );
+          status.textContent = "RSS / Atom · " +
+            (source.enabled ? "Enabled" : "Disabled") +
+            (row.dataset.sourceRemovable === "true"
+              ? ""
+              : " · Built-in");
         }
-        if (toggle) toggle.textContent = enabled
+        if (address) address.textContent = source.config.url;
+        if (toggle) toggle.textContent = source.enabled
           ? "Disable"
           : "Enable";
+        const confirmationName = row.querySelector(
+          "[data-discovery-source-confirmation] strong"
+        );
+        if (confirmationName) {
+          confirmationName.textContent = "Remove " + source.name + "?";
+        }
       };
 
       addButton.addEventListener("click", () => {
         const name = nameInput.value.trim();
-        const type = typeSelect.value;
-        const url = urlInput.value.trim();
+        const inputAddress = urlInput.value.trim();
+        const url = canonicalizeRedditUrl(inputAddress) || inputAddress;
+        const type = "rss";
         let parsedUrl = null;
 
         nameInput.setCustomValidity(
@@ -2306,37 +2394,65 @@ app.get("/control", (req, res) => {
           ["https:", "http:"].includes(parsedUrl.protocol);
         const duplicateUrl = draft.some(
           (source) =>
-            source.type === type && source.config?.url === url
+            source.id !== editingSourceId &&
+            source.type === type &&
+            source.config?.url === url
         );
         urlInput.setCustomValidity(
-          !url
-            ? "Discovery source URL must not be empty."
-            : !validUrl
-              ? "Discovery source configuration is invalid."
-              : duplicateUrl
-                ? "That Discovery source is already configured."
-                : ""
+          !validUrl
+            ? "Enter an HTTP(S) feed URL or Reddit source such as r/baseball."
+            : duplicateUrl
+              ? "That Discovery source is already configured."
+              : ""
         );
 
         if (!nameInput.reportValidity() || !urlInput.reportValidity()) {
           return;
         }
 
-        const source = {
-          id: createSourceId(),
-          name,
-          type,
-          enabled: true,
-          config: { url }
-        };
+        if (editingSourceId) {
+          const sourceIndex = draft.findIndex(
+            (source) => source.id === editingSourceId
+          );
 
-        draft.push(source);
-        list.insertBefore(createSourceRow(source), emptyState);
-        nameInput.value = "";
-        urlInput.value = "";
+          if (sourceIndex < 0) {
+            resetEditor();
+            return;
+          }
+
+          const source = {
+            ...draft[sourceIndex],
+            name,
+            type,
+            config: { url }
+          };
+          draft[sourceIndex] = source;
+          const row = Array.from(list.querySelectorAll(
+            "[data-discovery-source-row]"
+          )).find((candidate) =>
+            candidate.dataset.sourceId === editingSourceId
+          );
+
+          if (row) updateSourceRow(row, source);
+        } else {
+          const source = {
+            id: createSourceId(),
+            name,
+            type,
+            enabled: true,
+            config: { url }
+          };
+
+          draft.push(source);
+          list.insertBefore(createSourceRow(source), emptyState);
+        }
+
+        resetEditor();
         syncDraft();
         markUnsaved();
       });
+
+      cancelEditButton.addEventListener("click", resetEditor);
 
       list.addEventListener("click", (event) => {
         const row = event.target.closest(
@@ -2361,9 +2477,13 @@ app.get("/control", (req, res) => {
         if (event.target.closest("[data-toggle-discovery-source]")) {
           draft[sourceIndex].enabled =
             draft[sourceIndex].enabled === false;
-          updateSourceRow(row, draft[sourceIndex].enabled);
+          updateSourceRow(row, draft[sourceIndex]);
           syncDraft();
           markUnsaved();
+        } else if (event.target.closest(
+          "[data-edit-discovery-source]"
+        )) {
+          beginEdit(draft[sourceIndex]);
         } else if (
           row.dataset.sourceRemovable === "true" &&
           event.target.closest("[data-remove-discovery-source]")
@@ -2381,6 +2501,9 @@ app.get("/control", (req, res) => {
             "[data-confirm-discovery-source-removal]"
           )
         ) {
+          if (editingSourceId === draft[sourceIndex].id) {
+            resetEditor();
+          }
           draft.splice(sourceIndex, 1);
           row.remove();
           syncDraft();
@@ -2654,10 +2777,10 @@ app.post("/control/discovery-sources/add", async (req, res) => {
     const name = typeof req.body.discoverySourceName === "string"
       ? req.body.discoverySourceName.trim()
       : "";
-    const type = typeof req.body.discoverySourceType === "string"
-      ? req.body.discoverySourceType.trim()
-      : "";
-    const url = normalizeFeedUrl(req.body.discoverySourceUrl);
+    const type = "rss";
+    const url = normalizeDiscoverySourceAddress(
+      req.body.discoverySourceUrl
+    );
     const adapterMetadata = discoverySourceTypeMetadata.find(
       (metadata) => metadata.type === type && metadata.userAddable
     );
@@ -2668,7 +2791,10 @@ app.post("/control/discovery-sources/add", async (req, res) => {
       });
     }
 
-    if (!adapterMetadata || !url) {
+    if (
+      !adapterMetadata ||
+      !url
+    ) {
       return res.status(400).json({
         error: "Discovery source configuration is invalid."
       });
@@ -2757,7 +2883,7 @@ app.post("/control/discovery-sources/remove", async (req, res) => {
       (configuredSource) => configuredSource.id === sourceId
     );
 
-    if (!source || source.type === "reddit") {
+    if (!source) {
       return res.status(400).json({
         error: "Discovery source is invalid."
       });
@@ -3157,138 +3283,6 @@ function getMlbScheduleCacheTtl(sportsEvents) {
   return allGamesFinal
     ? MLB_FINAL_CACHE_MS
     : MLB_SCHEDULED_CACHE_MS;
-}
-
-/* ==========================
-   Reddit RSS Helpers
-========================== */
-
-function decodeEntities(value = "") {
-  return value
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, "&");
-}
-
-function stripTags(value = "") {
-  return decodeEntities(value)
-    .replace(/<[^>]*>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function getXmlTag(block, tagName) {
-  const pattern = new RegExp(
-    `<${tagName}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tagName}>`,
-    "i"
-  );
-
-  const match = block.match(pattern);
-
-  return match ? decodeEntities(match[1]).trim() : "";
-}
-
-function getEntryLink(entry) {
-  const alternateLink = entry.match(
-    /<link[^>]*rel=["']alternate["'][^>]*href=["']([^"']+)["']/i
-  );
-
-  if (alternateLink) {
-    return decodeEntities(alternateLink[1]);
-  }
-
-  const anyLink = entry.match(
-    /<link[^>]*href=["']([^"']+)["']/i
-  );
-
-  return anyLink ? decodeEntities(anyLink[1]) : "";
-}
-
-function getImageFromContent(content) {
-  const decodedContent = decodeEntities(content);
-
-  const imageMatch = decodedContent.match(
-    /<img[^>]+src=["']([^"']+)["']/i
-  );
-
-  if (!imageMatch) {
-    return null;
-  }
-
-  const imageUrl = decodeEntities(imageMatch[1]);
-
-  if (
-    imageUrl.includes("redditstatic.com/icon") ||
-    imageUrl.includes("redditstatic.com/avatars")
-  ) {
-    return null;
-  }
-
-  return imageUrl;
-}
-
-function getBodyFromContent(content, title) {
-  const decodedContent = decodeEntities(content);
-  const bodyMatch = decodedContent.match(
-    /<div[^>]*class=["'][^"']*\bmd\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i
-  );
-
-  if (!bodyMatch) {
-    return null;
-  }
-
-  const body = stripTags(bodyMatch[1]);
-
-  if (
-    !body ||
-    body.localeCompare(title, undefined, {
-      sensitivity: "base"
-    }) === 0
-  ) {
-    return null;
-  }
-
-  return body;
-}
-
-function getSubredditFromLink(link) {
-  const match = link.match(/reddit\.com\/r\/([^/]+)/i);
-
-  return match ? `r/${match[1]}` : "Reddit";
-}
-
-function parseRedditFeed(xml) {
-  const entries =
-    xml.match(/<entry\b[\s\S]*?<\/entry>/gi) || [];
-
-  return entries
-    .map((entry) => {
-      const title = stripTags(getXmlTag(entry, "title"));
-      const link = getEntryLink(entry);
-      const authorBlock = getXmlTag(entry, "author");
-      const author = stripTags(
-        getXmlTag(authorBlock, "name")
-      );
-      const published = getXmlTag(entry, "published");
-      const updated = getXmlTag(entry, "updated");
-      const content = getXmlTag(entry, "content");
-
-      return {
-        title,
-        link,
-        subreddit: getSubredditFromLink(link),
-        author,
-        publishedAt: published || updated || null,
-        image: getImageFromContent(content),
-        body: getBodyFromContent(content, title)
-      };
-    })
-    .filter((post) => post.title && post.link)
-    .slice(0, 25);
 }
 
 /* ==========================
@@ -3971,6 +3965,7 @@ module.exports = {
   acquireSportsWidgetLeagues,
   buildSportsWidgetAcquisitionResponse,
   mlbDailyScheduleCache,
+  resolveDiscoverySourceDraft,
   resolveSportsDate,
   sportsWidgetAcquisitionRegistry
 };

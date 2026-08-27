@@ -66,9 +66,9 @@ class DiscoveryWidget {
         }
 
         this.element.innerHTML = this.state.status === "loading"
-            ? this.renderStatus("Loading Reddit", "Fetching top posts…")
+            ? this.renderStatus("Loading Discovery", "Fetching sources…")
             : this.renderStatus(
-                "Reddit unavailable",
+                "Discovery unavailable",
                 "The feed could not be loaded."
             );
     }

@@ -1,6 +1,10 @@
 const DEFAULT_CACHE_MS = 15 * 60 * 1000;
 const DEFAULT_TIMEOUT_MS = 10 * 1000;
 const DEFAULT_RESPONSE_LIMIT_BYTES = 3 * 1024 * 1024;
+const {
+  isRedditFeedUrl,
+  parseRedditDiscoveryFeed
+} = require("./reddit-feed-parser");
 
 class RssDiscoveryAdapter {
 
@@ -29,7 +33,9 @@ class RssDiscoveryAdapter {
 
     try {
       const xml = await this.fetchFeed(source.config.url);
-      const items = parseSyndicationFeed(xml, source);
+      const items = isRedditFeedUrl(source.config.url)
+        ? parseRedditDiscoveryFeed(xml, source)
+        : parseSyndicationFeed(xml, source);
 
       if (items.length === 0) {
         throw new Error("Discovery feed has no usable entries.");
