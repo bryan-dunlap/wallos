@@ -63,7 +63,6 @@ test("Discovery fitting responds to measured region geometry, not title length",
       className: "discovery-headline discovery-text-headline",
       textContent: "The same normalized Discovery title",
       style,
-      clientWidth: 500,
       scrollWidth: 500,
       parentElement: { clientWidth: 500, clientHeight: height }
     };
@@ -106,12 +105,52 @@ test("Discovery fitting responds to measured region geometry, not title length",
   assert.equal(extreme.style.maxHeight, "71.68px");
 });
 
+test("repeated fitting with unchanged inputs is idempotent", () => {
+  const widget = new context.DiscoveryWidget();
+  const style = { fontSize: "", maxHeight: "" };
+  const title = {
+    className: "discovery-headline discovery-text-headline",
+    textContent: "A stable long Discovery title",
+    style,
+    scrollWidth: 500,
+    parentElement: { clientWidth: 500, clientHeight: 88 }
+  };
+
+  Object.defineProperty(title, "scrollHeight", {
+    get() {
+      return (Number.parseFloat(style.fontSize) || 64) * 2;
+    }
+  });
+
+  widget.fitTitleToRegion(title);
+  const firstSize = style.fontSize;
+  const firstCacheSize = widget.titleFitCache.size;
+
+  widget.fitTitleToRegion(title);
+
+  assert.equal(firstSize, "44px");
+  assert.equal(style.fontSize, firstSize);
+  assert.equal(widget.titleFitCache.size, firstCacheSize);
+
+  title.parentElement.clientHeight = 100;
+  widget.fitTitleToRegion(title);
+
+  assert.equal(style.fontSize, "50px");
+  assert.equal(widget.titleFitCache.size, firstCacheSize + 1);
+
+  title.textContent = "A different Discovery item";
+  widget.fitTitleToRegion(title);
+
+  assert.equal(style.fontSize, "50px");
+  assert.equal(widget.titleFitCache.size, firstCacheSize + 2);
+});
+
 test("Discovery title fitting uses rendered width and height", () => {
   assert.match(widgetSource, /region\?\.clientWidth/);
   assert.match(widgetSource, /region\?\.clientHeight/);
   assert.match(
     widgetSource,
-    /const renderedWidth = title\.clientWidth \|\| availableWidth;[\s\S]*title\.scrollWidth <= renderedWidth \+ 0\.5/
+    /title\.scrollWidth <= availableWidth \+ 0\.5/
   );
   assert.match(
     widgetSource,
@@ -139,6 +178,10 @@ test("Discovery title fitting recalculates on resize and font loading", () => {
     widgetSource,
     /this\.titleResizeObserver\.observe\(this\.element\)/
   );
+  assert.doesNotMatch(
+    widgetSource,
+    /this\.titleResizeObserver\.observe\(title\.parentElement\)/
+  );
   assert.match(
     widgetSource,
     /document\.fonts\?\.ready[\s\S]*this\.titleFitCache\.clear\(\)[\s\S]*scheduleTitleFits\(\)/
@@ -153,7 +196,7 @@ test("Discovery title fitting recalculates on resize and font loading", () => {
   );
   assert.match(
     widgetSource,
-    /this\.titleResizeObserver\.observe\(title\.parentElement\)/
+    /if \(sizeKey === this\.titleContainerSizeKey\) return;[\s\S]*this\.titleContainerSizeKey = sizeKey;[\s\S]*scheduleTitleFits\(\)/
   );
 });
 

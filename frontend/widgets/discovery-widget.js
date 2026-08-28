@@ -7,6 +7,7 @@ class DiscoveryWidget {
         this.titleResizeObserver = null;
         this.titleResizeHandler = null;
         this.titleLayoutFrame = null;
+        this.titleContainerSizeKey = null;
         this.titleFitCache = new Map();
         this.failedImageItemIds = new Set();
         this.renderers = new Map([
@@ -264,15 +265,13 @@ class DiscoveryWidget {
 
     fitTitleToRegion(title) {
         const region = title.parentElement;
-        const availableWidth = region?.clientWidth || 0;
-        const availableHeight = region?.clientHeight || 0;
-
-        if (!availableWidth || !availableHeight) return;
 
         title.style.fontSize = "";
         title.style.maxHeight = "";
 
         const initialStyle = window.getComputedStyle(title);
+        const availableWidth = region?.clientWidth || 0;
+        const availableHeight = region?.clientHeight || 0;
         const preferredSize = Number.parseFloat(
             initialStyle.getPropertyValue(
                 "--discovery-title-preferred-size"
@@ -285,6 +284,8 @@ class DiscoveryWidget {
         );
 
         if (
+            !availableWidth ||
+            !availableHeight ||
             !Number.isFinite(preferredSize) ||
             !Number.isFinite(minimumSize) ||
             minimumSize <= 0 ||
@@ -300,14 +301,15 @@ class DiscoveryWidget {
             availableHeight,
             initialStyle.fontFamily,
             initialStyle.fontWeight,
-            initialStyle.letterSpacing
+            initialStyle.letterSpacing,
+            preferredSize,
+            minimumSize
         ].join("|");
         const measure = (fontSize) => {
             title.style.fontSize = fontSize + "px";
             title.style.maxHeight = "";
-            const renderedWidth = title.clientWidth || availableWidth;
 
-            return title.scrollWidth <= renderedWidth + 0.5 &&
+            return title.scrollWidth <= availableWidth + 0.5 &&
                 title.scrollHeight <= availableHeight + 0.5;
         };
         let result = this.titleFitCache.get(cacheKey);
@@ -366,18 +368,28 @@ class DiscoveryWidget {
 
         scheduleTitleFits();
 
+        const getContainerSizeKey = () => [
+            this.element?.clientWidth || 0,
+            this.element?.clientHeight || 0
+        ].join("x");
+        const scheduleForContainerResize = () => {
+            const sizeKey = getContainerSizeKey();
+
+            if (sizeKey === this.titleContainerSizeKey) return;
+
+            this.titleContainerSizeKey = sizeKey;
+            scheduleTitleFits();
+        };
+
+        this.titleContainerSizeKey = getContainerSizeKey();
+
         if (typeof ResizeObserver === "function") {
             this.titleResizeObserver = new ResizeObserver(
-                scheduleTitleFits
+                scheduleForContainerResize
             );
             this.titleResizeObserver.observe(this.element);
-            titles.forEach((title) => {
-                if (title.parentElement) {
-                    this.titleResizeObserver.observe(title.parentElement);
-                }
-            });
         } else {
-            this.titleResizeHandler = scheduleTitleFits;
+            this.titleResizeHandler = scheduleForContainerResize;
             window.addEventListener("resize", this.titleResizeHandler);
         }
 
@@ -408,6 +420,8 @@ class DiscoveryWidget {
             window.cancelAnimationFrame(this.titleLayoutFrame);
             this.titleLayoutFrame = null;
         }
+
+        this.titleContainerSizeKey = null;
     }
 
     renderStatus(eyebrow, title) {
