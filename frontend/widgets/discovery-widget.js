@@ -4,9 +4,9 @@ class DiscoveryWidget {
         this.element = null;
         this.unsubscribe = null;
         this.imageResizeObserver = null;
-        this.bodyResizeObserver = null;
-        this.bodyResizeHandler = null;
-        this.bodyLayoutFrame = null;
+        this.titleResizeObserver = null;
+        this.titleResizeHandler = null;
+        this.titleLayoutFrame = null;
         this.failedImageItemIds = new Set();
         this.renderers = new Map([
             ["text", (item, position) =>
@@ -33,7 +33,7 @@ class DiscoveryWidget {
 
     unmount() {
         this.disconnectImageResizeObserver();
-        this.disconnectBodyLineClipping();
+        this.disconnectTitleLineClipping();
 
         if (this.unsubscribe) {
             this.unsubscribe();
@@ -56,7 +56,7 @@ class DiscoveryWidget {
         if (!this.element) return;
 
         this.disconnectImageResizeObserver();
-        this.disconnectBodyLineClipping();
+        this.disconnectTitleLineClipping();
 
         if (
             this.state.status === "available" &&
@@ -67,7 +67,7 @@ class DiscoveryWidget {
                 this.state.position
             );
             this.bindImageFallback();
-            this.bindBodyLineClipping();
+            this.bindTitleLineClipping();
             return;
         }
 
@@ -89,20 +89,19 @@ class DiscoveryWidget {
     }
 
     renderTextItem(item, position) {
-        const hasBody = Boolean(item.body);
-
         return `
             <div class="discovery-feed discovery-feed-text">
-                <article class="discovery-item discovery-item-text${
-                    hasBody ? " discovery-item-text-has-body" : ""
-                }">
-                    ${this.renderSource(item.eyebrow)}
+                <article class="discovery-item discovery-item-text">
+                    ${this.renderSource(
+                        item.eyebrow || item.source || "Discovery"
+                    )}
 
-                    <div class="discovery-headline discovery-text-headline">
-                        ${this.escape(item.title)}
+                    <div class="discovery-content discovery-text-content">
+                        <div class="discovery-headline discovery-text-headline">
+                            ${this.escape(item.title)}
+                        </div>
+
                     </div>
-
-                    ${this.renderBody(item.body, "discovery-text-body")}
 
                     ${this.renderPosition(position)}
                 </article>
@@ -127,13 +126,16 @@ class DiscoveryWidget {
                     </div>
 
                     <div class="discovery-image-caption">
-                        ${this.renderSource(item.eyebrow)}
+                        ${this.renderSource(
+                            item.eyebrow || item.source || "Discovery"
+                        )}
 
-                        <div class="discovery-headline discovery-image-headline">
-                            ${this.escape(item.title)}
+                        <div class="discovery-content discovery-image-content">
+                            <div class="discovery-headline discovery-image-headline">
+                                ${this.escape(item.title)}
+                            </div>
+
                         </div>
-
-                        ${this.renderBody(item.body, "discovery-image-body")}
 
                         ${this.renderPosition(position)}
                     </div>
@@ -148,16 +150,6 @@ class DiscoveryWidget {
         return `
             <div class="discovery-source">
                 ${this.escape(eyebrow)}
-            </div>
-        `;
-    }
-
-    renderBody(body, className) {
-        if (!body) return "";
-
-        return `
-            <div class="discovery-body ${className}">
-                ${this.escape(body)}
             </div>
         `;
     }
@@ -237,7 +229,7 @@ class DiscoveryWidget {
         this.imageResizeObserver = null;
     }
 
-    calculateVisibleBodyHeight(allocatedHeight, lineHeight) {
+    calculateWholeLineHeight(allocatedHeight, lineHeight) {
         if (
             !Number.isFinite(allocatedHeight) ||
             !Number.isFinite(lineHeight) ||
@@ -250,43 +242,43 @@ class DiscoveryWidget {
         return Math.floor(allocatedHeight / lineHeight) * lineHeight;
     }
 
-    bindBodyLineClipping() {
-        const bodies = Array.from(this.element?.querySelectorAll(
-            ".discovery-text-body, .discovery-image-body"
+    bindTitleLineClipping() {
+        const titles = Array.from(this.element?.querySelectorAll(
+            ".discovery-text-headline, .discovery-image-headline"
         ) || []);
 
-        if (bodies.length === 0) return;
+        if (titles.length === 0) return;
 
         const applyWholeLineHeights = () => {
-            this.bodyLayoutFrame = null;
+            this.titleLayoutFrame = null;
 
-            bodies.forEach((body) => {
-                body.style.maxHeight = "";
+            titles.forEach((title) => {
+                title.style.maxHeight = "";
 
-                const allocatedHeight = body.getBoundingClientRect().height;
+                const allocatedHeight = title.getBoundingClientRect().height;
                 const lineHeight = Number.parseFloat(
-                    window.getComputedStyle(body).lineHeight
+                    window.getComputedStyle(title).lineHeight
                 );
 
                 if (
                     !Number.isFinite(lineHeight) ||
-                    body.scrollHeight <= allocatedHeight + 0.5
+                    title.scrollHeight <= allocatedHeight + 0.5
                 ) {
                     return;
                 }
 
-                const visibleHeight = this.calculateVisibleBodyHeight(
+                const visibleHeight = this.calculateWholeLineHeight(
                     allocatedHeight,
                     lineHeight
                 );
-                body.style.maxHeight = visibleHeight + "px";
+                title.style.maxHeight = visibleHeight + "px";
             });
         };
 
         const scheduleWholeLineHeights = () => {
-            if (this.bodyLayoutFrame !== null) return;
+            if (this.titleLayoutFrame !== null) return;
 
-            this.bodyLayoutFrame = window.requestAnimationFrame(
+            this.titleLayoutFrame = window.requestAnimationFrame(
                 applyWholeLineHeights
             );
         };
@@ -294,13 +286,18 @@ class DiscoveryWidget {
         scheduleWholeLineHeights();
 
         if (typeof ResizeObserver === "function") {
-            this.bodyResizeObserver = new ResizeObserver(
+            this.titleResizeObserver = new ResizeObserver(
                 scheduleWholeLineHeights
             );
-            this.bodyResizeObserver.observe(this.element);
+            this.titleResizeObserver.observe(this.element);
+            titles.forEach((title) => {
+                if (title.parentElement) {
+                    this.titleResizeObserver.observe(title.parentElement);
+                }
+            });
         } else {
-            this.bodyResizeHandler = scheduleWholeLineHeights;
-            window.addEventListener("resize", this.bodyResizeHandler);
+            this.titleResizeHandler = scheduleWholeLineHeights;
+            window.addEventListener("resize", this.titleResizeHandler);
         }
 
         const renderedElement = this.element;
@@ -314,20 +311,20 @@ class DiscoveryWidget {
         }
     }
 
-    disconnectBodyLineClipping() {
-        if (this.bodyResizeObserver) {
-            this.bodyResizeObserver.disconnect();
-            this.bodyResizeObserver = null;
+    disconnectTitleLineClipping() {
+        if (this.titleResizeObserver) {
+            this.titleResizeObserver.disconnect();
+            this.titleResizeObserver = null;
         }
 
-        if (this.bodyResizeHandler) {
-            window.removeEventListener("resize", this.bodyResizeHandler);
-            this.bodyResizeHandler = null;
+        if (this.titleResizeHandler) {
+            window.removeEventListener("resize", this.titleResizeHandler);
+            this.titleResizeHandler = null;
         }
 
-        if (this.bodyLayoutFrame !== null) {
-            window.cancelAnimationFrame(this.bodyLayoutFrame);
-            this.bodyLayoutFrame = null;
+        if (this.titleLayoutFrame !== null) {
+            window.cancelAnimationFrame(this.titleLayoutFrame);
+            this.titleLayoutFrame = null;
         }
     }
 
