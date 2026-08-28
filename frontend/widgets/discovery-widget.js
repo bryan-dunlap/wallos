@@ -7,6 +7,7 @@ class DiscoveryWidget {
         this.titleResizeObserver = null;
         this.titleResizeHandler = null;
         this.titleLayoutFrame = null;
+        this.titleFitCache = new Map();
         this.failedImageItemIds = new Set();
         this.renderers = new Map([
             ["text", (item, position) =>
@@ -33,7 +34,7 @@ class DiscoveryWidget {
 
     unmount() {
         this.disconnectImageResizeObserver();
-        this.disconnectTitleLineClipping();
+        this.disconnectTitleFitting();
 
         if (this.unsubscribe) {
             this.unsubscribe();
@@ -56,7 +57,7 @@ class DiscoveryWidget {
         if (!this.element) return;
 
         this.disconnectImageResizeObserver();
-        this.disconnectTitleLineClipping();
+        this.disconnectTitleFitting();
 
         if (
             this.state.status === "available" &&
@@ -67,7 +68,7 @@ class DiscoveryWidget {
                 this.state.position
             );
             this.bindImageFallback();
-            this.bindTitleLineClipping();
+            this.bindTitleFitting();
             return;
         }
 
@@ -242,52 +243,132 @@ class DiscoveryWidget {
         return Math.floor(allocatedHeight / lineHeight) * lineHeight;
     }
 
-    bindTitleLineClipping() {
+    findLargestFittingFontSize(preferredSize, minimumSize, fits) {
+        let low = Math.ceil(minimumSize);
+        let high = Math.floor(preferredSize);
+        let largestFit = low;
+
+        while (low <= high) {
+            const candidate = Math.floor((low + high) / 2);
+
+            if (fits(candidate)) {
+                largestFit = candidate;
+                low = candidate + 1;
+            } else {
+                high = candidate - 1;
+            }
+        }
+
+        return largestFit;
+    }
+
+    fitTitleToRegion(title) {
+        const region = title.parentElement;
+        const availableWidth = region?.clientWidth || 0;
+        const availableHeight = region?.clientHeight || 0;
+
+        if (!availableWidth || !availableHeight) return;
+
+        title.style.fontSize = "";
+        title.style.maxHeight = "";
+
+        const initialStyle = window.getComputedStyle(title);
+        const preferredSize = Number.parseFloat(
+            initialStyle.getPropertyValue(
+                "--discovery-title-preferred-size"
+            )
+        );
+        const minimumSize = Number.parseFloat(
+            initialStyle.getPropertyValue(
+                "--discovery-title-minimum-size"
+            )
+        );
+
+        if (
+            !Number.isFinite(preferredSize) ||
+            !Number.isFinite(minimumSize) ||
+            minimumSize <= 0 ||
+            preferredSize < minimumSize
+        ) {
+            return;
+        }
+
+        const cacheKey = [
+            title.textContent,
+            title.className,
+            availableWidth,
+            availableHeight,
+            initialStyle.fontFamily,
+            initialStyle.fontWeight,
+            initialStyle.letterSpacing
+        ].join("|");
+        const measure = (fontSize) => {
+            title.style.fontSize = fontSize + "px";
+            title.style.maxHeight = "";
+            const renderedWidth = title.clientWidth || availableWidth;
+
+            return title.scrollWidth <= renderedWidth + 0.5 &&
+                title.scrollHeight <= availableHeight + 0.5;
+        };
+        let result = this.titleFitCache.get(cacheKey);
+
+        if (!result) {
+            const fontSize = this.findLargestFittingFontSize(
+                preferredSize,
+                minimumSize,
+                measure
+            );
+            result = {
+                fontSize,
+                fits: measure(fontSize)
+            };
+
+            if (this.titleFitCache.size >= 100) {
+                this.titleFitCache.clear();
+            }
+            this.titleFitCache.set(cacheKey, result);
+        } else {
+            title.style.fontSize = result.fontSize + "px";
+        }
+
+        if (result.fits) return;
+
+        const fittedStyle = window.getComputedStyle(title);
+        const lineHeight = Number.parseFloat(fittedStyle.lineHeight);
+        const visibleHeight = this.calculateWholeLineHeight(
+            availableHeight,
+            lineHeight
+        );
+
+        title.style.maxHeight = visibleHeight + "px";
+    }
+
+    bindTitleFitting() {
         const titles = Array.from(this.element?.querySelectorAll(
             ".discovery-text-headline, .discovery-image-headline"
         ) || []);
 
         if (titles.length === 0) return;
 
-        const applyWholeLineHeights = () => {
+        const applyTitleFits = () => {
             this.titleLayoutFrame = null;
 
-            titles.forEach((title) => {
-                title.style.maxHeight = "";
-
-                const allocatedHeight = title.getBoundingClientRect().height;
-                const lineHeight = Number.parseFloat(
-                    window.getComputedStyle(title).lineHeight
-                );
-
-                if (
-                    !Number.isFinite(lineHeight) ||
-                    title.scrollHeight <= allocatedHeight + 0.5
-                ) {
-                    return;
-                }
-
-                const visibleHeight = this.calculateWholeLineHeight(
-                    allocatedHeight,
-                    lineHeight
-                );
-                title.style.maxHeight = visibleHeight + "px";
-            });
+            titles.forEach((title) => this.fitTitleToRegion(title));
         };
 
-        const scheduleWholeLineHeights = () => {
+        const scheduleTitleFits = () => {
             if (this.titleLayoutFrame !== null) return;
 
             this.titleLayoutFrame = window.requestAnimationFrame(
-                applyWholeLineHeights
+                applyTitleFits
             );
         };
 
-        scheduleWholeLineHeights();
+        scheduleTitleFits();
 
         if (typeof ResizeObserver === "function") {
             this.titleResizeObserver = new ResizeObserver(
-                scheduleWholeLineHeights
+                scheduleTitleFits
             );
             this.titleResizeObserver.observe(this.element);
             titles.forEach((title) => {
@@ -296,7 +377,7 @@ class DiscoveryWidget {
                 }
             });
         } else {
-            this.titleResizeHandler = scheduleWholeLineHeights;
+            this.titleResizeHandler = scheduleTitleFits;
             window.addEventListener("resize", this.titleResizeHandler);
         }
 
@@ -305,13 +386,14 @@ class DiscoveryWidget {
         if (document.fonts?.ready) {
             document.fonts.ready.then(() => {
                 if (this.element === renderedElement) {
-                    scheduleWholeLineHeights();
+                    this.titleFitCache.clear();
+                    scheduleTitleFits();
                 }
             });
         }
     }
 
-    disconnectTitleLineClipping() {
+    disconnectTitleFitting() {
         if (this.titleResizeObserver) {
             this.titleResizeObserver.disconnect();
             this.titleResizeObserver = null;

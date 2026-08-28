@@ -777,9 +777,12 @@ button:focus-visible,
 }
 
 .discovery-zone .discovery-text-headline {
+    --discovery-title-preferred-size: 64px;
+    --discovery-title-minimum-size: 32px;
+
     max-width: 1050px;
 
-    font-size: clamp(2rem, 3.8vw, 4rem);
+    font-size: var(--discovery-title-preferred-size);
     font-weight: 500;
     line-height: 1.12;
     text-wrap: balance;
@@ -838,10 +841,13 @@ button:focus-visible,
 }
 
 .discovery-zone .discovery-image-headline {
+    --discovery-title-preferred-size: 50px;
+    --discovery-title-minimum-size: 28px;
+
     max-width: none;
     margin: 0;
 
-    font-size: clamp(1.75rem, 2.8vw, 3.1rem);
+    font-size: var(--discovery-title-preferred-size);
     line-height: 1.12;
     text-wrap: balance;
 }

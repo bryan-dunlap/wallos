@@ -34,27 +34,115 @@ test("Discovery title height rounds down to complete line boxes", () => {
   assert.equal(widget.calculateWholeLineHeight(20, 24), 0);
 });
 
-test("Discovery title clipping is shared and only applied on overflow", () => {
+test("Discovery fitting keeps short titles large and reduces longer titles", () => {
+  const widget = new context.DiscoveryWidget();
+
+  assert.equal(
+    widget.findLargestFittingFontSize(64, 32, () => true),
+    64
+  );
+  assert.equal(
+    widget.findLargestFittingFontSize(64, 32, (size) => size <= 64),
+    64
+  );
+  assert.equal(
+    widget.findLargestFittingFontSize(64, 32, (size) => size <= 44),
+    44
+  );
+  assert.equal(
+    widget.findLargestFittingFontSize(64, 32, () => false),
+    32
+  );
+});
+
+test("Discovery fitting responds to measured region geometry, not title length", () => {
+  const widget = new context.DiscoveryWidget();
+  const createTitle = (height, heightFactor = 2) => {
+    const style = { fontSize: "", maxHeight: "" };
+    const title = {
+      className: "discovery-headline discovery-text-headline",
+      textContent: "The same normalized Discovery title",
+      style,
+      clientWidth: 500,
+      scrollWidth: 500,
+      parentElement: { clientWidth: 500, clientHeight: height }
+    };
+
+    Object.defineProperty(title, "scrollHeight", {
+      get() {
+        return (Number.parseFloat(style.fontSize) || 64) * heightFactor;
+      }
+    });
+
+    return title;
+  };
+  context.window = {
+    getComputedStyle(title) {
+      const size = Number.parseFloat(title.style.fontSize) || 64;
+
+      return {
+        getPropertyValue(name) {
+          return name.includes("preferred") ? "64px" : "32px";
+        },
+        fontFamily: "Outfit",
+        fontWeight: "500",
+        letterSpacing: "-0.16px",
+        lineHeight: `${size * 1.12}px`
+      };
+    }
+  };
+  const spacious = createTitle(140);
+  const constrained = createTitle(80);
+  const extreme = createTitle(80, 5);
+
+  widget.fitTitleToRegion(spacious);
+  widget.fitTitleToRegion(constrained);
+  widget.titleFitCache.clear();
+  widget.fitTitleToRegion(extreme);
+
+  assert.equal(spacious.style.fontSize, "64px");
+  assert.equal(constrained.style.fontSize, "40px");
+  assert.equal(extreme.style.fontSize, "32px");
+  assert.equal(extreme.style.maxHeight, "71.68px");
+});
+
+test("Discovery title fitting uses rendered width and height", () => {
+  assert.match(widgetSource, /region\?\.clientWidth/);
+  assert.match(widgetSource, /region\?\.clientHeight/);
+  assert.match(
+    widgetSource,
+    /const renderedWidth = title\.clientWidth \|\| availableWidth;[\s\S]*title\.scrollWidth <= renderedWidth \+ 0\.5/
+  );
+  assert.match(
+    widgetSource,
+    /title\.scrollHeight <= availableHeight \+ 0\.5/
+  );
+  assert.match(
+    widgetSource,
+    /findLargestFittingFontSize\([\s\S]*preferredSize,[\s\S]*minimumSize,[\s\S]*measure/
+  );
+});
+
+test("minimum-size overflow clips to complete title lines", () => {
+  assert.match(
+    widgetSource,
+    /if \(result\.fits\) return;[\s\S]*calculateWholeLineHeight\([\s\S]*availableHeight,[\s\S]*lineHeight[\s\S]*title\.style\.maxHeight = visibleHeight \+ "px"/
+  );
+});
+
+test("Discovery title fitting recalculates on resize and font loading", () => {
   assert.match(
     widgetSource,
     /\.discovery-text-headline, \.discovery-image-headline/
   );
   assert.match(
     widgetSource,
-    /title\.scrollHeight <= allocatedHeight \+ 0\.5[\s\S]*return/
-  );
-  assert.match(
-    widgetSource,
-    /title\.style\.maxHeight = visibleHeight \+ "px"/
-  );
-});
-
-test("Discovery title clipping recalculates on resize and font loading", () => {
-  assert.match(
-    widgetSource,
     /this\.titleResizeObserver\.observe\(this\.element\)/
   );
-  assert.match(widgetSource, /document\.fonts\?\.ready/);
+  assert.match(
+    widgetSource,
+    /document\.fonts\?\.ready[\s\S]*this\.titleFitCache\.clear\(\)[\s\S]*scheduleTitleFits\(\)/
+  );
   assert.match(
     widgetSource,
     /if \(this\.titleLayoutFrame !== null\) return/
@@ -97,6 +185,14 @@ test("Discovery reserves source and counter tracks around flexible content", () 
   assert.match(
     stylesheet,
     /\.discovery-zone \.discovery-position\s*\{[^}]*margin-top:\s*6px;/s
+  );
+  assert.match(
+    stylesheet,
+    /\.discovery-zone \.discovery-text-headline\s*\{[^}]*--discovery-title-preferred-size:\s*64px;[^}]*--discovery-title-minimum-size:\s*32px;/s
+  );
+  assert.match(
+    stylesheet,
+    /\.discovery-zone \.discovery-image-headline\s*\{[^}]*--discovery-title-preferred-size:\s*50px;[^}]*--discovery-title-minimum-size:\s*28px;/s
   );
 });
 
