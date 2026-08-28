@@ -838,6 +838,8 @@ button:focus-visible,
 
 .discovery-zone .discovery-image-content {
     width: 100%;
+
+    align-self: stretch;
 }
 
 .discovery-zone .discovery-image-headline {

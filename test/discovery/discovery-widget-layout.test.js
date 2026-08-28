@@ -145,6 +145,67 @@ test("repeated fitting with unchanged inputs is idempotent", () => {
   assert.equal(widget.titleFitCache.size, firstCacheSize + 2);
 });
 
+test("image titles fit and clip within the counter-reserved grid track", () => {
+  const widget = new context.DiscoveryWidget();
+  const createImageTitle = (heightFactor) => {
+    const style = { fontSize: "", maxHeight: "" };
+    const title = {
+      className: "discovery-headline discovery-image-headline",
+      textContent: `Image title factor ${heightFactor}`,
+      style,
+      scrollWidth: 400,
+      parentElement: { clientWidth: 400, clientHeight: 80 }
+    };
+
+    Object.defineProperty(title, "scrollHeight", {
+      get() {
+        return (Number.parseFloat(style.fontSize) || 50) * heightFactor;
+      }
+    });
+
+    return title;
+  };
+  context.window = {
+    getComputedStyle(title) {
+      const size = Number.parseFloat(title.style.fontSize) || 50;
+
+      return {
+        getPropertyValue(name) {
+          return name.includes("preferred") ? "50px" : "28px";
+        },
+        fontFamily: "Outfit",
+        fontWeight: "500",
+        letterSpacing: "-0.16px",
+        lineHeight: `${size * 1.12}px`
+      };
+    }
+  };
+  const short = createImageTitle(1);
+  const medium = createImageTitle(1.5);
+  const long = createImageTitle(2);
+  const extreme = createImageTitle(4);
+
+  widget.fitTitleToRegion(short);
+  widget.fitTitleToRegion(medium);
+  widget.fitTitleToRegion(long);
+  widget.fitTitleToRegion(extreme);
+
+  assert.equal(short.style.fontSize, "50px");
+  assert.equal(short.style.maxHeight, "");
+  assert.equal(medium.style.fontSize, "50px");
+  assert.equal(medium.style.maxHeight, "");
+  assert.equal(long.style.fontSize, "40px");
+  assert.equal(long.style.maxHeight, "");
+  assert.equal(extreme.style.fontSize, "28px");
+  assert.equal(extreme.style.maxHeight, "62.720000000000006px");
+  assert.ok(Number.parseFloat(extreme.style.maxHeight) <= 80);
+
+  widget.fitTitleToRegion(extreme);
+
+  assert.equal(extreme.style.fontSize, "28px");
+  assert.equal(extreme.style.maxHeight, "62.720000000000006px");
+});
+
 test("Discovery title fitting uses rendered width and height", () => {
   assert.match(widgetSource, /region\?\.clientWidth/);
   assert.match(widgetSource, /region\?\.clientHeight/);
@@ -236,6 +297,10 @@ test("Discovery reserves source and counter tracks around flexible content", () 
   assert.match(
     stylesheet,
     /\.discovery-zone \.discovery-image-headline\s*\{[^}]*--discovery-title-preferred-size:\s*50px;[^}]*--discovery-title-minimum-size:\s*28px;/s
+  );
+  assert.match(
+    stylesheet,
+    /\.discovery-zone \.discovery-image-content\s*\{[^}]*align-self:\s*stretch;/s
   );
 });
 
