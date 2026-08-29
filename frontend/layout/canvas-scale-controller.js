@@ -1,5 +1,6 @@
 const MOSAIC_CANVAS_WIDTH = 1512;
 const MOSAIC_CANVAS_HEIGHT = 982;
+const MOSAIC_ZONE_GAP = 16;
 
 function calculateMosaicCanvasScale(viewportWidth, viewportHeight) {
     if (
@@ -15,6 +16,26 @@ function calculateMosaicCanvasScale(viewportWidth, viewportHeight) {
         viewportWidth / MOSAIC_CANVAS_WIDTH,
         viewportHeight / MOSAIC_CANVAS_HEIGHT
     );
+}
+
+function calculateMosaicZoneSurfaceExtension(viewportWidth, scale) {
+    if (
+        !Number.isFinite(viewportWidth) ||
+        !Number.isFinite(scale) ||
+        viewportWidth <= 0 ||
+        scale <= 0
+    ) {
+        return -MOSAIC_ZONE_GAP;
+    }
+
+    const scaledCanvasWidth = MOSAIC_CANVAS_WIDTH * scale;
+    const pillarboxPhysical = Math.max(
+        0,
+        (viewportWidth - scaledCanvasWidth) / 2
+    );
+    const pillarboxCanonical = pillarboxPhysical / scale;
+
+    return pillarboxCanonical - MOSAIC_ZONE_GAP;
 }
 
 class MosaicCanvasScaleController {
@@ -40,8 +61,17 @@ class MosaicCanvasScaleController {
             viewport.width,
             viewport.height
         );
+        const zoneSurfaceExtension =
+            calculateMosaicZoneSurfaceExtension(
+                viewport.width,
+                scale
+            );
 
         this.root.style.setProperty("--mosaic-scale", String(scale));
+        this.root.style.setProperty(
+            "--mosaic-zone-surface-extension",
+            `${zoneSurfaceExtension}px`
+        );
     }
 
     scheduleUpdate() {

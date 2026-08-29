@@ -4,20 +4,16 @@
 
 .widget {
 
-    background:
-        linear-gradient(
-            180deg,
-            var(--surface-top),
-            var(--surface-bottom)
-        );
+    position: relative;
+    z-index: 1;
+
+    background: transparent;
 
     border-radius: 24px;
 
     padding: 16px;
 
-    box-shadow:
-        inset 0 1px 0 var(--border-subtle),
-        0 18px 40px var(--shadow-color-zone);
+    box-shadow: none;
 
     overflow: hidden;
 
@@ -118,9 +114,46 @@
 
 }
 
+.hero-card-surface {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+}
+
+.weather-card-surface {
+    grid-column: 2;
+    grid-row: 1;
+}
+
+.sports-card-surface {
+    grid-column: 2;
+    grid-row: 2;
+}
+
+.hero-card-surface {
+    margin-left: calc(
+        0px - var(--mosaic-zone-surface-extension)
+    );
+}
+
+.weather-card-surface,
+.sports-card-surface {
+    margin-right: calc(
+        0px - var(--mosaic-zone-surface-extension)
+    );
+}
+
+.widget-grid > .layer-3-card-surface,
+.discovery-zone > .discovery-card-surface {
+    border-radius: 24px;
+
+    box-shadow:
+        inset 0 1px 0 var(--border-subtle),
+        0 18px 40px var(--shadow-color-zone);
+}
+
 
 /* ==========================
-   Hero Card
+   Small Cards
 ========================== */
 
 .hero-container {
@@ -129,12 +162,11 @@
 
     grid-row: 1 / span 2;
 
+    margin-left: calc(
+        0px - var(--mosaic-zone-surface-extension)
+    );
+
 }
-
-
-/* ==========================
-   Small Cards
-========================== */
 
 .weather-widget {
 
@@ -153,6 +185,10 @@
     grid-column: 2;
 
     grid-row: 1;
+
+    margin-right: calc(
+        0px - var(--mosaic-zone-surface-extension)
+    );
 
 }
 
@@ -186,6 +222,10 @@
     grid-column: 2;
 
     grid-row: 2;
+
+    margin-right: calc(
+        0px - var(--mosaic-zone-surface-extension)
+    );
 
     overflow: visible;
 
@@ -649,20 +689,13 @@
 
 .hero-container {
 
-    background:
-        linear-gradient(
-            180deg,
-            var(--surface-top),
-            var(--surface-bottom)
-        );
+    background: transparent;
 
     border-radius: 24px;
 
     padding: 16px;
 
-    box-shadow:
-        inset 0 1px 0 var(--border-subtle),
-        0 18px 40px var(--shadow-color-zone);
+    box-shadow: none;
 
     overflow: hidden;
 

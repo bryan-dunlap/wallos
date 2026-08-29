@@ -3,6 +3,7 @@
     --mosaic-canvas-width: 1512px;
     --mosaic-canvas-height: 982px;
     --mosaic-scale: 1;
+    --mosaic-zone-surface-extension: -16px;
 
     /* ==========================
        Core Colors
@@ -129,7 +130,7 @@
     --space-xl: 32px;
     --space-2xl: 48px;
 
-    --space-dashboard: 28px;
+    --space-dashboard: 28px 0;
     --space-zone-gap: 16px;
     --space-zone-padding: 12px;
     --space-panel-padding: 20px;

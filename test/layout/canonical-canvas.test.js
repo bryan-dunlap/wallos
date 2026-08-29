@@ -37,7 +37,7 @@ function loadScaleController(width = 1512, height = 982) {
   });
 
   vm.runInContext(
-    `${source}; this.calculateScale = calculateMosaicCanvasScale;`,
+    `${source}; this.calculateScale = calculateMosaicCanvasScale; this.calculateSurfaceExtension = calculateMosaicZoneSurfaceExtension;`,
     context
   );
 
@@ -56,6 +56,7 @@ test("canonical canvas uses the approved fixed design dimensions", () => {
 
   assert.match(variablesCss, /--mosaic-canvas-width:\s*1512px;/);
   assert.match(variablesCss, /--mosaic-canvas-height:\s*982px;/);
+  assert.match(variablesCss, /--space-dashboard:\s*28px 0;/);
   assert.match(mainCss, /\.mosaic-dashboard\s*\{[^}]*width:\s*var\(--mosaic-canvas-width\);[^}]*height:\s*var\(--mosaic-canvas-height\);/s);
   assert.match(mainCss, /transform:\s*scale\(var\(--mosaic-scale\)\)/);
   assert.doesNotMatch(mainCss, /@media\s*\(max-height:/);
@@ -68,6 +69,29 @@ test("canvas scale uses the smaller viewport ratio", () => {
   assert.equal(context.calculateScale(1920, 1080), 1080 / 982);
   assert.equal(context.calculateScale(1366, 768), 768 / 982);
   assert.equal(context.calculateScale(1280, 800), 800 / 982);
+});
+
+test("zone surfaces retain one scaled canonical gap at viewport edges", () => {
+  const state = loadScaleController(1920, 1080);
+  const scale = 1080 / 982;
+  const pillarboxPhysical = (1920 - (1512 * scale)) / 2;
+  const expectedExtension = (pillarboxPhysical / scale) - 16;
+
+  assert.equal(
+    state.context.calculateSurfaceExtension(1920, scale),
+    expectedExtension
+  );
+  assert.equal(
+    Number(state.properties.get("--mosaic-zone-surface-extension").replace("px", "")),
+    expectedExtension
+  );
+  assert.ok(
+    Math.abs(
+      (pillarboxPhysical - (expectedExtension * scale)) -
+      (16 * scale)
+    ) < 1e-9
+  );
+  assert.equal(state.context.calculateSurfaceExtension(1512, 1), -16);
 });
 
 test("scale controller publishes one uniform scale and coalesces resize work", () => {
@@ -97,6 +121,7 @@ test("viewport stage centers one uniformly transformed canvas", () => {
   const indexHtml = read("frontend/index.html");
 
   assert.match(mainCss, /\.mosaic-viewport-stage\s*\{[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*overflow:\s*hidden;/s);
+  assert.doesNotMatch(mainCss, /\.mosaic-viewport-stage::before/);
   assert.match(indexHtml, /<div class="mosaic-viewport-stage">\s*<main class="mosaic-dashboard">/s);
   assert.doesNotMatch(mainCss, /scaleX\(|scaleY\(/);
 });
@@ -105,11 +130,16 @@ test("major zones share the canonical 12px perimeter rhythm", () => {
   const mainCss = read("frontend/css/main.css");
   const variablesCss = read("frontend/css/variables.css");
   const widgetsCss = read("frontend/widgets/widgets.css");
+  const indexHtml = read("frontend/index.html");
 
   assert.match(variablesCss, /--space-zone-padding:\s*12px;/);
   assert.match(
     mainCss,
     /\.dashboard-zone\s*\{[^}]*padding:\s*var\(--space-zone-padding\);/s
+  );
+  assert.match(
+    mainCss,
+    /\.dashboard-zone::before\s*\{[^}]*inset-block:\s*0;[^}]*inset-inline:\s*calc\(\s*0px - var\(--mosaic-zone-surface-extension\)\s*\);[^}]*pointer-events:\s*none;/s
   );
   assert.match(
     mainCss,
@@ -127,6 +157,48 @@ test("major zones share the canonical 12px perimeter rhythm", () => {
   assert.match(
     widgetsCss,
     /\.sports-widget\s*\{[^}]*min-height:\s*0;[^}]*height:\s*100%;[^}]*align-self:\s*stretch;/s
+  );
+  for (const surfaceClass of [
+    "planning-clock-surface",
+    "planning-calendar-surface",
+    "hero-card-surface",
+    "weather-card-surface",
+    "sports-card-surface",
+    "discovery-card-surface"
+  ]) {
+    assert.match(indexHtml, new RegExp(surfaceClass));
+  }
+  assert.match(
+    mainCss,
+    /\.planning-clock-surface,\s*\.planning-clock\s*\{[^}]*margin-left:\s*calc\(\s*0px - var\(--mosaic-zone-surface-extension\)\s*\);/s
+  );
+  assert.match(
+    mainCss,
+    /\.planning-calendar-surface,\s*\.planning-calendar\s*\{[^}]*margin-right:\s*calc\(\s*0px - var\(--mosaic-zone-surface-extension\)\s*\);/s
+  );
+  assert.match(
+    widgetsCss,
+    /\.hero-card-surface\s*\{[^}]*margin-left:\s*calc\(\s*0px - var\(--mosaic-zone-surface-extension\)\s*\);/s
+  );
+  assert.match(
+    widgetsCss,
+    /\.hero-container\s*\{[^}]*margin-left:\s*calc\(\s*0px - var\(--mosaic-zone-surface-extension\)\s*\);/s
+  );
+  assert.match(
+    widgetsCss,
+    /\.weather-card-surface,\s*\.sports-card-surface\s*\{[^}]*margin-right:\s*calc\(\s*0px - var\(--mosaic-zone-surface-extension\)\s*\);/s
+  );
+  assert.match(
+    widgetsCss,
+    /\.weather-widget\s*\{[^}]*margin-right:\s*calc\(\s*0px - var\(--mosaic-zone-surface-extension\)\s*\);/s
+  );
+  assert.match(
+    widgetsCss,
+    /\.sports-widget\s*\{[^}]*margin-right:\s*calc\(\s*0px - var\(--mosaic-zone-surface-extension\)\s*\);/s
+  );
+  assert.match(
+    mainCss,
+    /\.discovery-card-surface\s*\{[^}]*inset-block:\s*var\(--space-zone-padding\);[^}]*inset-inline:\s*calc\(\s*var\(--space-zone-padding\) -\s*var\(--mosaic-zone-surface-extension\)\s*\);/s
   );
 });
 

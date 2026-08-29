@@ -164,10 +164,24 @@ body {
 ========================== */
 
 .dashboard-zone {
+    position: relative;
+
+    isolation: isolate;
 
     min-height: 0;
 
     padding: var(--space-zone-padding);
+
+}
+
+.dashboard-zone::before {
+    content: "";
+
+    position: absolute;
+    inset-block: 0;
+    inset-inline: calc(
+        0px - var(--mosaic-zone-surface-extension)
+    );
 
     border-radius: var(--radius-zone);
 
@@ -199,11 +213,15 @@ body {
 
         var(--shadow-zone);
 
+    pointer-events: none;
+
+    z-index: -1;
+
 }
 
 .planning-zone {
 
-    overflow: hidden;
+    overflow: visible;
 
 }
 
@@ -233,6 +251,26 @@ body {
     align-items: center;
 }
 
+.planning-clock-surface,
+.planning-clock {
+    grid-column: 1;
+    grid-row: 1;
+
+    margin-left: calc(
+        0px - var(--mosaic-zone-surface-extension)
+    );
+}
+
+.planning-calendar-surface,
+.planning-calendar {
+    grid-column: 2;
+    grid-row: 1;
+
+    margin-right: calc(
+        0px - var(--mosaic-zone-surface-extension)
+    );
+}
+
 
 .planning-clock {
 
@@ -241,7 +279,7 @@ body {
     justify-content: center;
     align-items: center;
 
-    width: 100%;
+    width: auto;
     height: 100%;
 
     min-height: 100%;
@@ -251,7 +289,7 @@ body {
 
 .planning-calendar {
 
-    width: 100%;
+    width: auto;
     height: 100%;
 
 }
@@ -705,7 +743,17 @@ button:focus-visible,
     align-items: center;
     justify-content: center;
 
-    overflow: hidden;
+    overflow: visible;
+}
+
+.discovery-card-surface {
+    position: absolute;
+
+    inset-block: var(--space-zone-padding);
+    inset-inline: calc(
+        var(--space-zone-padding) -
+        var(--mosaic-zone-surface-extension)
+    );
 }
 
 .discovery-zone .discovery-card {
@@ -937,6 +985,22 @@ button:focus-visible,
 
     padding: var(--space-panel-padding);
 
+    position: relative;
+    z-index: 1;
+
+    background: transparent;
+
+    box-shadow: none;
+
+}
+
+.layer-3-card-surface {
+    min-width: 0;
+    min-height: 0;
+
+    align-self: stretch;
+    justify-self: stretch;
+
     border-radius: var(--radius-zone);
 
     background:
@@ -954,5 +1018,9 @@ button:focus-visible,
         inset 0 0 0 1px var(--glass-edge),
 
         var(--shadow-zone);
+
+    pointer-events: none;
+
+    z-index: 0;
 
 }
