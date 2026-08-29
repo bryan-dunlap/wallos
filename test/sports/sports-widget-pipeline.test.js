@@ -35,6 +35,7 @@ const {
   "../../frontend/providers/sports-simulation-profile-registry"
 );
 const {
+  normalizeSportsProviderTeam,
   normalizeSportsScheduleLeagues
 } = require("../../frontend/providers/sports-provider");
 const {
@@ -55,6 +56,7 @@ function createLegacyMlbGame(overrides = {}) {
     },
     awayTeam: {
       name: "Seattle Mariners",
+      shortName: "Mariners",
       abbreviation: "SEA",
       logo: "https://example.com/sea.svg",
       record: { wins: 70, losses: 58 },
@@ -64,6 +66,7 @@ function createLegacyMlbGame(overrides = {}) {
     },
     homeTeam: {
       name: "Los Angeles Angels",
+      shortName: "Angels",
       abbreviation: "LAA",
       logo: "https://example.com/laa.svg",
       record: { wins: 60, losses: 68 },
@@ -168,7 +171,8 @@ test("MLB adapter contains baseball interpretation behind the contract", () => {
   assert.equal(event.league, "MLB");
   assert.equal(event.id, "12345");
   assert.equal(event.status, "live");
-  assert.equal(event.participants.away.name, "Seattle Mariners");
+  assert.equal(event.participants.away.name, "Mariners");
+  assert.equal(event.participants.away.fullName, "Seattle Mariners");
   assert.deepEqual(event.scores, { away: 3, home: 2 });
   assert.deepEqual(event.details.baseball.inning, {
     half: "Bottom",
@@ -264,6 +268,59 @@ test("SportsProvider maps aggregate MLB payloads and preserves metadata", () => 
   assert.equal(leagues[0].availability, "available");
   assert.equal(leagues[0].updatedAt, "2026-08-22T12:00:00.000Z");
   assert.equal(leagues[0].stale, true);
+});
+
+test("MLB provider path preserves compact nicknames through every widget state", () => {
+  const cases = [
+    {
+      status: { state: "Scheduled", detail: "Scheduled" },
+      scheduledAt: "2099-08-22T18:10:00.000Z",
+      fullName: "Seattle Mariners",
+      shortName: "Mariners"
+    },
+    {
+      status: { state: "Live", detail: "Bottom 7th" },
+      fullName: "Boston Red Sox",
+      shortName: "Red Sox"
+    },
+    {
+      status: { state: "Final", detail: "Final" },
+      fullName: "Toronto Blue Jays",
+      shortName: "Blue Jays"
+    }
+  ];
+  const adapter = new MlbSportsEventAdapter();
+  const renderer = new MlbSportsWidgetRenderer();
+
+  for (const entry of cases) {
+    const sourceGame = createLegacyMlbGame({
+      scheduledAt: entry.scheduledAt ||
+        "2020-08-22T18:10:00.000Z",
+      status: entry.status
+    });
+    sourceGame.awayTeam = normalizeSportsProviderTeam({
+      ...sourceGame.awayTeam,
+      name: entry.fullName,
+      shortName: entry.shortName
+    });
+    sourceGame.homeTeam = normalizeSportsProviderTeam(
+      sourceGame.homeTeam
+    );
+
+    const event = adapter.adaptGame(sourceGame);
+    const presentation = renderer.render(event);
+
+    assert.equal(event.participants.away.name, entry.shortName);
+    assert.equal(event.participants.away.fullName, entry.fullName);
+    assert.match(
+      presentation.content,
+      new RegExp(`>\\s*${entry.shortName}\\s*<`)
+    );
+    assert.doesNotMatch(
+      presentation.content,
+      new RegExp(entry.fullName)
+    );
+  }
 });
 
 test("SportsProvider treats an empty aggregate as authoritative", () => {
@@ -445,6 +502,7 @@ test("MLB widget renderer uses shared compact team identities", () => {
   assert.match(presentation.content, />\s*Mariners\s*</);
   assert.match(presentation.content, />\s*Angels\s*</);
   assert.doesNotMatch(presentation.content, /Seattle Mariners/);
+  assert.doesNotMatch(presentation.content, /Los Angeles Angels/);
   assert.match(presentation.content, /sports-widget-team/);
   assert.match(presentation.content, /Mariners\s*<\/span>\s*<span class="team-identity-record">\s*\(70-58\)/);
   assert.match(presentation.content, /Angels\s*<\/span>\s*<span class="team-identity-record">\s*\(60-68\)/);
@@ -462,6 +520,8 @@ test("MLB widget renderer uses shared compact team identities", () => {
   );
   assert.match(scheduled.content, /sports-widget-team-away/);
   assert.match(scheduled.content, /sports-widget-team-home/);
+  assert.match(scheduled.content, />\s*Mariners\s*</);
+  assert.match(scheduled.content, />\s*Angels\s*</);
   assert.doesNotMatch(scheduled.content, /team-identity-record/);
   assert.equal(final.status, "Final");
   assert.doesNotMatch(
@@ -613,6 +673,32 @@ test("MLB and NFL scheduled games use the identical shared presentation", () => 
   assert.match(mlb.content, /team-identity-record/);
   assert.doesNotMatch(mlb.content, /mlb-widget-scoreboard/);
   assert.doesNotMatch(mlb.content, /nfl-widget-scoreboard/);
+});
+
+test("shared presentation uses complete nicknames without team locations", () => {
+  const game = createNflFixture("scheduled");
+  game.awayTeam = {
+    ...game.awayTeam,
+    name: "Kansas City Chiefs",
+    shortName: "Chiefs"
+  };
+  game.homeTeam = {
+    ...game.homeTeam,
+    name: "New York Yankees",
+    shortName: "Yankees"
+  };
+  const event = new NflSportsEventAdapter().adaptGame(game);
+
+  const presentation = new NflSportsWidgetRenderer().render(event);
+
+  assert.equal(event.participants.away.name, "Chiefs");
+  assert.equal(event.participants.away.fullName, "Kansas City Chiefs");
+  assert.equal(event.participants.home.name, "Yankees");
+  assert.equal(event.participants.home.fullName, "New York Yankees");
+  assert.match(presentation.content, />\s*Chiefs\s*</);
+  assert.match(presentation.content, />\s*Yankees\s*</);
+  assert.doesNotMatch(presentation.content, /Kansas City Chiefs/);
+  assert.doesNotMatch(presentation.content, /New York Yankees/);
 });
 
 test("NFL renderer registers through the existing league registry", () => {

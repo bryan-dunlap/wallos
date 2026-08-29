@@ -115,12 +115,13 @@ class MlbSportsWidgetRenderer {
     }
 
     formatTeamName(team = {}) {
-        const shortName = String(team.shortName || "").trim();
+        const name = String(team.name || "").trim();
 
-        if (shortName) return shortName;
+        if (name) return name;
 
-        const nameParts = String(team.name || "").trim().split(/\s+/);
-        return nameParts.at(-1) || team.abbreviation || "Team";
+        return String(team.shortName || "").trim() ||
+            team.abbreviation ||
+            "Team";
     }
 
     hasReachedScheduledStart(state = {}) {

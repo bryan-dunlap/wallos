@@ -31,6 +31,21 @@ function fixtureWithEvents(...indexes) {
   };
 }
 
+function fixtureEventWithTeams(eventId, awayTeam, homeTeam) {
+  const event = structuredClone(espnScoreboardFixture.events[0]);
+  event.id = eventId;
+
+  for (const competitor of event.competitions[0].competitors) {
+    const source = competitor.homeAway === "away" ? awayTeam : homeTeam;
+    competitor.team = {
+      ...competitor.team,
+      ...source
+    };
+  }
+
+  return event;
+}
+
 test("normalizes scheduled ESPN MLB data into the existing contract", async () => {
   const cache = new Map();
   let requestUrl = null;
@@ -64,6 +79,72 @@ test("normalizes scheduled ESPN MLB data into the existing contract", async () =
   assert.equal(game.awayTeam.runs, null);
   assert.equal(game.linescore, null);
   assert.equal(cache.get(result.date).ttl, MLB_SCHEDULED_CACHE_MS);
+});
+
+test("normalizes complete ESPN MLB display names without nickname truncation", async () => {
+  const result = await acquireMlbDailySchedule("2026-08-27", {
+    cache: new Map(),
+    fetchImpl: createFetch({
+      events: [
+        fixtureEventWithTeams(
+          "complete-names-1",
+          {
+            id: "2",
+            abbreviation: "BOS",
+            displayName: "Boston Red Sox",
+            shortDisplayName: "Red Sox"
+          },
+          {
+            id: "4",
+            abbreviation: "CHW",
+            displayName: "Chicago White Sox",
+            shortDisplayName: "White Sox"
+          }
+        ),
+        fixtureEventWithTeams(
+          "complete-names-2",
+          {
+            id: "14",
+            abbreviation: "TOR",
+            displayName: "Toronto Blue Jays",
+            shortDisplayName: "Blue Jays"
+          },
+          {
+            id: "12",
+            abbreviation: "SEA",
+            displayName: "Seattle Mariners",
+            shortDisplayName: "Mariners"
+          }
+        )
+      ]
+    })
+  });
+  const names = result.sportsEvents.flatMap(
+    (game) => [game.awayTeam.name, game.homeTeam.name]
+  );
+  const compactNames = result.sportsEvents.flatMap((game) => {
+    const event = new MlbSportsEventAdapter().adaptGame(game);
+    return [event.participants.away.name, event.participants.home.name];
+  });
+
+  assert.deepEqual(new Set(names), new Set([
+    "Boston Red Sox",
+    "Chicago White Sox",
+    "Toronto Blue Jays",
+    "Seattle Mariners"
+  ]));
+  assert.deepEqual(new Set(compactNames), new Set([
+    "Red Sox",
+    "White Sox",
+    "Blue Jays",
+    "Mariners"
+  ]));
+  assert.ok(compactNames.every((name) => ![
+    "Boston",
+    "Chicago",
+    "Toronto",
+    "Seattle"
+  ].some((location) => name.includes(location))));
 });
 
 test("preserves MLB identity while retaining ESPN IDs separately", async () => {

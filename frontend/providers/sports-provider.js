@@ -243,18 +243,7 @@ class SportsProvider {
     }
 
     normalizeTeam(team = {}) {
-        return {
-            name: team.name || "Team TBD",
-            abbreviation: team.abbreviation || "",
-            logo: team.logo || "",
-            record: team.record || {
-                wins: null,
-                losses: null
-            },
-            runs: team.runs ?? null,
-            hits: team.hits ?? null,
-            errors: team.errors ?? null
-        };
+        return normalizeSportsProviderTeam(team);
     }
 
     getDateKey(date) {
@@ -269,6 +258,22 @@ class SportsProvider {
         return `${year}-${month}-${day}`;
     }
 
+}
+
+function normalizeSportsProviderTeam(team = {}) {
+    return {
+        name: team.name || "Team TBD",
+        shortName: team.shortName || "",
+        abbreviation: team.abbreviation || "",
+        logo: team.logo || "",
+        record: team.record || {
+            wins: null,
+            losses: null
+        },
+        runs: team.runs ?? null,
+        hits: team.hits ?? null,
+        errors: team.errors ?? null
+    };
 }
 
 function normalizeSportsScheduleLeagues(
@@ -310,5 +315,8 @@ function normalizeSportsScheduleLeagues(
 }
 
 if (typeof module !== "undefined" && module.exports) {
-    module.exports = { normalizeSportsScheduleLeagues };
+    module.exports = {
+        normalizeSportsProviderTeam,
+        normalizeSportsScheduleLeagues
+    };
 }

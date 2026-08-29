@@ -65,7 +65,8 @@ class MlbSportsEventAdapter {
 
     normalizeParticipant(team = {}) {
         return {
-            name: team.name,
+            name: team.shortName || team.name,
+            fullName: team.name || team.shortName || "",
             abbreviation: team.abbreviation || "",
             logo: team.logo || "",
             record: team.record || {
