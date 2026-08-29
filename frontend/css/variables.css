@@ -1,5 +1,9 @@
 :root {
 
+    --mosaic-canvas-width: 1512px;
+    --mosaic-canvas-height: 982px;
+    --mosaic-scale: 1;
+
     /* ==========================
        Core Colors
     ========================== */
@@ -127,7 +131,7 @@
 
     --space-dashboard: 28px;
     --space-zone-gap: 16px;
-    --space-zone-padding: 20px;
+    --space-zone-padding: 12px;
     --space-panel-padding: 20px;
     --space-card-gap: 12px;
     --space-card-padding: 16px;

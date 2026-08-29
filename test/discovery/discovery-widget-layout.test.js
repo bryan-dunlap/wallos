@@ -276,11 +276,11 @@ test("Discovery reserves source and counter tracks around flexible content", () 
   );
   assert.match(
     stylesheet,
-    /\.discovery-zone \.discovery-item-text\s*\{[^}]*padding-block:\s*clamp\(6px, 1vh, 12px\);[^}]*padding-inline:\s*clamp\(14px, 2\.6vw, 38px\);/s
+    /\.discovery-zone \.discovery-item-text\s*\{[^}]*padding-block:\s*clamp\(\s*6px,\s*9\.82px,\s*12px\s*\);[^}]*padding-inline:\s*clamp\(\s*14px,\s*39\.312px,\s*38px\s*\);/s
   );
   assert.match(
     stylesheet,
-    /\.discovery-zone \.discovery-image-caption\s*\{[^}]*padding:\s*clamp\(6px, 1vh, 12px\) 0;/s
+    /\.discovery-zone \.discovery-image-caption\s*\{[^}]*padding:\s*clamp\(\s*6px,\s*9\.82px,\s*12px\s*\) 0;/s
   );
   assert.match(
     stylesheet,

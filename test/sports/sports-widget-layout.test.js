@@ -29,6 +29,10 @@ test("Sports Widget body owns remaining height for vertical centering", () => {
 
   assert.match(sportsWidget, /display:\s*flex\s*;/);
   assert.match(sportsWidget, /flex-direction:\s*column\s*;/);
+  assert.match(sportsWidget, /min-height:\s*0\s*;/);
+  assert.match(sportsWidget, /height:\s*100%\s*;/);
+  assert.match(sportsWidget, /align-self:\s*stretch\s*;/);
+  assert.match(sportsWidget, /padding-block:\s*8px\s*;/);
   assert.match(sportsBody, /flex:\s*1 1 auto\s*;/);
   assert.match(sportsBody, /min-height:\s*0\s*;/);
   assert.match(matchupLayout, /flex-direction:\s*column\s*;/);
@@ -76,6 +80,10 @@ test("Sports scoreboards share an explicit three-row vertical shell", () => {
   );
   assert.match(
     sportsWidget,
+    /--sports-matchup-vertical-offset:\s*-4px\s*;/
+  );
+  assert.match(
+    sportsWidget,
     /--sports-widget-team-name-size:\s*1\.55rem\s*;/
   );
   assert.match(
@@ -99,6 +107,14 @@ test("Sports scoreboards share an explicit three-row vertical shell", () => {
     /font-size:\s*var\(--sports-widget-team-record-size\)\s*;/
   );
   assert.match(scoreValue, /font-size:\s*1\.55rem\s*;/);
+  assert.match(
+    sportsTeam,
+    /top:\s*var\(--sports-matchup-vertical-offset\)\s*;/
+  );
+  assert.match(
+    scoreValue,
+    /top:\s*var\(--sports-matchup-vertical-offset\)\s*;/
+  );
   assert.match(mlbScoreboard, /column-gap:\s*18px\s*;/);
   assert.match(scoreboards, /box-sizing:\s*border-box\s*;/);
   assert.match(

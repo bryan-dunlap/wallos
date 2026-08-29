@@ -108,7 +108,7 @@
 
     grid-template-columns: 2fr 1fr;
 
-    grid-template-rows: 1fr 1fr;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
 
     gap: 12px;
 
@@ -138,6 +138,18 @@
 
 .weather-widget {
 
+    min-height: 0;
+
+    height: 100%;
+
+    display: flex;
+
+    flex-direction: column;
+
+    align-self: stretch;
+
+    padding-block: 8px;
+
     grid-column: 2;
 
     grid-row: 1;
@@ -157,10 +169,19 @@
     --sports-scoreboard-heading-height: .75rem;
     --sports-scoreboard-row-gap: 8px;
     --sports-scoreboard-inline-inset: 12px;
+    --sports-matchup-vertical-offset: -4px;
 
     display: flex;
 
     flex-direction: column;
+
+    min-height: 0;
+
+    height: 100%;
+
+    align-self: stretch;
+
+    padding-block: 8px;
 
     grid-column: 2;
 
@@ -334,6 +355,10 @@
 
 .sports-widget-team {
 
+    position: relative;
+
+    top: var(--sports-matchup-vertical-offset);
+
     gap: var(--sports-widget-team-row-gap);
 
     overflow: visible;
@@ -424,6 +449,10 @@
 
 .sports-scoreboard-value {
 
+    position: relative;
+
+    top: var(--sports-matchup-vertical-offset);
+
     color: var(--color-text);
 
     font-family: "Outfit", sans-serif;
@@ -490,7 +519,9 @@
 
 .weather-content {
 
-    flex: 1;
+    min-height: 0;
+
+    flex: 1 1 auto;
 
     display: flex;
 
@@ -500,9 +531,9 @@
 
     justify-content: center;
 
-    transform: translateY(-5px);
+    overflow: hidden;
 
-    gap: 4px;
+    gap: 0;
 
 }
 
@@ -512,6 +543,8 @@
     color: var(--color-text-secondary);
 
     font-size: .7rem;
+
+    line-height: 1;
 
     letter-spacing: .15em;
 
@@ -585,6 +618,8 @@
 
     font-size: 1.25rem;
 
+    line-height: 1.2;
+
     min-height: 1.2em;
 
 }
@@ -595,6 +630,15 @@
     color: var(--color-text-muted);
 
     font-size: 1.1rem;
+
+    line-height: 1;
+
+}
+
+
+.weather-widget .widget-header {
+
+    margin-bottom: 4px;
 
 }
 
@@ -668,7 +712,11 @@
 
 .hero-resting .hero-title {
 
-    font-size: clamp(3.25rem, 4.6vw, 5.25rem);
+    font-size: clamp(
+        3.25rem,
+        69.552px,
+        5.25rem
+    );
 
     line-height: 1.04;
 
@@ -679,9 +727,17 @@
 
 .hero-resting .hero-subtitle {
 
-    margin-top: clamp(14px, 1.5vw, 22px);
+    margin-top: clamp(
+        14px,
+        22.68px,
+        22px
+    );
 
-    font-size: clamp(1.55rem, 2.25vw, 2.25rem);
+    font-size: clamp(
+        1.55rem,
+        34.02px,
+        2.25rem
+    );
 
     line-height: 1.35;
 
@@ -709,7 +765,11 @@
 
     color: var(--color-text-secondary);
 
-    font-size: clamp(1.55rem, 2.15vw, 2.15rem);
+    font-size: clamp(
+        1.55rem,
+        32.508px,
+        2.15rem
+    );
 
     font-weight: 500;
 
@@ -733,14 +793,22 @@
 
 .hero-resting-highlight {
 
-    margin-top: clamp(16px, 1.7vw, 26px);
+    margin-top: clamp(
+        16px,
+        25.704px,
+        26px
+    );
 
 }
 
 
 .hero-resting-highlight-title {
 
-    font-size: clamp(1.5rem, 2vw, 2.05rem);
+    font-size: clamp(
+        1.5rem,
+        30.24px,
+        2.05rem
+    );
 
     font-weight: 650;
 
@@ -755,7 +823,11 @@
 
     margin-top: var(--space-xs);
 
-    font-size: clamp(1.2rem, 1.5vw, 1.55rem);
+    font-size: clamp(
+        1.2rem,
+        22.68px,
+        1.55rem
+    );
 
     line-height: 1.3;
 
@@ -863,7 +935,11 @@
 
     justify-content: space-between;
 
-    gap: clamp(8px, 1.5vh, 16px);
+    gap: clamp(
+        8px,
+        14.73px,
+        16px
+    );
 
     padding: var(--space-xs) 0;
 
@@ -872,7 +948,11 @@
 
 .baseball-game-primary {
 
-    --baseball-inning-gap: clamp(6px, .8vh, 10px);
+    --baseball-inning-gap: clamp(
+        6px,
+        7.856px,
+        10px
+    );
 
     padding-bottom: calc(1rem + var(--baseball-inning-gap));
 
@@ -883,9 +963,17 @@
 
 .baseball-game-matchup {
 
-    --baseball-matchup-gap: clamp(6px, 1.1vw, 14px);
+    --baseball-matchup-gap: clamp(
+        6px,
+        16.632px,
+        14px
+    );
 
-    --baseball-identity-gap: clamp(2px, .35vw, 5px);
+    --baseball-identity-gap: clamp(
+        2px,
+        5.292px,
+        5px
+    );
 
     display: flex;
 
@@ -978,9 +1066,17 @@
 
 .baseball-game-team-logo {
 
-    width: clamp(38px, 5vw, 60px);
+    width: clamp(
+        38px,
+        75.6px,
+        60px
+    );
 
-    height: clamp(38px, 5vw, 60px);
+    height: clamp(
+        38px,
+        75.6px,
+        60px
+    );
 
     display: flex;
 
@@ -1015,7 +1111,11 @@
 
     color: var(--color-text-secondary);
 
-    font-size: clamp(.95rem, 1.55vw, 1.3rem);
+    font-size: clamp(
+        .95rem,
+        23.436px,
+        1.3rem
+    );
 
     font-weight: 600;
 
@@ -1043,7 +1143,11 @@
 
     color: var(--color-text-muted);
 
-    font-size: clamp(.95rem, 1.55vw, 1.3rem);
+    font-size: clamp(
+        .95rem,
+        23.436px,
+        1.3rem
+    );
 
     font-weight: 500;
 
@@ -1056,7 +1160,11 @@
 
     color: var(--color-text);
 
-    font-size: clamp(3.35rem, 5.8vw, 5.1rem);
+    font-size: clamp(
+        3.35rem,
+        87.696px,
+        5.1rem
+    );
 
     font-weight: 600;
 
@@ -1072,7 +1180,11 @@
     position: absolute;
 
     top: calc(
-        50% + clamp(1.675rem, 2.9vw, 2.55rem) +
+        50% + clamp(
+            1.675rem,
+            43.848px,
+            2.55rem
+        ) +
         var(--baseball-inning-gap)
     );
 
@@ -1129,7 +1241,11 @@
 
     color: var(--color-text-secondary);
 
-    font-size: clamp(.9rem, 1.25vw, 1.1rem);
+    font-size: clamp(
+        .9rem,
+        18.9px,
+        1.1rem
+    );
 
     font-variant-numeric: tabular-nums;
 
@@ -1176,7 +1292,11 @@
 
     color: var(--color-text-muted);
 
-    font-size: clamp(.8rem, 1.05vw, .94rem);
+    font-size: clamp(
+        .8rem,
+        15.876px,
+        .94rem
+    );
 
     font-weight: 500;
 
@@ -1224,7 +1344,11 @@
 
     top: 50%;
 
-    width: clamp(120px, 13vw, 180px);
+    width: clamp(
+        120px,
+        196.56px,
+        180px
+    );
 
     transform: translateY(-50%);
 
@@ -1253,7 +1377,11 @@
 
     color: var(--color-text);
 
-    font-size: clamp(1rem, 1.3vw, 1.15rem);
+    font-size: clamp(
+        1rem,
+        19.656px,
+        1.15rem
+    );
 
     font-weight: 600;
 

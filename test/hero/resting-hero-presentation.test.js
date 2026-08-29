@@ -198,7 +198,7 @@ test("MosaicHero preserves Active Hero renderer delegation and summary hiding", 
   assert.equal(summaryRegion.hidden, true);
 });
 
-test("Hero typography grows without changing fixed page or Hero geometry", () => {
+test("Hero typography uses canonical canvas geometry", () => {
   const widgetsCss = fs.readFileSync(
     path.join(PROJECT_ROOT, "frontend/widgets/widgets.css"),
     "utf8"
@@ -208,10 +208,11 @@ test("Hero typography grows without changing fixed page or Hero geometry", () =>
     "utf8"
   );
 
-  assert.match(widgetsCss, /\.hero-resting \.hero-title\s*\{[^}]*clamp\(3\.25rem, 4\.6vw, 5\.25rem\)/s);
-  assert.match(widgetsCss, /\.hero-resting-row\s*\{[^}]*clamp\(1\.55rem, 2\.15vw, 2\.15rem\)/s);
-  assert.match(widgetsCss, /\.hero-resting-highlight-title\s*\{[^}]*clamp\(1\.5rem, 2vw, 2\.05rem\)/s);
-  assert.match(widgetsCss, /\.baseball-game-team-score\s*\{[^}]*clamp\(3\.35rem, 5\.8vw, 5\.1rem\)/s);
+  assert.match(widgetsCss, /\.hero-resting \.hero-title\s*\{[^}]*69\.552px/s);
+  assert.match(widgetsCss, /\.hero-resting-row\s*\{[^}]*32\.508px/s);
+  assert.match(widgetsCss, /\.hero-resting-highlight-title\s*\{[^}]*30\.24px/s);
+  assert.match(widgetsCss, /\.baseball-game-team-score\s*\{[^}]*87\.696px/s);
   assert.match(widgetsCss, /\.hero-container\s*\{[^}]*padding:\s*16px/s);
-  assert.match(mainCss, /grid-template-rows:\s*minmax\(240px, auto\)\s*minmax\(260px, 1\.2fr\)\s*minmax\(240px, 1fr\)/s);
+  assert.match(mainCss, /grid-template-rows:\s*minmax\(260px, auto\)\s*minmax\(260px, 1\.2fr\)\s*minmax\(240px, 1fr\)/s);
+  assert.doesNotMatch(mainCss, /@media\s*\(max-height:/s);
 });
