@@ -167,6 +167,10 @@ class MlbDataProvider {
             return {
                 ...normalizedGame,
                 score,
+                lineScore: this.normalizeLineScore(
+                    game,
+                    favoriteIsAway
+                ),
                 result: this.formatResult(
                     favoriteTeam.name,
                     score

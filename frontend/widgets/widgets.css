@@ -962,17 +962,15 @@
 
     height: 100%;
 
-    display: flex;
+    min-height: 0;
 
-    flex-direction: column;
+    display: grid;
 
-    justify-content: space-between;
+    grid-template-rows: auto auto minmax(68px, 1fr);
 
-    gap: clamp(
-        8px,
-        14.73px,
-        16px
-    );
+    align-items: center;
+
+    gap: 8px;
 
     padding: var(--space-xs) 0;
 
@@ -980,14 +978,6 @@
 
 
 .baseball-game-primary {
-
-    --baseball-inning-gap: clamp(
-        6px,
-        7.856px,
-        10px
-    );
-
-    padding-bottom: calc(1rem + var(--baseball-inning-gap));
 
     display: block;
 
@@ -1172,7 +1162,15 @@
 
 .baseball-game-versus {
 
-    position: relative;
+    display: flex;
+
+    flex-direction: column;
+
+    align-items: center;
+
+    justify-content: center;
+
+    gap: 6px;
 
     color: var(--color-text-muted);
 
@@ -1209,21 +1207,6 @@
 
 
 .baseball-game-inning {
-
-    position: absolute;
-
-    top: calc(
-        50% + clamp(
-            1.675rem,
-            43.848px,
-            2.55rem
-        ) +
-        var(--baseball-inning-gap)
-    );
-
-    left: 50%;
-
-    transform: translateX(-50%);
 
     color: var(--color-accent);
 

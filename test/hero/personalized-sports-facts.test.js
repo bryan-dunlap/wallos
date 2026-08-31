@@ -252,3 +252,115 @@ test("normal MLB facts and active Gamecast use separate source routes", async ()
     "/api/sports/mlb/gamecast?date=2026-08-27"
   ]);
 });
+
+test("Hero MLB Gamecast renders both Toronto and Seattle line-score rows", () => {
+  let renderer = null;
+  const { Class: BaseballGameRenderer } = loadClass(
+    "frontend/widgets/baseball-game-renderer.js",
+    "BaseballGameRenderer",
+    {
+      window: {
+        mosaicActiveRendererRegistry: {
+          register: (_type, registeredRenderer) => {
+            renderer = registeredRenderer;
+          }
+        }
+      }
+    }
+  );
+  const markup = (renderer || new BaseballGameRenderer()).render({
+    teams: {
+      away: { id: "TOR", name: "Blue Jays" },
+      home: { id: "SEA", name: "Mariners" }
+    },
+    score: { away: 4, home: 3 },
+    inning: { half: "bottom", number: 9 },
+    lineScore: {
+      innings: Array.from({ length: 9 }, (_, index) => ({
+        number: index + 1,
+        away: index === 0 ? 1 : 0,
+        home: index === 1 ? 1 : 0
+      })),
+      away: { runs: 4, hits: 8, errors: 0 },
+      home: { runs: 3, hits: 7, errors: 1 }
+    }
+  });
+  const rows = [...markup.matchAll(/<tr>([\s\S]*?)<\/tr>/g)]
+    .map((match) => match[1]);
+
+  assert.equal(rows.length, 3);
+  assert.match(rows[1], /<th scope="row">TOR<\/th>/);
+  assert.match(rows[2], /<th scope="row">SEA<\/th>/);
+  assert.match(rows[1], /<td>4<\/td>\s*<td>8<\/td>\s*<td>0<\/td>/);
+  assert.match(rows[2], /<td>3<\/td>\s*<td>7<\/td>\s*<td>1<\/td>/);
+});
+
+test("Hero MLB Gamecast retains both line-score sides for live and final", () => {
+  const { Class: MlbDataProvider } = loadClass(
+    "frontend/providers/mlb-data-provider.js",
+    "MlbDataProvider",
+    { Map }
+  );
+  const provider = new MlbDataProvider();
+  const favoriteTeam = {
+    id: "SEA",
+    name: "Seattle Mariners",
+    league: "MLB",
+    sport: "baseball"
+  };
+  const game = {
+    scheduledAt: "2026-08-30T20:10:00.000Z",
+    awayTeam: {
+      abbreviation: "TOR",
+      name: "Toronto Blue Jays",
+      runs: 4,
+      hits: 8,
+      errors: 0
+    },
+    homeTeam: {
+      abbreviation: "SEA",
+      name: "Seattle Mariners",
+      runs: 3,
+      hits: 7,
+      errors: 1
+    },
+    linescore: {
+      inning: { number: 9, half: "Bottom" },
+      innings: [{ number: 1, away: 1, home: 0 }]
+    }
+  };
+
+  for (const state of ["Live", "Final"]) {
+    const normalized = provider.normalizeGame({
+      ...game,
+      status: { state }
+    }, favoriteTeam);
+
+    assert.deepEqual(
+      JSON.parse(JSON.stringify(normalized.lineScore.innings[0])),
+      { number: 1, away: 1, home: 0, favoriteTeam: 0, opponent: 1 }
+    );
+    assert.equal(normalized.lineScore.away.runs, 4);
+    assert.equal(normalized.lineScore.home.runs, 3);
+  }
+});
+
+test("Hero MLB Gamecast reserves space for line score and live details", () => {
+  const widgetsCss = fs.readFileSync(
+    path.join(PROJECT_ROOT, "frontend/widgets/widgets.css"),
+    "utf8"
+  );
+
+  assert.match(
+    widgetsCss,
+    /\.baseball-gamecast\s*\{[^}]*display:\s*grid;[^}]*grid-template-rows:\s*auto auto minmax\(68px, 1fr\);[^}]*gap:\s*8px/s
+  );
+  assert.match(
+    widgetsCss,
+    /\.baseball-game-inning\s*\{(?![^}]*position:\s*absolute)[^}]*color:/s
+  );
+  assert.doesNotMatch(
+    widgetsCss,
+    /\.baseball-line-score-wrap\s*\{[^}]*flex-shrink:/s
+  );
+});
