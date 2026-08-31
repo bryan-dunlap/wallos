@@ -52,10 +52,14 @@ const simulationTeams = {
     },
     NFL: {
         away: createSimulationTeam(
-            "NFL:SEA", "Seattle Seahawks", "Seahawks", "NFL", "football"
+            "NFL:SEA", "Seattle Seahawks", "Seahawks", "NFL", "football",
+            "26",
+            "https://a.espncdn.com/i/teamlogos/nfl/500/sea.png"
         ),
         home: createSimulationTeam(
-            "NFL:SF", "San Francisco 49ers", "49ers", "NFL", "football"
+            "NFL:SF", "San Francisco 49ers", "49ers", "NFL", "football",
+            "25",
+            "https://a.espncdn.com/i/teamlogos/nfl/500/sf.png"
         )
     },
     NBA: {
@@ -82,7 +86,8 @@ function createSimulationTeam(
     shortName,
     league,
     sport,
-    providerId = null
+    providerId = null,
+    logo = null
 ) {
     return {
         id,
@@ -91,9 +96,9 @@ function createSimulationTeam(
         league,
         sport,
         providerId,
-        logo: providerId
+        logo: logo || (league === "MLB" && providerId
             ? `https://www.mlbstatic.com/team-logos/${providerId}.svg`
-            : ""
+            : "")
     };
 }
 
@@ -200,6 +205,128 @@ function createClockSportScenario(id, label, details) {
     ));
 }
 
+function deriveSimulatedFirstDownYardLine(situation, possession) {
+    const yardLine = Number(situation?.yardLine);
+    const distance = Number(situation?.distance);
+    const team = possession?.team;
+
+    if (
+        situation?.yardLine == null ||
+        situation?.distance == null ||
+        !Number.isFinite(yardLine) ||
+        !Number.isFinite(distance) ||
+        !["away", "home"].includes(team)
+    ) {
+        return null;
+    }
+
+    const direction = team === "away" ? 1 : -1;
+    return Math.min(100, Math.max(0, yardLine + direction * distance));
+}
+
+function createFootballGamecast(profile, overrides = {}) {
+    const base = {
+        type: "football-game",
+        status: "live",
+        eventId: "simulation:nfl:sea-sf",
+        teams: profile.teams,
+        score: { away: 24, home: 23 },
+        gameState: {
+            quarter: 4,
+            clock: "2:48",
+            phase: "regulation"
+        },
+        possession: {
+            team: "away",
+            providerTeamId: "26"
+        },
+        situation: {
+            down: 3,
+            distance: 4,
+            shortText: "3rd & 4",
+            fieldPositionText: "SF 35",
+            yardLine: 65,
+            yardsToEndzone: 35,
+            redZone: false
+        },
+        drive: {
+            team: "away",
+            plays: 8,
+            yards: 62,
+            elapsed: "4:17",
+            result: null,
+            start: { yardLine: 20, fieldPositionText: "SEA 20" },
+            end: { yardLine: 65, fieldPositionText: "SF 35" }
+        },
+        lastPlay: {
+            description: "G.Smith pass complete to D.Metcalf for 12 yards.",
+            type: "Pass Reception",
+            quarter: 4,
+            clock: "2:48",
+            start: { yardLine: 46 },
+            end: { yardLine: 65 }
+        },
+        lineScore: {
+            periods: [1, 2, 3, 4],
+            away: [7, 3, 7, 7],
+            home: [3, 7, 6, 7],
+            overtime: { away: null, home: null }
+        }
+    };
+
+    const gamecast = {
+        ...base,
+        ...overrides,
+        gameState: { ...base.gameState, ...overrides.gameState },
+        possession: overrides.possession === null
+            ? null
+            : { ...base.possession, ...overrides.possession },
+        situation: overrides.situation === null
+            ? null
+            : { ...base.situation, ...overrides.situation },
+        drive: overrides.drive === null
+            ? null
+            : { ...base.drive, ...overrides.drive },
+        lastPlay: overrides.lastPlay === null
+            ? null
+            : { ...base.lastPlay, ...overrides.lastPlay },
+        lineScore: { ...base.lineScore, ...overrides.lineScore }
+    };
+
+    if (gamecast.situation) {
+        gamecast.situation.firstDownYardLine =
+            deriveSimulatedFirstDownYardLine(
+                gamecast.situation,
+                gamecast.possession
+            );
+    }
+
+    return gamecast;
+}
+
+function createNflGamecastScenario(id, label, overrides = {}) {
+    return scenario(id, label, (profile) => {
+        const gamecast = createFootballGamecast(profile, overrides);
+
+        return createFacts(profile, createBaseGame(
+            profile,
+            gamecast.status,
+            {
+                score: gamecast.score,
+                quarter: gamecast.gameState.quarter,
+                gameClock: gamecast.gameState.clock,
+                possession: gamecast.possession?.team ?? null,
+                down: gamecast.situation?.down ?? null,
+                distance: gamecast.situation?.distance ?? null,
+                yardLine: gamecast.situation?.fieldPositionText ?? null,
+                redZone: gamecast.situation?.redZone === true,
+                phase: gamecast.gameState.phase,
+                gamecast
+            }
+        ));
+    });
+}
+
 const sportsSimulationProfileRegistry =
     new SportsSimulationProfileRegistry([
         {
@@ -241,15 +368,100 @@ const sportsSimulationProfileRegistry =
             scenarios: [
                 scheduledScenario("scheduled", "Scheduled"),
                 scheduledScenario("pregame", "Pregame", "pregame"),
-                createClockSportScenario("q1", "Live — 1st Quarter", { score: { away: 7, home: 3 }, quarter: 1, gameClock: "08:42", possession: "away", down: 2, distance: 6, yardLine: "SF 38", redZone: false, timeouts: { away: 3, home: 3 } }),
-                createClockSportScenario("q2", "Live — 2nd Quarter", { score: { away: 10, home: 10 }, quarter: 2, gameClock: "06:18", possession: "home", down: 3, distance: 4, yardLine: "SF 46", redZone: false }),
-                createClockSportScenario("halftime", "Halftime", { score: { away: 17, home: 13 }, quarter: 2, gameClock: "HALF", phase: "halftime" }),
-                createClockSportScenario("q3", "Live — 3rd Quarter", { score: { away: 20, home: 16 }, quarter: 3, gameClock: "09:11", possession: "away", down: 1, distance: 10, yardLine: "SEA 35" }),
-                createClockSportScenario("q4", "Live — 4th Quarter", { score: { away: 24, home: 23 }, quarter: 4, gameClock: "04:09", possession: "home", down: 2, distance: 8, yardLine: "SF 42" }),
-                createClockSportScenario("red-zone", "Red Zone", { score: { away: 24, home: 23 }, quarter: 4, gameClock: "02:48", possession: "away", down: 1, distance: 10, yardLine: "SF 18", redZone: true }),
-                createClockSportScenario("two-minute", "Two-Minute Drill", { score: { away: 24, home: 27 }, quarter: 4, gameClock: "01:42", possession: "away", down: 2, distance: 5, yardLine: "SEA 44" }),
-                createClockSportScenario("overtime", "Overtime", { score: { away: 27, home: 27 }, quarter: 5, gameClock: "07:22", possession: "home", down: 1, distance: 10, yardLine: "SF 25", phase: "overtime" }),
-                finalScenario({ away: 30, home: 27 }, "Seahawks win 30-27")
+                createNflGamecastScenario("live-drive", "Gamecast — Live Drive"),
+                createNflGamecastScenario("red-zone", "Gamecast — Red Zone", {
+                    situation: {
+                        down: 3,
+                        distance: 15,
+                        shortText: "3rd & 15",
+                        fieldPositionText: "SF 18",
+                        yardLine: 82,
+                        yardsToEndzone: 18,
+                        redZone: true
+                    }
+                }),
+                createNflGamecastScenario("goal-to-go", "Gamecast — Goal to Go", {
+                    situation: {
+                        down: 2,
+                        distance: 5,
+                        shortText: "2nd & Goal",
+                        fieldPositionText: "SF 5",
+                        yardLine: 95,
+                        yardsToEndzone: 5,
+                        redZone: true
+                    }
+                }),
+                createNflGamecastScenario("possession-change", "Gamecast — Possession Change", {
+                    possession: { team: "home", providerTeamId: "25" },
+                    situation: {
+                        down: 2,
+                        distance: 1,
+                        shortText: "2nd & 1",
+                        fieldPositionText: "SF 25",
+                        yardLine: 75,
+                        yardsToEndzone: 75,
+                        redZone: false
+                    },
+                    drive: { team: "home", plays: 1, yards: 0, elapsed: "0:08" }
+                }),
+                createNflGamecastScenario("halftime", "Gamecast — Halftime", {
+                    score: { away: 17, home: 13 },
+                    gameState: { quarter: 2, clock: "HALF", phase: "halftime" },
+                    possession: null,
+                    situation: null,
+                    drive: null,
+                    lastPlay: null,
+                    lineScore: {
+                        periods: [1, 2, 3, 4],
+                        away: [7, 10, null, null],
+                        home: [3, 10, null, null]
+                    }
+                }),
+                createNflGamecastScenario("overtime", "Gamecast — Overtime", {
+                    score: { away: 27, home: 27 },
+                    gameState: { quarter: 5, clock: "7:22", phase: "overtime" },
+                    possession: { team: "home", providerTeamId: "25" },
+                    situation: {
+                        down: 1,
+                        distance: 10,
+                        shortText: "1st & 10",
+                        fieldPositionText: "SF 25",
+                        yardLine: 75
+                    },
+                    drive: { team: "home", plays: 3, yards: 18, elapsed: "1:31" },
+                    lineScore: {
+                        periods: [1, 2, 3, 4, 5],
+                        away: [7, 3, 7, 10, 0],
+                        home: [3, 7, 7, 10, 0],
+                        overtime: { away: 0, home: 0 }
+                    }
+                }),
+                createNflGamecastScenario("long-last-play", "Gamecast — Long Last Play", {
+                    lastPlay: {
+                        description: "G.Smith scrambles right, reverses field under pressure, then completes a pass to D.Metcalf near the sideline for a first down after an extended review confirmed the catch.",
+                        type: "Pass Reception",
+                        quarter: 4,
+                        clock: "2:48"
+                    }
+                }),
+                createNflGamecastScenario("missing-drive-detail", "Gamecast — Missing Drive Detail", {
+                    drive: { elapsed: null }
+                }),
+                createNflGamecastScenario("final", "Gamecast — Final", {
+                    status: "final",
+                    score: { away: 30, home: 27 },
+                    gameState: { quarter: 5, clock: "0:00", phase: "final" },
+                    possession: null,
+                    situation: null,
+                    drive: null,
+                    lastPlay: null,
+                    lineScore: {
+                        periods: [1, 2, 3, 4, 5],
+                        away: [7, 3, 7, 7, 6],
+                        home: [3, 7, 7, 10, 0],
+                        overtime: { away: 6, home: 0 }
+                    }
+                })
             ]
         },
         {

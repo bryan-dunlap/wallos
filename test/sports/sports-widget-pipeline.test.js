@@ -30,11 +30,6 @@ const {
   NflSportsWidgetRenderer
 } = require("../../frontend/sports/nfl-sports-widget-renderer");
 const {
-  sportsSimulationProfileRegistry
-} = require(
-  "../../frontend/providers/sports-simulation-profile-registry"
-);
-const {
   normalizeSportsProviderTeam,
   normalizeSportsScheduleLeagues
 } = require("../../frontend/providers/sports-provider");
@@ -88,11 +83,85 @@ function createLegacyMlbGame(overrides = {}) {
 }
 
 function createNflFixture(scenarioId) {
-  const facts = sportsSimulationProfileRegistry.createFacts(
-    "NFL",
-    scenarioId
-  );
-  const game = facts.game;
+  const teams = {
+    away: {
+      id: "NFL:SEA",
+      name: "Seattle Seahawks",
+      shortName: "Seahawks",
+      logo: "https://a.espncdn.com/i/teamlogos/nfl/500/sea.png"
+    },
+    home: {
+      id: "NFL:SF",
+      name: "San Francisco 49ers",
+      shortName: "49ers",
+      logo: "https://a.espncdn.com/i/teamlogos/nfl/500/sf.png"
+    }
+  };
+  const scenarios = {
+    scheduled: {
+      status: "scheduled",
+      score: { away: null, home: null },
+      quarter: null,
+      gameClock: null
+    },
+    q1: {
+      status: "live",
+      score: { away: 7, home: 3 },
+      quarter: 1,
+      gameClock: "08:42",
+      possession: "away",
+      down: 2,
+      distance: 6,
+      yardLine: "SF 38",
+      redZone: false
+    },
+    q2: {
+      status: "live",
+      score: { away: 10, home: 10 },
+      quarter: 2,
+      gameClock: "06:18",
+      possession: "home",
+      down: 3,
+      distance: 4,
+      yardLine: "SF 46",
+      redZone: false
+    },
+    q4: {
+      status: "live",
+      score: { away: 24, home: 23 },
+      quarter: 4,
+      gameClock: "04:09",
+      possession: "home",
+      down: 2,
+      distance: 8,
+      yardLine: "SF 42",
+      redZone: false
+    },
+    overtime: {
+      status: "live",
+      score: { away: 27, home: 27 },
+      quarter: 5,
+      gameClock: "07:22",
+      possession: "home",
+      down: 1,
+      distance: 10,
+      yardLine: "SF 25",
+      phase: "overtime"
+    },
+    final: {
+      status: "final",
+      score: { away: 30, home: 27 },
+      quarter: 4,
+      gameClock: "0:00",
+      phase: "final",
+      result: "Seahawks win 30-27"
+    }
+  };
+  const game = {
+    startTime: "2026-09-13T02:10:00.000Z",
+    teams,
+    ...scenarios[scenarioId]
+  };
   const score = game.score || {};
   const quarterScoring = {
     q1: { away: [7], home: [3] },

@@ -82,6 +82,13 @@ test("normalizes down, distance, field position, and red-zone state", () => {
   });
 });
 
+test("derives arbitrary line-to-gain distance in possession direction", () => {
+  assert.equal(deriveFirstDownYardLine(65, 4, "away"), 69);
+  assert.equal(deriveFirstDownYardLine(75, 7, "home"), 68);
+  assert.equal(deriveFirstDownYardLine(40, 10, "away"), 50);
+  assert.equal(deriveFirstDownYardLine(75, 1, "home"), 74);
+});
+
 test("converts ESPN field coordinates for both teams and territories", () => {
   const cases = [
     {
@@ -136,6 +143,8 @@ test("derives and clamps first-down markers for goal-to-go situations", () => {
   assert.equal(toCanonicalFieldCoordinate(120), 0);
   assert.equal(deriveFirstDownYardLine(95, 10, "away"), 100);
   assert.equal(deriveFirstDownYardLine(5, 10, "home"), 0);
+  assert.equal(deriveFirstDownYardLine(99, 50, "away"), 100);
+  assert.equal(deriveFirstDownYardLine(1, 50, "home"), 0);
 
   const event = liveEvent();
   const situation = event.competitions[0].situation;

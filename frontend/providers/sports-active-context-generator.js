@@ -41,16 +41,31 @@ class SportsActiveContextGenerator {
     createLiveGameCandidate(facts) {
         const favoriteTeam = facts?.favoriteTeam;
         const game = facts?.game;
+        const hasTypedSimulationGamecast =
+            facts?.simulation === true &&
+            game?.gamecast &&
+            typeof game.gamecast.type === "string";
 
         if (
             facts?.status !== "available" ||
             !favoriteTeam?.id ||
             !favoriteTeam.name ||
-            game?.status !== "live" ||
+            (game?.status !== "live" && !hasTypedSimulationGamecast) ||
             !game.teams?.away?.id ||
             !game.teams?.home?.id
         ) {
             return null;
+        }
+
+        if (
+            game.gamecast &&
+            typeof game.gamecast.type === "string"
+        ) {
+            return this.createTypedGamecastCandidate(
+                favoriteTeam,
+                game,
+                game.gamecast
+            );
         }
 
         if (favoriteTeam.sport !== "baseball") {
@@ -89,6 +104,28 @@ class SportsActiveContextGenerator {
                 batter: game.batter,
                 pitcher: game.pitcher
             },
+            behavior: {
+                sticky: true,
+                durationSeconds: null
+            },
+            createdAt: new Date().toISOString(),
+            expiresAt: null
+        };
+    }
+
+    createTypedGamecastCandidate(favoriteTeam, game, payload) {
+        const away = game.teams.away;
+        const home = game.teams.home;
+
+        return {
+            id: `sports:live:${favoriteTeam.id}`,
+            source: "sports",
+            type: "sports.live-game",
+            mode: "active",
+            priority: 100,
+            headline: `${away.name} at ${home.name}`,
+            summary: this.formatGenericGameSummary(game),
+            payload,
             behavior: {
                 sticky: true,
                 durationSeconds: null

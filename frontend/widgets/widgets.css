@@ -886,7 +886,8 @@
 }
 
 
-.hero-active:has(.baseball-gamecast) {
+.hero-active:has(.baseball-gamecast),
+.hero-active:has(.football-gamecast) {
 
     gap: 0;
 
@@ -895,7 +896,8 @@
 }
 
 
-.hero-active:has(.baseball-gamecast) .hero-active-header {
+.hero-active:has(.baseball-gamecast) .hero-active-header,
+.hero-active:has(.football-gamecast) .hero-active-header {
 
     display: none;
 
@@ -1572,5 +1574,714 @@
     border-color: var(--color-accent);
 
     background: var(--color-accent);
+
+}
+
+
+/* ==========================
+   Football Hero Gamecast
+========================== */
+
+.football-gamecast {
+
+    height: 100%;
+
+    min-height: 0;
+
+    display: grid;
+
+    grid-template-rows:
+        auto auto auto 82px minmax(20px, auto) minmax(64px, auto);
+
+    align-items: center;
+
+    align-content: center;
+
+    gap: 6px;
+
+    padding: 12px 0;
+
+}
+
+
+.football-matchup {
+
+    display: grid;
+
+    grid-template-columns:
+        minmax(0, 220px) 62px 22px 62px minmax(0, 220px);
+
+    align-items: center;
+
+    justify-content: center;
+
+    column-gap: 12px;
+
+}
+
+
+.football-team-identity {
+
+    min-width: 0;
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 8px;
+
+}
+
+
+.football-team-identity-away {
+
+    justify-content: flex-end;
+
+    text-align: right;
+
+}
+
+
+.football-team-identity-home {
+
+    justify-content: flex-start;
+
+    text-align: left;
+
+}
+
+
+.football-team-logo {
+
+    width: 56px;
+
+    height: 56px;
+
+    flex: 0 0 56px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+}
+
+
+.football-team-logo-image {
+
+    display: block;
+
+    max-width: 100%;
+
+    max-height: 100%;
+
+}
+
+
+.football-team-logo-image[hidden] {
+
+    display: none;
+
+}
+
+
+.football-team-name {
+
+    min-width: 0;
+
+    overflow: hidden;
+
+    color: var(--color-text-secondary);
+
+    font-size: 1.15rem;
+
+    font-weight: 600;
+
+    letter-spacing: .06em;
+
+    text-overflow: ellipsis;
+
+    text-transform: uppercase;
+
+    white-space: nowrap;
+
+}
+
+
+.football-team-score {
+
+    color: var(--color-text);
+
+    font-size: 3.4rem;
+
+    font-weight: 600;
+
+    font-variant-numeric: tabular-nums;
+
+    line-height: .95;
+
+}
+
+
+.football-team-score-away {
+
+    justify-self: end;
+
+    text-align: right;
+
+}
+
+
+.football-team-score-home {
+
+    justify-self: start;
+
+    text-align: left;
+
+}
+
+
+.football-matchup-separator {
+
+    justify-self: center;
+
+    color: var(--color-text-muted);
+
+    font-size: 1.1rem;
+
+    font-weight: 600;
+
+}
+
+
+.football-game-state {
+
+    min-height: 24px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    gap: 14px;
+
+    color: var(--color-text-secondary);
+
+    font-size: .95rem;
+
+    font-weight: 600;
+
+    letter-spacing: .08em;
+
+    text-transform: uppercase;
+
+}
+
+
+.football-period-clock,
+.football-down-distance {
+
+    color: var(--color-accent);
+
+}
+
+
+.football-drive {
+
+    min-height: 18px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    gap: 10px;
+
+    color: var(--color-text-secondary);
+
+    font-size: .82rem;
+
+    font-weight: 600;
+
+    letter-spacing: .08em;
+
+    text-transform: uppercase;
+
+}
+
+
+.football-drive span + span::before {
+
+    content: "·";
+
+    margin-right: 10px;
+
+    color: var(--color-text-muted);
+
+}
+
+
+.football-field,
+.football-field-placeholder {
+
+    height: 82px;
+
+}
+
+
+.football-field {
+
+    --football-end-zone-width: calc(100% / 12);
+
+    position: relative;
+
+    width: min(100%, 760px);
+
+    margin: 0 auto;
+
+    overflow: hidden;
+
+    border: 1px solid color-mix(in srgb, #d9e5dc 58%, transparent);
+
+    border-radius: 7px;
+
+    background: color-mix(in srgb, #245c3a 46%, var(--surface-bottom));
+
+    box-shadow:
+        inset 0 1px 0 rgba(230, 239, 232, .14),
+        inset 0 -1px 0 rgba(0, 0, 0, .18);
+
+}
+
+
+.football-field::before {
+
+    content: "";
+
+    position: absolute;
+
+    z-index: 1;
+
+    inset: 4px var(--football-end-zone-width);
+
+    border-top: 1px solid rgba(225, 235, 227, .58);
+
+    border-bottom: 1px solid rgba(225, 235, 227, .58);
+
+    pointer-events: none;
+
+}
+
+
+.football-field.is-red-zone {
+
+    background: color-mix(in srgb, #5a4630 18%, #245c3a);
+
+    box-shadow: inset 0 0 18px rgba(187, 54, 45, .08);
+
+}
+
+
+.football-yard-lines,
+.football-yard-numbers {
+
+    position: absolute;
+
+    inset: 0;
+
+    pointer-events: none;
+
+}
+
+
+.football-yard-line {
+
+    position: absolute;
+
+    top: 0;
+
+    bottom: 0;
+
+    left: var(--football-yard-position);
+
+    width: 1px;
+
+    background: rgba(225, 235, 227, .18);
+
+    transform: translateX(-50%);
+
+}
+
+
+.football-yard-line.is-major {
+
+    background: rgba(225, 235, 227, .42);
+
+}
+
+
+.football-yard-line.is-midfield {
+
+    width: 2px;
+
+    background: rgba(235, 242, 236, .58);
+
+}
+
+
+.football-yard-line.is-minor {
+
+    top: 5px;
+
+    bottom: 5px;
+
+}
+
+
+.football-yard-number {
+
+    position: absolute;
+
+    top: 50%;
+
+    left: var(--football-yard-position);
+
+    color: rgba(225, 235, 227, .52);
+
+    font-size: 8px;
+
+    font-weight: 600;
+
+    font-variant-numeric: tabular-nums;
+
+    line-height: 1;
+
+    text-shadow: 0 1px 1px rgba(0, 0, 0, .45);
+
+    transform: translate(-50%, -50%);
+
+}
+
+
+.football-end-zone {
+
+    position: absolute;
+
+    top: 0;
+
+    bottom: 0;
+
+    width: var(--football-end-zone-width);
+
+    background: color-mix(in srgb, #17251d 68%, transparent);
+
+    border-color: rgba(225, 235, 227, .56);
+
+    z-index: 1;
+
+}
+
+
+.football-end-zone-away {
+
+    left: 0;
+
+    border-right: 1px solid;
+
+}
+
+
+.football-end-zone-home {
+
+    right: 0;
+
+    border-left: 1px solid;
+
+}
+
+
+.football-ball-marker,
+.football-team-ball-marker,
+.football-first-down-marker {
+
+    position: absolute;
+
+    top: 5px;
+
+    bottom: 5px;
+
+    transform: translateX(-50%);
+
+}
+
+
+.football-ball-marker {
+
+    left: var(--football-ball-position);
+
+    width: 3px;
+
+    border-radius: 2px;
+
+    background: var(--color-accent);
+
+    box-shadow: 0 0 6px color-mix(
+        in srgb,
+        var(--color-accent) 58%,
+        transparent
+    );
+
+    z-index: 2;
+
+}
+
+
+.football-team-ball-marker {
+
+    left: var(--football-ball-position);
+
+    width: 36px;
+
+    height: 36px;
+
+    top: 50%;
+
+    bottom: auto;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    transform: translate(-50%, -50%);
+
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .55));
+
+    z-index: 3;
+
+}
+
+
+.football-team-ball-marker[hidden] {
+
+    display: none;
+
+}
+
+
+.football-team-ball-marker-image {
+
+    display: block;
+
+    max-width: 100%;
+
+    max-height: 100%;
+
+}
+
+
+.football-neutral-team-marker {
+
+    position: absolute;
+
+    top: 50%;
+
+    left: var(--football-neutral-team-position);
+
+    width: 36px;
+
+    height: 36px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    transform: translate(-50%, -50%);
+
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .55));
+
+    z-index: 3;
+
+}
+
+
+.football-neutral-team-marker[hidden] {
+
+    display: none;
+
+}
+
+
+.football-neutral-team-marker-image {
+
+    display: block;
+
+    max-width: 100%;
+
+    max-height: 100%;
+
+}
+
+
+.football-first-down-marker {
+
+    left: var(--football-first-down-position);
+
+    width: 3px;
+
+    background: #ffd400;
+
+    box-shadow: 0 0 4px rgba(255, 212, 0, .55);
+
+    opacity: .95;
+
+    z-index: 2;
+
+}
+
+
+.football-last-play {
+
+    min-height: 20px;
+
+    display: flex;
+
+    align-items: flex-start;
+
+    justify-content: center;
+
+    gap: 9px;
+
+    overflow: hidden;
+
+    color: var(--color-text-secondary);
+
+    font-size: .9rem;
+
+    line-height: 1.35;
+
+}
+
+
+.football-last-play-label {
+
+    flex: 0 0 auto;
+
+    color: var(--color-text-muted);
+
+    font-size: .75rem;
+
+    font-weight: 600;
+
+    letter-spacing: .1em;
+
+    line-height: 1.62;
+
+}
+
+
+.football-last-play-text {
+
+    max-width: 760px;
+
+    display: -webkit-box;
+
+    overflow: hidden;
+
+    -webkit-box-orient: vertical;
+
+    -webkit-line-clamp: 2;
+
+    line-clamp: 2;
+
+    text-align: left;
+
+}
+
+
+.football-line-score {
+
+    width: min(100%, 760px);
+
+    margin: 0 auto;
+
+    border-collapse: collapse;
+
+    table-layout: fixed;
+
+    color: var(--color-text-secondary);
+
+    font-size: .88rem;
+
+    font-variant-numeric: tabular-nums;
+
+}
+
+
+.football-line-score-region {
+
+    align-self: stretch;
+
+    min-height: 64px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    padding-block: 6px;
+
+}
+
+
+.football-line-score th,
+.football-line-score td {
+
+    padding: 2px 8px;
+
+    text-align: center;
+
+}
+
+
+.football-line-score th:first-child {
+
+    width: 72px;
+
+    color: var(--color-text);
+
+    text-align: left;
+
+}
+
+
+.football-line-score thead th {
+
+    color: var(--color-text-muted);
+
+    font-size: .75rem;
+
+    font-weight: 500;
+
+    letter-spacing: .06em;
+
+    text-transform: uppercase;
+
+}
+
+
+.football-line-score tbody th,
+.football-line-score tbody td:last-child {
+
+    color: var(--color-text);
+
+    font-weight: 600;
 
 }
