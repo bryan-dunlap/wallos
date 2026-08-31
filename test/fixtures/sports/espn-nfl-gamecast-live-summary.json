@@ -1,0 +1,44 @@
+{
+  "header": {
+    "competitions": [{
+      "id": "401772831",
+      "status": {
+        "period": 4,
+        "displayClock": "2:48",
+        "type": { "name": "STATUS_IN_PROGRESS", "state": "in" }
+      },
+      "competitors": []
+    }]
+  },
+  "drives": {
+    "current": {
+      "id": "40177283120",
+      "description": "8 plays, 62 yards, 4:17",
+      "team": { "id": "26", "abbreviation": "SEA", "displayName": "Seattle Seahawks" },
+      "start": { "yardLine": 80, "text": "SEA 20" },
+      "end": { "yardLine": 62, "text": "SEA 38" },
+      "timeElapsed": { "displayValue": "4:17" },
+      "yards": 62,
+      "offensivePlays": 8,
+      "result": null,
+      "plays": [{
+        "id": "4017728314050",
+        "type": { "id": "5", "text": "Rush", "abbreviation": "RUSH" },
+        "text": "K.Walker rushed for 5 yards.",
+        "period": { "number": 4 },
+        "clock": { "displayValue": "3:22" },
+        "start": { "down": 1, "distance": 10, "yardLine": 79, "possessionText": "SEA 21", "team": { "id": "26" } },
+        "end": { "down": 2, "distance": 5, "yardLine": 74, "possessionText": "SEA 26", "team": { "id": "26" } }
+      }, {
+        "id": "4017728314100",
+        "type": { "id": "24", "text": "Pass Reception", "abbreviation": "REC" },
+        "text": "G.Smith pass complete to D.Metcalf for 12 yards.",
+        "period": { "number": 4 },
+        "clock": { "displayValue": "2:48" },
+        "start": { "down": 2, "distance": 16, "yardLine": 74, "possessionText": "SEA 26", "team": { "id": "26" } },
+        "end": { "down": 3, "distance": 4, "yardLine": 62, "possessionText": "SEA 38", "team": { "id": "26" } }
+      }]
+    },
+    "previous": []
+  }
+}
