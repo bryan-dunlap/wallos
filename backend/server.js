@@ -52,6 +52,9 @@ const {
   createPublicHomeAssistantConfig,
   normalizeHomeAssistantConfig
 } = require("./home-assistant/home-assistant-config");
+const {
+  createHomeAssistantRouter
+} = require("./home-assistant/home-assistant-routes");
 
 const app = express();
 const PORT = 3000;
@@ -169,6 +172,10 @@ const discoveryAggregator = new DiscoveryAggregator(
 ========================== */
 
 app.use(express.static(frontendPath));
+app.use(
+  "/api/home-assistant",
+  createHomeAssistantRouter()
+);
 app.use(express.urlencoded({ extended: false }));
 
 app.get("/", (req, res) => {
