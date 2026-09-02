@@ -141,6 +141,7 @@ test("NflDataProvider matches qualified identity and builds a schedule seed", as
   assert.deepEqual(requests, ["/api/sports/nfl?date=2026-09-07"]);
   assert.equal(facts.favoriteTeam.id, "NFL:SEA");
   assert.equal(facts.game.eventId, "401772831");
+  assert.equal(facts.game.eventDate, "2026-09-07");
   assert.equal(payload.type, "football-game");
   assert.equal(payload.eventId, "401772831");
   assert.equal(payload.teams.away.id, "NFL:SEA");

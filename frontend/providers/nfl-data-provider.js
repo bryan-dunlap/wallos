@@ -53,7 +53,7 @@ class NflDataProvider {
         return {
             status: "available",
             favoriteTeam: this.normalizeFavoriteTeam(favoriteTeam),
-            game: this.normalizeGame(game, favoriteTeam)
+            game: this.normalizeGame(game, favoriteTeam, date)
         };
     }
 
@@ -63,7 +63,7 @@ class NflDataProvider {
         );
     }
 
-    normalizeGame(game, favoriteTeam) {
+    normalizeGame(game, favoriteTeam, requestedDate = null) {
         const status = this.normalizeStatus(game?.status);
 
         if (!game || !status || !game.eventId) return null;
@@ -110,6 +110,7 @@ class NflDataProvider {
         return {
             status,
             eventId: String(game.eventId),
+            eventDate: game.date || requestedDate,
             opponent: opponent.name,
             opponentLogo: opponent.logo,
             teams,
