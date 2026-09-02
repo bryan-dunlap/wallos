@@ -48,6 +48,15 @@ class MlbGamecastProvider {
 
     handleSportsFacts(facts) {
         const favoriteTeam = facts?.favoriteTeam;
+
+        if (
+            facts?.simulation !== true &&
+            favoriteTeam?.league &&
+            favoriteTeam.league !== "MLB"
+        ) {
+            return;
+        }
+
         const gameIsLive =
             facts?.simulation !== true &&
             facts?.status === "available" &&

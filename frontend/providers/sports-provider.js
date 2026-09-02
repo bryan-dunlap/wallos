@@ -9,6 +9,11 @@ class SportsProvider {
         this.simulationActive = false;
         this.lifecycleVersion = 0;
         this.mlbDataProvider = new MlbDataProvider();
+        this.nflDataProvider = new NflDataProvider();
+        this.favoriteDataProviders = new Map([
+            ["MLB", this.mlbDataProvider],
+            ["NFL", this.nflDataProvider]
+        ]);
     }
 
     start() {
@@ -70,21 +75,15 @@ class SportsProvider {
             )
                 ? config.sports.favoriteTeams
                 : [];
-            // The current facts adapter is MLB-only. Other league favorites
-            // remain configured for future adapters without being sent to the
-            // MLB data path.
-            const favoriteTeam = favoriteTeams.find(
-                (team) => team?.league === "MLB"
-            ) || null;
 
             return {
                 enabled: config.sports?.enabled !== false,
-                favoriteTeam
+                favoriteTeams
             };
         } catch (error) {
             return {
                 enabled: false,
-                favoriteTeam: null
+                favoriteTeams: []
             };
         }
     }
@@ -105,37 +104,67 @@ class SportsProvider {
 
             config = await this.loadConfig();
 
-            if (!config.enabled || !config.favoriteTeam) {
-                this.publishSportsFacts(
-                    this.mlbDataProvider.createUnavailableFacts(
-                        config.favoriteTeam
-                    )
-                );
-                return null;
+            if (
+                !config.enabled ||
+                config.favoriteTeams.length === 0
+            ) {
+                this.publishSportsFacts({
+                    status: "unavailable",
+                    favoriteTeam: null,
+                    game: null
+                });
+                return [];
             }
 
-            const facts = await this.mlbDataProvider.getScheduleFacts(
-                config.favoriteTeam,
-                this.getDateKey(new Date())
+            const date = this.getDateKey(new Date());
+            const factsByFavorite = await Promise.all(
+                config.favoriteTeams.map(
+                    (favoriteTeam) =>
+                        this.getFavoriteTeamFacts(favoriteTeam, date)
+                )
             );
 
             if (this.simulationActive) return null;
 
-            this.publishSportsFacts(facts);
-            return facts.game?.status || null;
+            factsByFavorite
+                .filter(Boolean)
+                .forEach((facts) => this.publishSportsFacts(facts));
+
+            return factsByFavorite
+                .filter(Boolean)
+                .map((facts) => facts.game?.status || null);
         } catch (error) {
             console.error(
-                "Unable to load favorite-team MLB schedule:",
+                "Unable to load favorite-team sports schedules:",
                 error
             );
             if (!this.simulationActive) {
-                this.publishSportsFacts(
-                    this.mlbDataProvider.createUnavailableFacts(
-                        config?.favoriteTeam
-                    )
-                );
+                this.publishSportsFacts({
+                    status: "unavailable",
+                    favoriteTeam: null,
+                    game: null
+                });
             }
-            return null;
+            return [];
+        }
+    }
+
+    async getFavoriteTeamFacts(favoriteTeam, date) {
+        const league = String(favoriteTeam?.league || "")
+            .trim()
+            .toUpperCase();
+        const provider = this.favoriteDataProviders?.get(league);
+
+        if (!provider) return null;
+
+        try {
+            return await provider.getScheduleFacts(favoriteTeam, date);
+        } catch (error) {
+            console.error(
+                `Unable to load ${league} favorite-team schedule:`,
+                error
+            );
+            return provider.createUnavailableFacts(favoriteTeam);
         }
     }
 

@@ -2,7 +2,8 @@ class SportsActiveContextGenerator {
 
     constructor() {
         this.unsubscribe = null;
-        this.activeCandidateId = null;
+        this.activeCandidateIds = new Map();
+        this.activeSimulationCandidateId = null;
     }
 
     start() {
@@ -15,42 +16,41 @@ class SportsActiveContextGenerator {
 
     evaluate(facts) {
         const candidate = this.createLiveGameCandidate(facts);
+        const favoriteTeamId = facts?.favoriteTeam?.id || null;
 
-        if (!candidate) {
-            this.withdrawActiveCandidate();
+        if (facts?.simulation === true) {
+            this.evaluateSimulationCandidate(candidate);
             return;
         }
 
-        if (
-            this.activeCandidateId &&
-            this.activeCandidateId !== candidate.id
-        ) {
-            this.publishWithdrawal(this.activeCandidateId);
+        if (!candidate) {
+            if (favoriteTeamId) {
+                this.withdrawFavoriteCandidate(favoriteTeamId);
+            } else {
+                this.withdrawAllFavoriteCandidates();
+            }
+            return;
         }
 
-        window.mosaicApp.eventBus.publish({
-            type: "hero-candidate",
-            source: "sports",
-            payload: {
-                candidate
-            }
-        });
-        this.activeCandidateId = candidate.id;
+        this.publishCandidate(candidate);
+        this.activeCandidateIds.set(favoriteTeamId, candidate.id);
     }
 
     createLiveGameCandidate(facts) {
         const favoriteTeam = facts?.favoriteTeam;
         const game = facts?.game;
-        const hasTypedSimulationGamecast =
-            facts?.simulation === true &&
+        const hasEligibleTypedGamecast =
             game?.gamecast &&
-            typeof game.gamecast.type === "string";
+            typeof game.gamecast.type === "string" &&
+            ["live", "final"].includes(
+                game.gamecast.status || game.status
+            );
 
         if (
             facts?.status !== "available" ||
             !favoriteTeam?.id ||
             !favoriteTeam.name ||
-            (game?.status !== "live" && !hasTypedSimulationGamecast) ||
+            (game?.status !== "live" && !hasEligibleTypedGamecast) ||
             !game.teams?.away?.id ||
             !game.teams?.home?.id
         ) {
@@ -116,6 +116,9 @@ class SportsActiveContextGenerator {
     createTypedGamecastCandidate(favoriteTeam, game, payload) {
         const away = game.teams.away;
         const home = game.teams.home;
+        const isFinal = (payload.status || game.status) === "final";
+        const createdAt = new Date();
+        const durationSeconds = isFinal ? 60 : null;
 
         return {
             id: `sports:live:${favoriteTeam.id}`,
@@ -127,11 +130,15 @@ class SportsActiveContextGenerator {
             summary: this.formatGenericGameSummary(game),
             payload,
             behavior: {
-                sticky: true,
-                durationSeconds: null
+                sticky: !isFinal,
+                durationSeconds
             },
-            createdAt: new Date().toISOString(),
-            expiresAt: null
+            createdAt: createdAt.toISOString(),
+            expiresAt: durationSeconds === null
+                ? null
+                : new Date(
+                    createdAt.getTime() + durationSeconds * 1000
+                ).toISOString()
         };
     }
 
@@ -306,11 +313,50 @@ class SportsActiveContextGenerator {
         return `RUNNERS ON ${occupiedBases.join(", ")} AND ${lastBase}`;
     }
 
-    withdrawActiveCandidate() {
-        if (!this.activeCandidateId) return;
+    evaluateSimulationCandidate(candidate) {
+        if (!candidate) {
+            if (this.activeSimulationCandidateId) {
+                this.publishWithdrawal(
+                    this.activeSimulationCandidateId
+                );
+                this.activeSimulationCandidateId = null;
+            }
+            return;
+        }
 
-        this.publishWithdrawal(this.activeCandidateId);
-        this.activeCandidateId = null;
+        if (
+            this.activeSimulationCandidateId &&
+            this.activeSimulationCandidateId !== candidate.id
+        ) {
+            this.publishWithdrawal(this.activeSimulationCandidateId);
+        }
+
+        this.publishCandidate(candidate);
+        this.activeSimulationCandidateId = candidate.id;
+    }
+
+    publishCandidate(candidate) {
+        window.mosaicApp.eventBus.publish({
+            type: "hero-candidate",
+            source: "sports",
+            payload: { candidate }
+        });
+    }
+
+    withdrawFavoriteCandidate(favoriteTeamId) {
+        const candidateId = this.activeCandidateIds.get(favoriteTeamId);
+
+        if (!candidateId) return;
+
+        this.publishWithdrawal(candidateId);
+        this.activeCandidateIds.delete(favoriteTeamId);
+    }
+
+    withdrawAllFavoriteCandidates() {
+        this.activeCandidateIds.forEach(
+            (candidateId) => this.publishWithdrawal(candidateId)
+        );
+        this.activeCandidateIds.clear();
     }
 
     publishWithdrawal(id) {

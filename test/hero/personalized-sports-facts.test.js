@@ -35,11 +35,11 @@ test("SportsProvider configuration failure has no Mariners fallback", async () =
 
   assert.deepEqual(
     JSON.parse(JSON.stringify(await provider.loadConfig())),
-    { enabled: false, favoriteTeam: null }
+    { enabled: false, favoriteTeams: [] }
   );
 });
 
-test("SportsProvider selects another configured MLB favorite", async () => {
+test("SportsProvider retains all configured favorite teams", async () => {
   const redSox = {
     id: "BOS",
     abbreviation: "BOS",
@@ -69,8 +69,10 @@ test("SportsProvider selects another configured MLB favorite", async () => {
   const provider = Object.create(SportsProvider.prototype);
   const config = await provider.loadConfig();
 
-  assert.equal(config.favoriteTeam.id, "BOS");
-  assert.equal(config.favoriteTeam.shortName, "Red Sox");
+  assert.equal(config.favoriteTeams.length, 2);
+  assert.equal(config.favoriteTeams[0].id, "NFL:SEA");
+  assert.equal(config.favoriteTeams[1].id, "BOS");
+  assert.equal(config.favoriteTeams[1].shortName, "Red Sox");
 });
 
 test("no MLB favorite publishes unavailable no-team facts", async () => {
@@ -84,24 +86,14 @@ test("no MLB favorite publishes unavailable no-team facts", async () => {
   provider.simulationActive = false;
   provider.loadConfig = async () => ({
     enabled: true,
-    favoriteTeam: null
+    favoriteTeams: []
   });
-  provider.mlbDataProvider = {
-    createUnavailableFacts: (favoriteTeam) => ({
-      status: "unavailable",
-      favoriteTeam,
-      game: null
-    }),
-    getScheduleFacts: () => {
-      throw new Error("MLB acquisition should not run");
-    }
-  };
   provider.publishSportsFacts = (facts) => {
     published = facts;
   };
 
   await provider.refreshSportsFacts();
-  assert.deepEqual(published, {
+  assert.deepEqual(JSON.parse(JSON.stringify(published)), {
     status: "unavailable",
     favoriteTeam: null,
     game: null
