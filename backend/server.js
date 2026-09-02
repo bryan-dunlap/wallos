@@ -47,6 +47,11 @@ const {
 const {
   DiscoveryAggregator
 } = require("./discovery/discovery-aggregator");
+const {
+  DEFAULT_HOME_ASSISTANT_CONFIG,
+  createPublicHomeAssistantConfig,
+  normalizeHomeAssistantConfig
+} = require("./home-assistant/home-assistant-config");
 
 const app = express();
 const PORT = 3000;
@@ -105,7 +110,8 @@ const DEFAULT_CONFIG = {
   discovery: {
     enabled: true,
     sources: []
-  }
+  },
+  homeAssistant: DEFAULT_HOME_ASSISTANT_CONFIG
 };
 const SUPPORTED_LEAGUES = ["MLB", "NFL", "NBA", "NHL"];
 const SUPPORTED_THEMES = [
@@ -207,6 +213,9 @@ function readConfig() {
     const discoverySources = normalizeDiscoverySources(
       savedConfig?.discovery?.sources
     );
+    const homeAssistant = normalizeHomeAssistantConfig(
+      savedConfig?.homeAssistant
+    );
 
     return {
       location: {
@@ -248,7 +257,8 @@ function readConfig() {
           ? discoveryEnabled
           : DEFAULT_CONFIG.discovery.enabled,
         sources: discoverySources
-      }
+      },
+      homeAssistant
     };
   } catch (error) {
     console.error("Unable to read config.json; using defaults:", error);
@@ -458,7 +468,8 @@ function validateConfigUpdate(
   sportsWidgetLeagues,
   favoriteTeams,
   discoveryEnabled,
-  discoverySources
+  discoverySources,
+  homeAssistant
 ) {
   if (
     typeof locationQuery !== "string" ||
@@ -543,7 +554,8 @@ function validateConfigUpdate(
     discovery: {
       enabled: discoveryEnabled,
       sources: normalizeDiscoverySources(discoverySources)
-    }
+    },
+    homeAssistant: normalizeHomeAssistantConfig(homeAssistant)
   };
 }
 
@@ -2639,7 +2651,8 @@ app.post("/control", async (req, res) => {
       resolveDiscoverySourceDraft(
         req.body.discoverySourcesDraft,
         currentConfig.discovery.sources
-      )
+      ),
+      currentConfig.homeAssistant
     );
     await writeConfig(config);
     res.redirect(303, "/control?saved=1");
@@ -2871,7 +2884,10 @@ app.get("/api/config", (req, res) => {
     profile: config.profile,
     calendar: createPublicCalendarConfig(config.calendar),
     sports: config.sports,
-    discovery: createPublicDiscoveryConfig(config.discovery)
+    discovery: createPublicDiscoveryConfig(config.discovery),
+    homeAssistant: createPublicHomeAssistantConfig(
+      config.homeAssistant
+    )
   });
 });
 
@@ -3951,6 +3967,7 @@ module.exports = {
   createNflGamecastHandler,
   mlbDailyScheduleCache,
   mlbGamecastScheduleCache,
+  readConfig,
   resolveCalendarSourceDraft,
   resolveDiscoverySourceDraft,
   resolveNflEventId,

@@ -1,0 +1,36 @@
+{
+  "location": {
+    "query": ""
+  },
+  "sports": {
+    "primaryLeague": "MLB",
+    "enabled": true,
+    "widget": {
+      "enabled": true,
+      "leagues": [
+        "MLB"
+      ]
+    },
+    "favoriteTeams": []
+  },
+  "display": {
+    "theme": "mosaic"
+  },
+  "profile": {
+    "name": ""
+  },
+  "calendar": {
+    "enabled": false,
+    "provider": "demo",
+    "sources": []
+  },
+  "discovery": {
+    "enabled": false,
+    "sources": []
+  },
+  "homeAssistant": {
+    "enabled": false,
+    "baseUrl": "",
+    "accessToken": ""
+  }
+}
