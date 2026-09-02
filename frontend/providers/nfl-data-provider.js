@@ -2,6 +2,13 @@ const NFL_FACT_REQUESTS_IN_FLIGHT = new Map();
 
 class NflDataProvider {
 
+    constructor(lifecycleState = null) {
+        this.lifecycleState = lifecycleState ||
+            (typeof nflGamecastLifecycleState !== "undefined"
+                ? nflGamecastLifecycleState
+                : null);
+    }
+
     async getScheduleFacts(favoriteTeam, date) {
         if (
             !favoriteTeam?.id ||
@@ -103,6 +110,12 @@ class NflDataProvider {
             lastPlay: null,
             lineScore
         };
+        const finalWasPresented =
+            status === "final" &&
+            this.lifecycleState?.wasFinalPresented(
+                favoriteTeam.id,
+                game.eventId
+            ) === true;
         const opponent = favoriteIsAway
             ? teams.home
             : teams.away;
@@ -119,7 +132,10 @@ class NflDataProvider {
             quarter: gameState.quarter,
             gameClock: gameState.clock,
             lineScore,
-            gamecast
+            gamecast: finalWasPresented ? null : gamecast,
+            ...(finalWasPresented
+                ? { suppressHeroCandidateWithdrawal: true }
+                : {})
         };
     }
 

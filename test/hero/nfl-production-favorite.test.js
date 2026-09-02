@@ -3,6 +3,11 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const {
+  NflGamecastLifecycleState
+} = require(
+  "../../frontend/providers/nfl-gamecast-lifecycle-state"
+);
 
 const PROJECT_ROOT = path.join(__dirname, "..", "..");
 
@@ -194,6 +199,107 @@ test("favorite identity does not change away/home payload ordering", () => {
   assert.equal(normalized.teams.home.id, "NFL:SF");
   assert.equal(normalized.gamecast.score.away, 24);
   assert.equal(normalized.gamecast.score.home, 23);
+});
+
+test("presented NFL final suppresses only the same favorite and event seed", () => {
+  const NflDataProvider = loadClass(
+    "frontend/providers/nfl-data-provider.js",
+    "NflDataProvider",
+    { Map }
+  );
+  const SportsActiveContextGenerator = loadClass(
+    "frontend/providers/sports-active-context-generator.js",
+    "SportsActiveContextGenerator",
+    { Date, Map }
+  );
+  const lifecycleState = new NflGamecastLifecycleState();
+  const provider = new NflDataProvider(lifecycleState);
+  const generator = new SportsActiveContextGenerator();
+  const live = provider.normalizeGame(scheduleGame(), favorite());
+
+  assert.equal(live.gamecast.type, "football-game");
+  assert.ok(generator.createLiveGameCandidate({
+    status: "available",
+    favoriteTeam: favorite(),
+    game: live
+  }));
+
+  lifecycleState.markFinalPresented("NFL:SEA", "401772831");
+  const finalGame = scheduleGame({
+    status: { state: "final" }
+  });
+  const suppressed = provider.normalizeGame(finalGame, favorite());
+
+  assert.equal(suppressed.status, "final");
+  assert.equal(suppressed.eventId, "401772831");
+  assert.equal(suppressed.score.away, 24);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(suppressed.lineScore.away)),
+    [7, 3, 7, 7]
+  );
+  assert.equal(suppressed.gamecast, null);
+  assert.equal(suppressed.suppressHeroCandidateWithdrawal, true);
+  assert.equal(generator.createLiveGameCandidate({
+    status: "available",
+    favoriteTeam: favorite(),
+    game: suppressed
+  }), null);
+
+  const future = provider.normalizeGame({
+    ...finalGame,
+    eventId: "401773000",
+    status: { state: "live" }
+  }, favorite());
+  assert.equal(future.gamecast.type, "football-game");
+  assert.equal(future.eventId, "401773000");
+
+  const otherFavorite = provider.normalizeGame(
+    finalGame,
+    favorite("NFL:SF")
+  );
+  assert.equal(otherFavorite.gamecast.type, "football-game");
+});
+
+test("suppressed final schedule facts preserve the existing candidate expiry", () => {
+  const events = [];
+  const SportsActiveContextGenerator = loadClass(
+    "frontend/providers/sports-active-context-generator.js",
+    "SportsActiveContextGenerator",
+    {
+      Date,
+      Map,
+      window: {
+        mosaicApp: {
+          eventBus: { publish: (event) => events.push(event) }
+        }
+      }
+    }
+  );
+  const generator = new SportsActiveContextGenerator();
+  const finalFacts = footballFacts("NFL:SEA", "final");
+
+  generator.evaluate(finalFacts);
+  generator.evaluate({
+    ...finalFacts,
+    game: {
+      ...finalFacts.game,
+      gamecast: null,
+      suppressHeroCandidateWithdrawal: true
+    }
+  });
+
+  assert.equal(
+    events.filter((event) => event.type === "hero-candidate").length,
+    1
+  );
+  assert.equal(
+    events.filter((event) => event.type === "hero-candidate-withdraw").length,
+    0
+  );
+  assert.equal(
+    generator.activeCandidateIds.get("NFL:SEA"),
+    "sports:live:NFL:SEA"
+  );
 });
 
 test("SportsProvider dispatches MLB and NFL favorites independently", async () => {
@@ -457,6 +563,11 @@ test("frontend loads NFL favorite provider without changing renderer wiring", ()
   );
 
   assert.match(html, /providers\/nfl-data-provider\.js/);
+  assert.match(html, /providers\/nfl-gamecast-lifecycle-state\.js/);
+  assert.ok(
+    html.indexOf("providers/nfl-gamecast-lifecycle-state.js") <
+    html.indexOf("providers/nfl-data-provider.js")
+  );
   assert.ok(
     html.indexOf("providers/nfl-data-provider.js") <
     html.indexOf("providers/sports-provider.js")

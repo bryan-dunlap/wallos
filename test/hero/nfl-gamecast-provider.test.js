@@ -3,6 +3,11 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const {
+  NflGamecastLifecycleState
+} = require(
+  "../../frontend/providers/nfl-gamecast-lifecycle-state"
+);
 
 const PROJECT_ROOT = path.join(__dirname, "..", "..");
 
@@ -188,7 +193,7 @@ test("matching live display schedules five-second refresh without overlap", asyn
     await pending;
     return { gamecast: detailedGamecast(), stale: false };
   };
-  provider.currentFacts = facts();
+  provider.factsByFavoriteId.set("NFL:SEA", facts());
   provider.displayedCandidate = candidate();
   provider.activeLifecycleKey = provider.getLifecycleKey();
   const version = provider.lifecycleVersion;
@@ -264,6 +269,69 @@ test("event change invalidates late detail and starts the matching lifecycle", a
   assert.equal(published[0].payload.game.eventId, "401772999");
 });
 
+test("two NFL favorites retain facts and only the displayed favorite polls", async () => {
+  const requests = [];
+  const { Provider, timers } = loadProvider();
+  const provider = new Provider();
+  const favoriteA = facts();
+  const favoriteB = facts({ eventId: "401772999" });
+  favoriteB.favoriteTeam = {
+    ...favoriteA.favoriteTeam,
+    id: "NFL:SF",
+    name: "San Francisco 49ers",
+    shortName: "49ers"
+  };
+  provider.fetchGamecast = async (_date, eventId) => {
+    requests.push(eventId);
+    return {
+      gamecast: {
+        ...detailedGamecast(),
+        eventId
+      },
+      stale: false
+    };
+  };
+
+  provider.handleSportsFacts(favoriteA);
+  provider.handleSportsFacts(favoriteB);
+  assert.equal(provider.factsByFavoriteId.size, 2);
+
+  provider.handleHeroDisplay(candidate());
+  await settle();
+  assert.deepEqual(requests, ["401772831"]);
+  const favoriteATimer = timers.at(-1);
+
+  provider.handleSportsFacts({
+    ...favoriteB,
+    game: { ...favoriteB.game, score: { away: 24, home: 24 } }
+  });
+  assert.equal(favoriteATimer.cleared, false);
+  assert.deepEqual(requests, ["401772831"]);
+
+  provider.handleHeroDisplay(candidate({
+    id: "sports:live:NFL:SF",
+    payload: { type: "football-game", eventId: "401772999" }
+  }));
+  await settle();
+  assert.equal(favoriteATimer.cleared, true);
+  assert.deepEqual(requests, ["401772831", "401772999"]);
+
+  provider.handleSportsFacts({
+    ...favoriteA,
+    game: { ...favoriteA.game, status: "final" }
+  });
+  assert.equal(provider.factsByFavoriteId.has("NFL:SF"), true);
+  assert.equal(provider.factsByFavoriteId.get("NFL:SEA").game.status, "final");
+
+  provider.handleSportsFacts({
+    status: "unavailable",
+    favoriteTeam: favoriteB.favoriteTeam,
+    game: null
+  });
+  assert.equal(provider.factsByFavoriteId.has("NFL:SF"), false);
+  assert.equal(provider.factsByFavoriteId.has("NFL:SEA"), true);
+});
+
 test("unavailable facts and simulation takeover stop polling", async () => {
   const { Provider, timers } = loadProvider();
   const provider = new Provider();
@@ -295,7 +363,7 @@ test("unavailable facts and simulation takeover stop polling", async () => {
   assert.equal(secondTimer.cleared, false);
   provider.handleSimulationState(true);
   assert.equal(secondTimer.cleared, true);
-  assert.equal(provider.currentFacts, null);
+  assert.equal(provider.factsByFavoriteId.size, 0);
 });
 
 test("visibility, page hide, and provider stop invalidate polling", async () => {
@@ -320,19 +388,20 @@ test("visibility, page hide, and provider stop invalidate polling", async () => 
   provider.handlePageHide();
   assert.equal(pageTimer.cleared, true);
 
-  provider.currentFacts = facts();
+  provider.factsByFavoriteId.set("NFL:SEA", facts());
   provider.displayedCandidate = candidate();
   provider.reconcileRefreshLoop();
   await settle();
   const stopTimer = timers.at(-1);
   provider.stop();
   assert.equal(stopTimer.cleared, true);
-  assert.equal(provider.currentFacts, null);
+  assert.equal(provider.factsByFavoriteId.size, 0);
 });
 
 test("final detail publishes once and immediately stops polling", async () => {
   const { Provider, timers, published } = loadProvider();
-  const provider = new Provider();
+  const lifecycleState = new NflGamecastLifecycleState();
+  const provider = new Provider(lifecycleState);
   provider.fetchGamecast = async () => ({
     gamecast: detailedGamecast("final"),
     updatedAt: "2026-09-07T23:00:00.000Z",
@@ -348,6 +417,10 @@ test("final detail publishes once and immediately stops polling", async () => {
   assert.equal(published[0].payload.game.eventId, "401772831");
   assert.equal(timers.length, 0);
   assert.equal(provider.activeLifecycleKey, null);
+  assert.equal(
+    lifecycleState.wasFinalPresented("NFL:SEA", "401772831"),
+    true
+  );
 });
 
 test("valid stale detail publishes and continues live polling", async () => {
@@ -379,7 +452,10 @@ test("failed detail keeps existing facts and retries on the interval", async () 
   provider.handleHeroDisplay(candidate());
   await settle();
 
-  assert.equal(provider.currentFacts, originalFacts);
+  assert.equal(
+    provider.factsByFavoriteId.get("NFL:SEA"),
+    originalFacts
+  );
   assert.equal(published.length, 0);
   assert.equal(timers.at(-1).delay, 5000);
 });

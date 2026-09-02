@@ -2,14 +2,18 @@ const NFL_GAMECAST_REFRESH_INTERVAL_MS = 5 * 1000;
 
 class NflGamecastProvider {
 
-    constructor() {
+    constructor(lifecycleState = null) {
         this.unsubscribers = [];
-        this.currentFacts = null;
+        this.factsByFavoriteId = new Map();
         this.displayedCandidate = null;
         this.activeLifecycleKey = null;
         this.refreshTimer = null;
         this.refreshInFlight = null;
         this.lifecycleVersion = 0;
+        this.lifecycleState = lifecycleState ||
+            (typeof nflGamecastLifecycleState !== "undefined"
+                ? nflGamecastLifecycleState
+                : null);
         this.handlePageHide = () => this.stop();
         this.handleVisibilityChange = () => {
             if (document.visibilityState === "hidden") {
@@ -51,7 +55,7 @@ class NflGamecastProvider {
         this.stopRefreshLoop();
         this.unsubscribers.forEach((unsubscribe) => unsubscribe());
         this.unsubscribers = [];
-        this.currentFacts = null;
+        this.factsByFavoriteId.clear();
         this.displayedCandidate = null;
         window.removeEventListener("pagehide", this.handlePageHide);
         document.removeEventListener(
@@ -62,7 +66,7 @@ class NflGamecastProvider {
 
     handleSportsFacts(facts) {
         if (facts?.simulation === true) {
-            this.currentFacts = null;
+            this.factsByFavoriteId.clear();
             this.stopRefreshLoop();
             return;
         }
@@ -73,33 +77,42 @@ class NflGamecastProvider {
             return;
         }
 
+        if (!favoriteTeam?.id) {
+            this.factsByFavoriteId.clear();
+            this.stopRefreshLoop();
+            return;
+        }
+
         if (
             facts?.status !== "available" ||
-            favoriteTeam?.league !== "NFL" ||
-            !favoriteTeam.id ||
+            favoriteTeam.league !== "NFL" ||
             !facts.game?.eventId
         ) {
-            this.currentFacts = null;
-            this.stopRefreshLoop();
+            this.factsByFavoriteId.delete(favoriteTeam.id);
+            this.reconcileRefreshLoop();
             return;
         }
 
-        const previousEventId = this.currentFacts?.game?.eventId;
-        this.currentFacts = facts;
-
-        if (
-            previousEventId &&
-            String(previousEventId) !== String(facts.game.eventId)
-        ) {
-            this.stopRefreshLoop();
-        }
-
-        if (facts.game.status === "final") {
-            this.stopRefreshLoop();
-            return;
-        }
-
+        this.factsByFavoriteId.set(favoriteTeam.id, facts);
         this.reconcileRefreshLoop();
+    }
+
+    getDisplayedFavoriteId() {
+        const prefix = "sports:live:";
+        const candidateId = this.displayedCandidate?.id;
+
+        return typeof candidateId === "string" &&
+            candidateId.startsWith(prefix)
+            ? candidateId.slice(prefix.length)
+            : null;
+    }
+
+    getDisplayedFacts() {
+        const favoriteTeamId = this.getDisplayedFavoriteId();
+
+        return favoriteTeamId
+            ? this.factsByFavoriteId.get(favoriteTeamId) || null
+            : null;
     }
 
     handleHeroDisplay(candidate) {
@@ -111,7 +124,7 @@ class NflGamecastProvider {
 
     handleSimulationState(active) {
         if (active === true) {
-            this.currentFacts = null;
+            this.factsByFavoriteId.clear();
             this.stopRefreshLoop();
         }
     }
@@ -126,14 +139,15 @@ class NflGamecastProvider {
     }
 
     getLifecycleKey() {
-        const favoriteTeam = this.currentFacts?.favoriteTeam;
-        const eventId = this.currentFacts?.game?.eventId;
+        const facts = this.getDisplayedFacts();
+        const favoriteTeam = facts?.favoriteTeam;
+        const eventId = facts?.game?.eventId;
         const candidate = this.displayedCandidate;
 
         if (
             !favoriteTeam?.id ||
             !eventId ||
-            this.currentFacts.game.status !== "live" ||
+            facts.game.status !== "live" ||
             candidate?.id !== `sports:live:${favoriteTeam.id}` ||
             String(candidate.payload?.eventId || "") !== String(eventId)
         ) {
@@ -176,7 +190,7 @@ class NflGamecastProvider {
             return;
         }
 
-        const facts = this.currentFacts;
+        const facts = this.getDisplayedFacts();
         const eventId = String(facts.game.eventId);
         const eventDate = facts.game.eventDate;
 
@@ -201,7 +215,18 @@ class NflGamecastProvider {
             }
 
             const detailedFacts = this.createDetailedFacts(facts, response);
-            this.currentFacts = detailedFacts;
+            this.factsByFavoriteId.set(
+                facts.favoriteTeam.id,
+                detailedFacts
+            );
+
+            if (response.gamecast.status === "final") {
+                this.lifecycleState?.markFinalPresented(
+                    facts.favoriteTeam.id,
+                    response.gamecast.eventId
+                );
+            }
+
             this.publishSportsFacts(detailedFacts);
 
             if (response.gamecast.status === "final") {

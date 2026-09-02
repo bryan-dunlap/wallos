@@ -24,6 +24,10 @@ class SportsActiveContextGenerator {
         }
 
         if (!candidate) {
+            if (facts?.game?.suppressHeroCandidateWithdrawal === true) {
+                return;
+            }
+
             if (favoriteTeamId) {
                 this.withdrawFavoriteCandidate(favoriteTeamId);
             } else {
