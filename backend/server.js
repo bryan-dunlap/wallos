@@ -10,6 +10,9 @@ const {
   acquireNflDailySchedule
 } = require("./sports/nfl-sports-acquirer");
 const {
+  acquireCachedNflGamecast
+} = require("./sports/nfl-gamecast-cache");
+const {
   acquireMlbDailySchedule,
   mlbDailyScheduleCache
 } = require("./sports/mlb-espn-acquirer");
@@ -3530,6 +3533,83 @@ async function handleMlbGamecastSchedule(req, res) {
   }
 }
 
+function resolveRequiredSportsDate(queryDate) {
+  return typeof queryDate === "string" && isValidDateKey(queryDate)
+    ? queryDate
+    : null;
+}
+
+function resolveNflEventId(queryEventId) {
+  if (
+    typeof queryEventId !== "string" &&
+    typeof queryEventId !== "number" &&
+    typeof queryEventId !== "bigint"
+  ) {
+    return null;
+  }
+
+  const eventId = String(queryEventId).trim();
+  return eventId || null;
+}
+
+function createNflDailyScheduleHandler(
+  acquire = acquireNflDailySchedule
+) {
+  return async function handleNflDailySchedule(req, res) {
+    const requestedDate = resolveRequiredSportsDate(req.query.date);
+
+    if (!requestedDate) {
+      return res.status(400).json({
+        error: "Date must use YYYY-MM-DD format."
+      });
+    }
+
+    try {
+      return res.json(await acquire(requestedDate));
+    } catch (error) {
+      return res.status(500).json({
+        error: "NFL daily schedule is temporarily unavailable."
+      });
+    }
+  };
+}
+
+function createNflGamecastHandler(options = {}) {
+  return async function handleNflGamecast(req, res) {
+    const requestedDate = resolveRequiredSportsDate(req.query.date);
+    const eventId = resolveNflEventId(req.query.eventId);
+
+    if (!requestedDate) {
+      return res.status(400).json({
+        error: "Date must use YYYY-MM-DD format."
+      });
+    }
+
+    if (!eventId) {
+      return res.status(400).json({
+        error: "eventId is required and must be a scalar value."
+      });
+    }
+
+    try {
+      return res.json(
+        await acquireCachedNflGamecast(
+          requestedDate,
+          eventId,
+          options
+        )
+      );
+    } catch (error) {
+      return res.status(500).json({
+        error: "NFL Gamecast is temporarily unavailable."
+      });
+    }
+  };
+}
+
+const handleNflDailySchedule = createNflDailyScheduleHandler();
+const handleNflGamecast = createNflGamecastHandler();
+
 function resolveSportsDate(queryDate) {
   const requestedDate = typeof queryDate === "string"
     ? queryDate
@@ -3671,6 +3751,8 @@ app.get("/api/sports", async (req, res) => {
 
 app.get("/api/sports/mlb", handleMlbDailySchedule);
 app.get("/api/sports/mlb/gamecast", handleMlbGamecastSchedule);
+app.get("/api/sports/nfl", handleNflDailySchedule);
+app.get("/api/sports/nfl/gamecast", handleNflGamecast);
 
 /* ==========================
    Mariners Schedule API
@@ -3865,10 +3947,14 @@ module.exports = {
   acquireSportsWidgetLeague,
   acquireSportsWidgetLeagues,
   buildSportsWidgetAcquisitionResponse,
+  createNflDailyScheduleHandler,
+  createNflGamecastHandler,
   mlbDailyScheduleCache,
   mlbGamecastScheduleCache,
   resolveCalendarSourceDraft,
   resolveDiscoverySourceDraft,
+  resolveNflEventId,
+  resolveRequiredSportsDate,
   resolveSportsDate,
   sportsWidgetAcquisitionRegistry
 };
