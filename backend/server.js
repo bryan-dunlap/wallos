@@ -789,10 +789,10 @@ app.get("/control", (req, res) => {
     .selection-control { display: grid; flex: 0 1 var(--control-selector-width); gap: 7px; width: var(--control-selector-width); min-width: 0; }
     .selection-control label { color: #334155; font-size: .84rem; font-weight: 650; }
     .control-selection-row-with-action .button { min-height: 44px; white-space: nowrap; }
-    .button { min-height: 40px; padding: 9px 14px; border: 0; border-radius: 9px; font-weight: 700; }
+    .button { min-height: 44px; padding: 9px 14px; border: 0; border-radius: 9px; font-weight: 700; }
     .button-primary { color: #fff; background: linear-gradient(145deg, #2b61d5, #1d4fc0); box-shadow: 0 5px 14px rgba(29, 78, 216, .2), inset 0 1px 0 rgba(255, 255, 255, .2); }
     .button-secondary { color: #1d4ed8; background: rgba(210, 224, 241, .78); box-shadow: inset 0 1px 0 rgba(243, 248, 252, .52); }
-    .button-quiet { min-height: 34px; padding: 7px 10px; color: #475569; background: transparent; }
+    .button-quiet { min-height: 44px; padding: 7px 10px; color: #475569; background: transparent; }
     .button-danger { color: #fff; background: #b42318; }
     .button:disabled { cursor: not-allowed; opacity: .5; }
     .inline-form { display: grid; grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr) auto; gap: 10px; align-items: end; }
@@ -1065,12 +1065,12 @@ app.get("/control", (req, res) => {
 
           <section class="control-panel" data-control-panel="developer" hidden>
             <header class="panel-header"><div><p class="panel-kicker">Developer Tools</p><h2>Simulation and diagnostics</h2><p class="panel-description">Temporary tools for exercising Mosaic experiences.</p></div><div class="panel-status"><span class="status-pill">Development only</span></div></header>
-            <div class="card-grid"><section class="settings-card settings-card-wide developer-card" data-feature-card>
+            <div class="card-grid"><section class="settings-card settings-card-wide developer-card">
           <div class="card-header">
             <div><h3>Sports Simulator</h3><p class="card-description">Preview normalized game states on the running dashboard. Simulation state is never saved.</p></div>
-            <label class="switch"><input id="sports-simulator-enabled" type="checkbox" data-feature-toggle aria-label="Enable Sports Simulator" aria-controls="sports-simulator-settings"><span class="switch-track"></span><span class="switch-state"></span></label>
+            <span class="status-pill">Session only</span>
           </div>
-          <div class="settings-content" id="sports-simulator-settings" data-feature-content hidden>
+          <div class="settings-content">
             <div class="field control-selection-row">
               <label for="sports-simulation-profile">League / Profile</label>
               <select id="sports-simulation-profile">${sportsSimulationProfileOptions}</select>
@@ -1107,7 +1107,7 @@ app.get("/control", (req, res) => {
         <button class="command-item" type="button" data-command-section="settings" data-command-focus="favorite-team"><span>Add Favorite Team</span><small>Sports</small></button>
         <button class="command-item" type="button" data-command-section="settings" data-command-focus="calendar-source-name"><span>Add Calendar Source</span><small>Calendar</small></button>
         <button class="command-item" type="button" data-command-section="settings" data-command-focus="discovery-source-name"><span>Add Discovery Source</span><small>Discovery</small></button>
-        <button class="command-item" type="button" data-command-section="developer" data-command-focus="sports-simulator-enabled"><span>Open Sports Simulator</span><small>Developer Tools</small></button>
+        <button class="command-item" type="button" data-command-section="developer" data-command-focus="sports-simulation-profile"><span>Open Sports Simulator</span><small>Developer Tools</small></button>
       </div>
     </div>
   </div>
