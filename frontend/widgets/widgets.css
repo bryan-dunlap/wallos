@@ -869,6 +869,405 @@
 }
 
 
+.hero-resting-daily {
+
+    position: relative;
+
+    isolation: isolate;
+
+    display: flex;
+
+    flex-direction: column;
+
+    align-items: center;
+
+    justify-content: center;
+
+}
+
+
+.hero-resting-daily::before {
+
+    content: "";
+
+    position: absolute;
+
+    z-index: 0;
+
+    width: 82%;
+
+    height: 220px;
+
+    top: 50%;
+
+    left: 50%;
+
+    transform: translate(-50%, -50%);
+
+    background: radial-gradient(
+        ellipse at center,
+        color-mix(in srgb, var(--color-accent) 7%, transparent),
+        transparent 72%
+    );
+
+    pointer-events: none;
+
+}
+
+
+.hero-resting-daily > * {
+
+    position: relative;
+
+    z-index: 1;
+
+}
+
+
+.hero-resting-daily:not(.is-greeting-only) .hero-title {
+
+    font-size: clamp(
+        3rem,
+        58.968px,
+        4.25rem
+    );
+
+    line-height: 1.05;
+
+}
+
+
+.hero-resting-daily.is-greeting-only .hero-title {
+
+    font-size: clamp(
+        3.75rem,
+        83.916px,
+        5.75rem
+    );
+
+}
+
+
+.hero-daily-rule {
+
+    width: 560px;
+
+    height: 4px;
+
+    margin-top: 12px;
+
+    border-radius: 999px;
+
+    background: var(--color-accent);
+
+    box-shadow: 0 0 7px color-mix(in srgb, var(--color-accent) 22%, transparent);
+
+    opacity: .88;
+
+}
+
+
+.hero-daily-content {
+
+    width: fit-content;
+
+    min-width: 420px;
+
+    max-width: min(56%, 620px);
+
+    display: grid;
+
+    gap: 18px;
+
+    margin-top: 28px;
+
+    margin-right: auto;
+
+    margin-left: auto;
+
+    text-align: left;
+
+}
+
+
+.hero-daily-content:empty {
+
+    display: none;
+
+}
+
+
+.hero-context-row {
+
+    display: grid;
+
+    grid-template-columns: 32px minmax(0, 1fr);
+
+    align-items: start;
+
+    gap: 13px;
+
+    min-width: 0;
+
+    text-align: left;
+
+}
+
+
+.hero-daily-alert {
+
+    color: var(--color-text);
+
+}
+
+
+.hero-daily-alert-title {
+
+    font-size: clamp(1.35rem, 28.728px, 1.9rem);
+
+    font-weight: 650;
+
+    line-height: 1.2;
+
+}
+
+
+.hero-daily-alert-summary {
+
+    margin-top: 2px;
+
+    color: var(--color-text-secondary);
+
+    font-size: clamp(1.1rem, 21.168px, 1.45rem);
+
+    line-height: 1.25;
+
+}
+
+
+.hero-daily-sports {
+
+    display: grid;
+
+    gap: 16px;
+
+    min-width: 0;
+
+}
+
+
+.hero-daily-sport {
+
+    min-width: 0;
+
+    overflow: hidden;
+
+    color: var(--color-text);
+
+    font-size: clamp(1.35rem, 28.728px, 1.9rem);
+
+    font-weight: 650;
+
+    line-height: 1.15;
+
+    text-overflow: ellipsis;
+
+    white-space: nowrap;
+
+}
+
+
+.hero-context-entry-body {
+
+    min-width: 0;
+
+    overflow: hidden;
+
+    text-overflow: ellipsis;
+
+}
+
+
+.hero-context-glyph {
+
+    width: 32px;
+
+    height: 32px;
+
+    display: inline-flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    color: var(--color-accent);
+
+    font-size: 21px;
+
+    font-weight: 700;
+
+    line-height: 1;
+
+}
+
+
+.hero-daily-insight {
+
+    overflow: hidden;
+
+    color: var(--color-text-secondary);
+
+    font-size: clamp(1.1rem, 21.168px, 1.45rem);
+
+    line-height: 1.25;
+
+    text-overflow: ellipsis;
+
+    white-space: nowrap;
+
+}
+
+
+.hero-daily-insight-title {
+
+    color: var(--color-text);
+
+    font-weight: 600;
+
+}
+
+
+.hero-daily-insight-summary::before {
+
+    content: " · ";
+
+}
+
+
+.hero-alert-glyph {
+
+    border: 1px solid currentColor;
+
+    border-radius: 50%;
+
+    font-size: 17px;
+
+}
+
+
+.hero-calendar-glyph {
+
+    position: relative;
+
+    width: 22px;
+
+    height: 21px;
+
+    margin: 5px;
+
+    border: 2px solid currentColor;
+
+    border-radius: 3px;
+
+}
+
+
+.hero-calendar-glyph::before {
+
+    content: "";
+
+    position: absolute;
+
+    left: -2px;
+
+    right: -2px;
+
+    top: 4px;
+
+    border-top: 2px solid currentColor;
+
+}
+
+
+.hero-daily-calendar {
+
+    display: grid;
+
+    gap: 14px;
+
+}
+
+
+.hero-daily-calendar-item {
+
+    color: var(--color-text);
+
+    font-size: clamp(1.2rem, 24.192px, 1.6rem);
+
+    font-weight: 500;
+
+    line-height: 1.2;
+
+    text-align: left;
+
+}
+
+
+.hero-calendar-content {
+
+    display: grid;
+
+    grid-template-columns: minmax(0, 1fr) auto;
+
+    gap: 20px;
+
+}
+
+
+.hero-daily-calendar-item.is-active {
+
+    color: var(--color-text);
+
+    font-weight: 600;
+
+}
+
+
+.hero-daily-calendar-title {
+
+    overflow: hidden;
+
+    text-overflow: ellipsis;
+
+    white-space: nowrap;
+
+}
+
+
+.hero-daily-calendar-time {
+
+    font-variant-numeric: tabular-nums;
+
+    white-space: nowrap;
+
+}
+
+
+.hero-daily-more {
+
+    color: var(--color-text-muted);
+
+    font-size: 1.15rem;
+
+    line-height: 1.2;
+
+    text-align: right;
+
+    padding-left: 45px;
+
+}
+
+
 .hero-active {
 
     width: 100%;
