@@ -59,6 +59,7 @@ function createPublicHomeAssistantConfig(config) {
 
   return {
     enabled: normalized.enabled,
+    baseUrl: normalized.baseUrl,
     configured: isHomeAssistantConfigured(normalized)
   };
 }

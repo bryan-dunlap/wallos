@@ -6,7 +6,8 @@ const {
 const HOME_ASSISTANT_REQUEST_LIMIT = "4kb";
 
 function createHomeAssistantRouter({
-  testConnectionImpl = testConnection
+  testConnectionImpl = testConnection,
+  getStoredConfig = () => null
 } = {}) {
   const router = express.Router();
   const jsonParser = express.json({
@@ -23,10 +24,22 @@ function createHomeAssistantRouter({
     jsonParser,
     async (req, res) => {
       const baseUrl = req.body?.baseUrl;
-      const accessToken = req.body?.accessToken;
+      const useStoredAccessToken =
+        req.body?.useStoredAccessToken === true;
+      const draftAccessToken = req.body?.accessToken;
+      const storedAccessToken = useStoredAccessToken
+        ? getStoredConfig()?.accessToken
+        : null;
+      const accessToken = useStoredAccessToken
+        ? storedAccessToken
+        : draftAccessToken;
 
       if (
         typeof baseUrl !== "string" || !baseUrl.trim() ||
+        (
+          useStoredAccessToken &&
+          typeof draftAccessToken !== "undefined"
+        ) ||
         typeof accessToken !== "string" || !accessToken.trim()
       ) {
         return res.status(400).json({ status: "invalid_request" });

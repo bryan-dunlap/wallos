@@ -10,11 +10,11 @@ const {
 
 const TOKEN = "route-private-test-token";
 
-async function withTestServer(testConnectionImpl, callback) {
+async function withTestServer(testConnectionImpl, callback, options = {}) {
   const app = express();
   app.use(
     "/api/home-assistant",
-    createHomeAssistantRouter({ testConnectionImpl })
+    createHomeAssistantRouter({ testConnectionImpl, ...options })
   );
   const server = http.createServer(app);
 
@@ -72,6 +72,52 @@ test("route accepts draft credentials without persisting or exposing them", asyn
 
   assert.equal(calls, 1);
   assert.equal(received.accessToken, TOKEN);
+});
+
+test("route can use a stored token without returning it to the frontend", async () => {
+  let received;
+
+  await withTestServer(async (credentials) => {
+    received = credentials;
+    return { status: "connected" };
+  }, async (baseUrl) => {
+    const response = await request(baseUrl, {
+      body: JSON.stringify({
+        baseUrl: "http://draft-home-assistant.local:8123",
+        useStoredAccessToken: true
+      })
+    });
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.body, { status: "connected" });
+    assert.equal(JSON.stringify(response).includes(TOKEN), false);
+  }, {
+    getStoredConfig: () => ({ accessToken: TOKEN })
+  });
+
+  assert.equal(received.baseUrl, "http://draft-home-assistant.local:8123");
+  assert.equal(received.accessToken, TOKEN);
+});
+
+test("stored-token mode rejects token mixing and missing stored credentials", async () => {
+  await withTestServer(async () => ({ status: "connected" }), async (baseUrl) => {
+    const mixed = await request(baseUrl, {
+      body: JSON.stringify({
+        baseUrl: "http://homeassistant.local:8123",
+        accessToken: TOKEN,
+        useStoredAccessToken: true
+      })
+    });
+    const missing = await request(baseUrl, {
+      body: JSON.stringify({
+        baseUrl: "http://homeassistant.local:8123",
+        useStoredAccessToken: true
+      })
+    });
+
+    assert.equal(mixed.status, 400);
+    assert.equal(missing.status, 400);
+  });
 });
 
 test("route rejects malformed, missing, and unsupported request bodies", async () => {

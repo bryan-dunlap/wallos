@@ -50,6 +50,8 @@ const {
 const {
   DEFAULT_HOME_ASSISTANT_CONFIG,
   createPublicHomeAssistantConfig,
+  normalizeHomeAssistantAccessToken,
+  normalizeHomeAssistantBaseUrl,
   normalizeHomeAssistantConfig
 } = require("./home-assistant/home-assistant-config");
 const {
@@ -174,7 +176,9 @@ const discoveryAggregator = new DiscoveryAggregator(
 app.use(express.static(frontendPath));
 app.use(
   "/api/home-assistant",
-  createHomeAssistantRouter()
+  createHomeAssistantRouter({
+    getStoredConfig: () => readConfig().homeAssistant
+  })
 );
 app.use(express.urlencoded({ extended: false }));
 
@@ -566,6 +570,46 @@ function validateConfigUpdate(
   };
 }
 
+function resolveHomeAssistantConfigUpdate(currentConfig, update) {
+  const current = normalizeHomeAssistantConfig(currentConfig);
+  const enabled = update?.enabled;
+  const baseUrlDraft = update?.baseUrl;
+  const tokenOperation = update?.tokenOperation;
+
+  if (typeof enabled !== "boolean") {
+    throw new Error("Home Assistant enabled must be a boolean.");
+  }
+
+  if (typeof baseUrlDraft !== "string") {
+    throw new Error("Home Assistant URL must be a string.");
+  }
+
+  const baseUrl = baseUrlDraft.trim()
+    ? normalizeHomeAssistantBaseUrl(baseUrlDraft)
+    : "";
+
+  if (baseUrlDraft.trim() && !baseUrl) {
+    throw new Error("Home Assistant URL is invalid.");
+  }
+
+  if (!["keep", "replace", "remove"].includes(tokenOperation)) {
+    throw new Error("Home Assistant token operation is invalid.");
+  }
+
+  let accessToken = current.accessToken;
+
+  if (tokenOperation === "replace") {
+    accessToken = normalizeHomeAssistantAccessToken(update.accessToken);
+    if (!accessToken) {
+      throw new Error("A replacement Home Assistant token is required.");
+    }
+  } else if (tokenOperation === "remove") {
+    accessToken = "";
+  }
+
+  return { enabled, baseUrl, accessToken };
+}
+
 async function writeConfig(config) {
   const temporaryPath = `${configPath}.tmp-${process.pid}-${Date.now()}`;
 
@@ -777,8 +821,8 @@ app.get("/control", (req, res) => {
     .field { display: grid; gap: 7px; }
     .field-full { grid-column: 1 / -1; }
     .field label { color: #334155; font-size: .84rem; font-weight: 650; }
-    input[type="text"], input[type="url"], select { min-height: 44px; padding: 10px 12px; color: #172033; border: 1px solid rgba(91, 115, 139, .24); border-radius: 10px; background: rgba(229, 238, 245, .78); box-shadow: inset 0 1px 2px rgba(43, 58, 76, .065), 0 1px 0 rgba(246, 250, 253, .55); backdrop-filter: blur(8px); }
-    input[type="text"], input[type="url"] { width: 100%; }
+    input[type="text"], input[type="url"], input[type="password"], select { min-height: 44px; padding: 10px 12px; color: #172033; border: 1px solid rgba(91, 115, 139, .24); border-radius: 10px; background: rgba(229, 238, 245, .78); box-shadow: inset 0 1px 2px rgba(43, 58, 76, .065), 0 1px 0 rgba(246, 250, 253, .55); backdrop-filter: blur(8px); }
+    input[type="text"], input[type="url"], input[type="password"] { width: 100%; }
     select { width: min(100%, var(--control-selector-width)); max-width: 100%; }
     input:focus, select:focus, button:focus-visible { outline: 3px solid rgba(37, 99, 235, .16); outline-offset: 2px; border-color: rgba(37, 99, 235, .58); }
     .switch { position: relative; display: inline-flex; align-items: center; gap: 9px; color: #64748b; font-size: .78rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
@@ -943,6 +987,7 @@ app.get("/control", (req, res) => {
             <button class="control-nav-button" type="button" data-control-nav="settings" data-settings-target="sports" title="Sports"><span class="nav-glyph">SP</span><span class="nav-text">Sports</span></button>
             <button class="control-nav-button" type="button" data-control-nav="settings" data-settings-target="calendar" title="Calendar"><span class="nav-glyph">CA</span><span class="nav-text">Calendar</span></button>
             <button class="control-nav-button" type="button" data-control-nav="settings" data-settings-target="discovery" title="Discovery"><span class="nav-glyph">DI</span><span class="nav-text">Discovery</span></button>
+            <button class="control-nav-button" type="button" data-control-nav="settings" data-settings-target="home-assistant" title="Home Assistant"><span class="nav-glyph">HA</span><span class="nav-text">Home Assistant</span></button>
           </nav>
         </div>
         <div class="control-nav-group">
@@ -966,6 +1011,7 @@ app.get("/control", (req, res) => {
                   <button class="overview-link" type="button" data-control-link="settings" data-control-focus="calendar-enabled"><strong>Calendar</strong><span>${config.calendar.enabled ? "Enabled" : "Disabled"} · ${config.calendar.sources.length} sources</span><span class="overview-arrow">›</span></button>
                   <button class="overview-link" type="button" data-control-link="settings" data-control-focus="sports-enabled"><strong>Sports</strong><span>${config.sports.enabled ? "Enabled" : "Disabled"} · ${config.sports.favoriteTeams.length} favorite teams</span><span class="overview-arrow">›</span></button>
                   <button class="overview-link" type="button" data-control-link="settings" data-control-focus="discovery-enabled"><strong>Discovery</strong><span>${config.discovery.enabled ? "Enabled" : "Disabled"} · ${config.discovery.sources.length} sources</span><span class="overview-arrow">›</span></button>
+                  <button class="overview-link" type="button" data-control-link="settings" data-control-focus="home-assistant-enabled"><strong>Home Assistant</strong><span>${config.homeAssistant.enabled ? "Enabled" : "Disabled"} · ${config.homeAssistant.accessToken ? "Access token saved" : "No access token saved"}</span><span class="overview-arrow">›</span></button>
                 </div>
               </section>
             </div>
@@ -1078,6 +1124,26 @@ app.get("/control", (req, res) => {
           </div>
         </section></div>
             </section>
+
+            <section class="settings-category-panel" data-settings-panel="home-assistant" hidden>
+              <h3 class="overview-section-title">Home Assistant</h3>
+              <div class="card-grid"><section class="settings-card settings-card-wide" data-feature-card>
+                <div class="card-header">
+                  <div><h3>Home Assistant</h3><p class="card-description">Connect Mosaic to your Home Assistant server.</p></div>
+                  <label class="switch"><input id="home-assistant-enabled" name="homeAssistantEnabled" type="checkbox" value="true" data-feature-toggle aria-label="Enable Home Assistant" aria-controls="home-assistant-settings"${config.homeAssistant.enabled ? " checked" : ""}><span class="switch-track"></span><span class="switch-state"></span></label>
+                </div>
+                <div class="settings-content" id="home-assistant-settings" data-feature-content${config.homeAssistant.enabled ? "" : " hidden"}>
+                  <div class="field"><label for="home-assistant-base-url">Home Assistant URL</label><input id="home-assistant-base-url" name="homeAssistantBaseUrl" type="url" value="${escapeHtml(config.homeAssistant.baseUrl)}" placeholder="http://homeassistant.local:8123" autocomplete="url"></div>
+                  <div class="field" style="margin-top: 14px"><label for="home-assistant-access-token">Access Token</label><input id="home-assistant-access-token" name="homeAssistantAccessToken" type="password" value="" autocomplete="new-password" aria-describedby="home-assistant-token-status"><small id="home-assistant-token-status" data-home-assistant-token-status data-has-saved-token="${config.homeAssistant.accessToken ? "true" : "false"}">${config.homeAssistant.accessToken ? "Access token saved" : "No access token saved"}</small></div>
+                  <input name="homeAssistantTokenOperation" type="hidden" value="keep" data-home-assistant-token-operation>
+                  <div class="button-row" style="margin-top: 14px">
+                    <button class="button button-quiet" type="button" data-home-assistant-remove-token${config.homeAssistant.accessToken ? "" : " disabled"}>Remove saved token</button>
+                    <button class="button button-secondary" type="button" data-home-assistant-test>Test Connection</button>
+                    <span data-home-assistant-test-result role="status" aria-live="polite"></span>
+                  </div>
+                </div>
+              </section></div>
+            </section>
               </div>
             </div>
           </section>
@@ -1122,6 +1188,7 @@ app.get("/control", (req, res) => {
         <button class="command-item" type="button" data-command-section="settings" data-command-focus="calendar-enabled"><span>Open Calendar</span><small>Settings</small></button>
         <button class="command-item" type="button" data-command-section="settings" data-command-focus="sports-enabled"><span>Open Sports</span><small>Settings</small></button>
         <button class="command-item" type="button" data-command-section="settings" data-command-focus="discovery-enabled"><span>Open Discovery</span><small>Settings</small></button>
+        <button class="command-item" type="button" data-command-section="settings" data-command-focus="home-assistant-enabled"><span>Open Home Assistant</span><small>Settings</small></button>
         <button class="command-item" type="button" data-command-section="developer"><span>Open Developer Tools</span><small>System</small></button>
         <button class="command-item" type="button" data-command-section="settings" data-command-focus="favorite-team"><span>Add Favorite Team</span><small>Sports</small></button>
         <button class="command-item" type="button" data-command-section="settings" data-command-focus="calendar-source-name"><span>Add Calendar Source</span><small>Calendar</small></button>
@@ -1263,7 +1330,8 @@ app.get("/control", (req, res) => {
         "appearance",
         "calendar",
         "sports",
-        "discovery"
+        "discovery",
+        "home-assistant"
       ].includes(initialSection)) {
         selectedSettingsCategory = initialSection;
         initialSection = "settings";
@@ -1490,7 +1558,11 @@ app.get("/control", (req, res) => {
         "sportsWidgetEnabled",
         "sportsWidgetLeagues",
         "favoriteTeams",
-        "primaryLeague"
+        "primaryLeague",
+        "homeAssistantEnabled",
+        "homeAssistantBaseUrl",
+        "homeAssistantAccessToken",
+        "homeAssistantTokenOperation"
       ]);
 
       const showPendingState = (event) => {
@@ -1513,6 +1585,100 @@ app.get("/control", (req, res) => {
           settingsPanel.dataset.settingsPanel
         );
       }, true);
+    })();
+
+    (() => {
+      const baseUrl = document.getElementById("home-assistant-base-url");
+      const accessToken = document.getElementById(
+        "home-assistant-access-token"
+      );
+      const tokenOperation = document.querySelector(
+        "[data-home-assistant-token-operation]"
+      );
+      const tokenStatus = document.querySelector(
+        "[data-home-assistant-token-status]"
+      );
+      const removeToken = document.querySelector(
+        "[data-home-assistant-remove-token]"
+      );
+      const testButton = document.querySelector(
+        "[data-home-assistant-test]"
+      );
+      const testResult = document.querySelector(
+        "[data-home-assistant-test-result]"
+      );
+
+      if (
+        !baseUrl || !accessToken || !tokenOperation ||
+        !tokenStatus || !removeToken || !testButton || !testResult
+      ) return;
+
+      const hasSavedToken =
+        tokenStatus.dataset.hasSavedToken === "true";
+      const setOperation = (operation) => {
+        if (tokenOperation.value === operation) return;
+        tokenOperation.value = operation;
+        tokenOperation.dispatchEvent(new Event("change", { bubbles: true }));
+      };
+
+      accessToken.addEventListener("input", () => {
+        setOperation(accessToken.value.trim() ? "replace" : "keep");
+        tokenStatus.textContent = accessToken.value.trim()
+          ? "New access token ready to save"
+          : hasSavedToken ? "Access token saved" : "No access token saved";
+      });
+
+      removeToken.addEventListener("click", () => {
+        accessToken.value = "";
+        setOperation("remove");
+        tokenStatus.textContent = "Access token will be removed on save";
+      });
+
+      const resultLabels = {
+        connected: "Connected to Home Assistant",
+        unauthorized: "Access token was not accepted",
+        invalid_url: "Home Assistant URL is invalid",
+        timeout: "Home Assistant connection timed out",
+        unreachable: "Home Assistant could not be reached",
+        upstream_error: "Home Assistant returned an error",
+        unexpected_response: "Home Assistant returned an unexpected response",
+        invalid_request: "Enter a URL and access token"
+      };
+
+      testButton.addEventListener("click", async () => {
+        const draftToken = accessToken.value.trim();
+        const payload = { baseUrl: baseUrl.value.trim() };
+
+        if (draftToken) {
+          payload.accessToken = draftToken;
+        } else if (tokenOperation.value === "keep" && hasSavedToken) {
+          payload.useStoredAccessToken = true;
+        } else {
+          testResult.textContent = resultLabels.invalid_request;
+          return;
+        }
+
+        testButton.disabled = true;
+        testResult.textContent = "Testing connection…";
+
+        try {
+          const response = await fetch(
+            "/api/home-assistant/test-connection",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload)
+            }
+          );
+          const result = await response.json();
+          testResult.textContent = resultLabels[result.status] ||
+            "Home Assistant connection failed";
+        } catch (error) {
+          testResult.textContent = resultLabels.unreachable;
+        } finally {
+          testButton.disabled = false;
+        }
+      });
     })();
 
     (() => {
@@ -2659,7 +2825,12 @@ app.post("/control", async (req, res) => {
         req.body.discoverySourcesDraft,
         currentConfig.discovery.sources
       ),
-      currentConfig.homeAssistant
+      resolveHomeAssistantConfigUpdate(currentConfig.homeAssistant, {
+        enabled: req.body.homeAssistantEnabled === "true",
+        baseUrl: req.body.homeAssistantBaseUrl,
+        tokenOperation: req.body.homeAssistantTokenOperation,
+        accessToken: req.body.homeAssistantAccessToken
+      })
     );
     await writeConfig(config);
     res.redirect(303, "/control?saved=1");
@@ -2680,7 +2851,12 @@ app.post("/control", async (req, res) => {
         error.message === "Discovery enabled must be a boolean." ||
         error.message === "Discovery sources must be an array." ||
         error.message === "Discovery sources are invalid." ||
-        error.message === "That Discovery source is already configured.");
+        error.message === "That Discovery source is already configured." ||
+        error.message === "Home Assistant enabled must be a boolean." ||
+        error.message === "Home Assistant URL must be a string." ||
+        error.message === "Home Assistant URL is invalid." ||
+        error.message === "Home Assistant token operation is invalid." ||
+        error.message === "A replacement Home Assistant token is required.");
 
     if (isValidationError) {
       return res.status(400).json({ error: error.message });
@@ -3975,6 +4151,7 @@ module.exports = {
   mlbDailyScheduleCache,
   mlbGamecastScheduleCache,
   readConfig,
+  resolveHomeAssistantConfigUpdate,
   resolveCalendarSourceDraft,
   resolveDiscoverySourceDraft,
   resolveNflEventId,

@@ -59,12 +59,13 @@ test("public configuration reports state without exposing credentials", () => {
 
   assert.deepEqual(publicConfig, {
     enabled: true,
+    baseUrl: "https://ha.example.test",
     configured: true
   });
   assert.equal(JSON.stringify(publicConfig).includes(accessToken), false);
   assert.deepEqual(
     createPublicHomeAssistantConfig({ enabled: true }),
-    { enabled: true, configured: false }
+    { enabled: true, baseUrl: "", configured: false }
   );
 });
 
