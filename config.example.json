@@ -14,7 +14,20 @@
     "favoriteTeams": []
   },
   "display": {
-    "theme": "mosaic"
+    "theme": "mosaic",
+    "powerSchedule": {
+      "enabled": false,
+      "timeZone": "America/Los_Angeles",
+      "days": {
+        "sunday": [],
+        "monday": [],
+        "tuesday": [],
+        "wednesday": [],
+        "thursday": [],
+        "friday": [],
+        "saturday": []
+      }
+    }
   },
   "profile": {
     "name": ""

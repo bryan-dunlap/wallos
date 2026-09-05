@@ -57,6 +57,13 @@ const {
 const {
   createHomeAssistantRouter
 } = require("./home-assistant/home-assistant-routes");
+const {
+  normalizeDisplayPowerSchedule,
+  validateDisplayPowerSchedule
+} = require("./display-power/display-schedule-config");
+const {
+  createDisplayPowerRuntime
+} = require("./display-power/display-power-runtime");
 
 const app = express();
 const PORT = 3000;
@@ -102,7 +109,8 @@ const DEFAULT_CONFIG = {
     ]
   },
   display: {
-    theme: "mosaic"
+    theme: "mosaic",
+    powerSchedule: normalizeDisplayPowerSchedule()
   },
   profile: {
     name: ""
@@ -205,6 +213,10 @@ function readConfig() {
       savedConfig?.sports
     );
     const theme = savedConfig?.display?.theme;
+    const powerSchedule = normalizeDisplayPowerSchedule(
+      savedConfig?.display?.powerSchedule,
+      { defaultTimeZone: DISPLAY_TIME_ZONE }
+    );
     const profileName = savedConfig?.profile?.name;
     const calendarEnabled = savedConfig?.calendar?.enabled;
     const configuredCalendarProvider =
@@ -249,7 +261,8 @@ function readConfig() {
       display: {
         theme: SUPPORTED_THEMES.includes(theme)
           ? theme
-          : DEFAULT_CONFIG.display.theme
+          : DEFAULT_CONFIG.display.theme,
+        powerSchedule
       },
       profile: {
         name: typeof profileName === "string"
@@ -480,7 +493,8 @@ function validateConfigUpdate(
   favoriteTeams,
   discoveryEnabled,
   discoverySources,
-  homeAssistant
+  homeAssistant,
+  powerSchedule
 ) {
   if (
     typeof locationQuery !== "string" ||
@@ -552,7 +566,10 @@ function validateConfigUpdate(
       favoriteTeams: normalizeFavoriteTeams({ favoriteTeams })
     },
     display: {
-      theme
+      theme,
+      powerSchedule: normalizeDisplayPowerSchedule(powerSchedule, {
+        defaultTimeZone: DISPLAY_TIME_ZONE
+      })
     },
     profile: {
       name: profileName
@@ -610,6 +627,32 @@ function resolveHomeAssistantConfigUpdate(currentConfig, update) {
   return { enabled, baseUrl, accessToken };
 }
 
+function resolveDisplayPowerScheduleUpdate(currentSchedule, update) {
+  const current = normalizeDisplayPowerSchedule(currentSchedule, {
+    defaultTimeZone: DISPLAY_TIME_ZONE
+  });
+
+  if (typeof update?.enabled !== "boolean") {
+    throw new Error("Display power schedule enabled must be a boolean.");
+  }
+
+  let days = null;
+
+  try {
+    days = JSON.parse(update.daysDraft);
+  } catch {
+    throw new Error("Display power schedule days are invalid.");
+  }
+
+  return validateDisplayPowerSchedule({
+    enabled: update.enabled,
+    timeZone: current.timeZone,
+    days
+  }, {
+    defaultTimeZone: DISPLAY_TIME_ZONE
+  });
+}
+
 async function writeConfig(config) {
   const temporaryPath = `${configPath}.tmp-${process.pid}-${Date.now()}`;
 
@@ -635,9 +678,165 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+function formatDisplayScheduleBoundary(value, timeZone) {
+  if (!value) return "";
+
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
+function createDisplayScheduleStatus(status) {
+  if (!status.schedulingEnabled) {
+    return "Scheduling disabled — display stays on";
+  }
+
+  if (status.scheduleEmpty) {
+    return "No windows configured — display stays on";
+  }
+
+  if (
+    status.attentionOverrideActive &&
+    status.baselineDesiredState === "off"
+  ) {
+    return "Kept on by attention override";
+  }
+
+  const nextState = status.baselineDesiredState === "on" ? "off" : "on";
+  const boundary = formatDisplayScheduleBoundary(
+    status.nextBoundary,
+    status.timeZone
+  );
+
+  return `Scheduled ${status.baselineDesiredState} now${
+    boundary ? ` · turns ${nextState} at ${boundary}` : ""
+  }`;
+}
+
+const DISPLAY_DAY_LABELS = Object.freeze({
+  sunday: "Sunday",
+  monday: "Monday",
+  tuesday: "Tuesday",
+  wednesday: "Wednesday",
+  thursday: "Thursday",
+  friday: "Friday",
+  saturday: "Saturday"
+});
+const DISPLAY_WEEKDAYS = Object.freeze([
+  "monday", "tuesday", "wednesday", "thursday", "friday"
+]);
+const DISPLAY_WEEKEND = Object.freeze(["saturday", "sunday"]);
+const DISPLAY_ALL_DAYS = Object.freeze([
+  ...DISPLAY_WEEKDAYS,
+  ...DISPLAY_WEEKEND
+]);
+
+function getDisplaySchedulePresentationGroups(days) {
+  const windowsFor = (day) => Array.isArray(days?.[day]) ? days[day] : [];
+  const signature = (day) => JSON.stringify(windowsFor(day));
+  const identical = (dayNames) => dayNames.every(
+    (day) => signature(day) === signature(dayNames[0])
+  );
+  const createGroup = (label, dayNames) => ({
+    label,
+    days: [...dayNames],
+    windows: windowsFor(dayNames[0]).map((window) => ({ ...window }))
+  });
+
+  if (
+    identical(DISPLAY_ALL_DAYS) &&
+    windowsFor(DISPLAY_ALL_DAYS[0]).length > 0
+  ) {
+    return [createGroup("Every Day", DISPLAY_ALL_DAYS)];
+  }
+
+  const groups = [];
+  if (
+    identical(DISPLAY_WEEKDAYS) &&
+    windowsFor(DISPLAY_WEEKDAYS[0]).length > 0
+  ) {
+    groups.push(createGroup("Weekdays", DISPLAY_WEEKDAYS));
+  } else {
+    DISPLAY_WEEKDAYS.forEach((day) => {
+      if (windowsFor(day).length > 0) {
+        groups.push(createGroup(DISPLAY_DAY_LABELS[day], [day]));
+      }
+    });
+  }
+
+  if (
+    identical(DISPLAY_WEEKEND) &&
+    windowsFor(DISPLAY_WEEKEND[0]).length > 0
+  ) {
+    groups.push(createGroup("Weekend", DISPLAY_WEEKEND));
+  } else {
+    DISPLAY_WEEKEND.forEach((day) => {
+      if (windowsFor(day).length > 0) {
+        groups.push(createGroup(DISPLAY_DAY_LABELS[day], [day]));
+      }
+    });
+  }
+
+  return groups;
+}
+
+function formatDisplayScheduleTime(value) {
+  const [hour, minute] = value.split(":").map(Number);
+  const suffix = hour < 12 ? "AM" : "PM";
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${String(minute).padStart(2, "0")} ${suffix}`;
+}
+
+const displayPowerRuntime = createDisplayPowerRuntime({
+  schedule: readConfig().display.powerSchedule
+});
+
 app.get("/control", (req, res) => {
   const config = readConfig();
+  const displayPowerStatus = displayPowerRuntime.getStatus();
+  const displayScheduleStatus = createDisplayScheduleStatus(
+    displayPowerStatus
+  );
   const configurationSaved = req.query?.saved === "1";
+  const displayScheduleDaysJson = JSON.stringify(
+    config.display.powerSchedule.days
+  ).replace(/</g, "\\u003c");
+  const displayScheduleDayGroupOptions = [
+    ["every-day", "Every Day"],
+    ["weekdays", "Weekdays"],
+    ["weekend", "Weekend"],
+    ...DISPLAY_ALL_DAYS.map((day) => [day, DISPLAY_DAY_LABELS[day]])
+  ].map(([value, label]) =>
+    `<option value="${value}">${label}</option>`
+  ).join("");
+  const createDisplayScheduleTimeOptions = (selectedValue) =>
+    Array.from({ length: 96 }, (_, index) => {
+      const hour = Math.floor(index / 4);
+      const minute = (index % 4) * 15;
+      const value = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+      return `<option value="${value}"${
+        value === selectedValue ? " selected" : ""
+      }>${formatDisplayScheduleTime(value)}</option>`;
+    }).join("");
+  const displayScheduleStartOptions = createDisplayScheduleTimeOptions(
+    "08:00"
+  );
+  const displayScheduleEndOptions = createDisplayScheduleTimeOptions(
+    "09:00"
+  );
+  const displayScheduleSummary = getDisplaySchedulePresentationGroups(
+    config.display.powerSchedule.days
+  ).map((group) => `
+    <section class="schedule-summary-group" data-display-summary-group>
+      <h4>${escapeHtml(group.label)}</h4>
+      ${group.windows.map((window) => `
+        <div class="schedule-summary-row" data-display-summary-window data-days="${group.days.join(",")}" data-start="${escapeHtml(window.start)}" data-end="${escapeHtml(window.end)}">
+          <span>${formatDisplayScheduleTime(window.start)} – ${formatDisplayScheduleTime(window.end)}</span>
+          <button class="button button-quiet" type="button" data-remove-display-summary-window>Remove</button>
+        </div>`).join("")}
+    </section>`).join("");
   const leagueOptions = SUPPORTED_LEAGUES.map(
     (league) =>
       `<option value="${league}"${
@@ -860,6 +1059,18 @@ app.get("/control", (req, res) => {
     .button:disabled { cursor: not-allowed; opacity: .5; }
     .inline-form { display: grid; grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr) auto; gap: 10px; align-items: end; }
     .discovery-source-form { grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr) auto; }
+    .display-schedule-status { margin: 12px 0 0; color: #475569; font-size: .9rem; font-weight: 650; }
+    .schedule-builder { display: grid; grid-template-columns: minmax(150px, 1.25fr) minmax(120px, 1fr) minmax(120px, 1fr) auto; align-items: end; gap: 10px; margin-top: 18px; }
+    .schedule-builder select { width: 100%; min-height: 44px; }
+    .field-error { margin: 8px 0 0; color: #a52a22; font-size: .84rem; font-weight: 650; }
+    .schedule-summary-header { margin-top: 22px; padding-bottom: 8px; border-bottom: 1px solid rgba(100, 116, 139, .14); }
+    .schedule-summary-header h4 { margin: 0; }
+    .schedule-summary { display: grid; grid-auto-rows: max-content; align-content: start; gap: 20px; margin-top: 12px; }
+    .schedule-summary-group { display: grid; align-content: start; gap: 8px; }
+    .schedule-summary-group h4 { margin: 0; color: #334155; font-size: .88rem; }
+    .schedule-summary-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; color: #475569; }
+    .schedule-summary-row .button { flex: 0 0 auto; }
+    .schedule-summary + .empty-state { margin-top: 10px; }
     .inline-confirmation { grid-column: 1 / -1; padding: 14px; border-left: 3px solid #b42318; border-radius: 8px; background: #fff1f0; }
     .inline-confirmation p { margin: 5px 0 12px; color: #7f1d1d; font-size: .88rem; }
     .developer-card { background: linear-gradient(150deg, rgba(193, 208, 220, .82), rgba(173, 193, 209, .72)); }
@@ -949,6 +1160,8 @@ app.get("/control", (req, res) => {
       .settings-card-wide, .field-full { grid-column: auto; }
       .inline-form { grid-template-columns: 1fr; }
       .item-row { align-items: start; }
+      .schedule-builder { grid-template-columns: 1fr 1fr; }
+      .schedule-builder .field:first-child, .schedule-builder .button { grid-column: 1 / -1; }
       .save-bar { bottom: 8px; }
     }
     @media (max-width: 460px) {
@@ -984,6 +1197,7 @@ app.get("/control", (req, res) => {
           <nav class="control-nav">
             <button class="control-nav-button" type="button" data-control-nav="settings" data-settings-target="personalization" title="Personalization"><span class="nav-glyph">PE</span><span class="nav-text">Personalization</span></button>
             <button class="control-nav-button" type="button" data-control-nav="settings" data-settings-target="appearance" title="Appearance"><span class="nav-glyph">AP</span><span class="nav-text">Appearance</span></button>
+            <button class="control-nav-button" type="button" data-control-nav="settings" data-settings-target="display-schedule" title="Display Schedule"><span class="nav-glyph">DS</span><span class="nav-text">Display Schedule</span></button>
             <button class="control-nav-button" type="button" data-control-nav="settings" data-settings-target="sports" title="Sports"><span class="nav-glyph">SP</span><span class="nav-text">Sports</span></button>
             <button class="control-nav-button" type="button" data-control-nav="settings" data-settings-target="calendar" title="Calendar"><span class="nav-glyph">CA</span><span class="nav-text">Calendar</span></button>
             <button class="control-nav-button" type="button" data-control-nav="settings" data-settings-target="discovery" title="Discovery"><span class="nav-glyph">DI</span><span class="nav-text">Discovery</span></button>
@@ -1008,6 +1222,7 @@ app.get("/control", (req, res) => {
                 <div class="overview-list">
                   <button class="overview-link" type="button" data-control-link="settings" data-control-focus="profile-name"><strong>Personalization</strong><span>${escapeHtml(config.profile.name || "No display name")} · ${escapeHtml(config.location.query)}</span><span class="overview-arrow">›</span></button>
                   <button class="overview-link" type="button" data-control-link="settings" data-control-focus="display-theme"><strong>Theme</strong><span>${escapeHtml(themeLabels[config.display.theme])}</span><span class="overview-arrow">›</span></button>
+                  <button class="overview-link" type="button" data-control-link="settings" data-control-focus="display-schedule-enabled"><strong>Display Schedule</strong><span data-display-schedule-status>${escapeHtml(displayScheduleStatus)}</span><span class="overview-arrow">›</span></button>
                   <button class="overview-link" type="button" data-control-link="settings" data-control-focus="calendar-enabled"><strong>Calendar</strong><span>${config.calendar.enabled ? "Enabled" : "Disabled"} · ${config.calendar.sources.length} sources</span><span class="overview-arrow">›</span></button>
                   <button class="overview-link" type="button" data-control-link="settings" data-control-focus="sports-enabled"><strong>Sports</strong><span>${config.sports.enabled ? "Enabled" : "Disabled"} · ${config.sports.favoriteTeams.length} favorite teams</span><span class="overview-arrow">›</span></button>
                   <button class="overview-link" type="button" data-control-link="settings" data-control-focus="discovery-enabled"><strong>Discovery</strong><span>${config.discovery.enabled ? "Enabled" : "Disabled"} · ${config.discovery.sources.length} sources</span><span class="overview-arrow">›</span></button>
@@ -1031,6 +1246,29 @@ app.get("/control", (req, res) => {
             <section class="settings-category-panel" data-settings-panel="appearance" hidden>
               <h3 class="overview-section-title">Appearance</h3>
               <div class="card-grid"><section class="settings-card settings-card-wide"><div class="field control-selection-row"><label for="display-theme">Theme</label><select id="display-theme" name="theme">${themeOptions}</select></div></section></div>
+            </section>
+
+            <section class="settings-category-panel" data-settings-panel="display-schedule" hidden>
+              <h3 class="overview-section-title">Display Schedule</h3>
+              <div class="card-grid"><section class="settings-card settings-card-wide" data-feature-card>
+                <div class="card-header">
+                  <div><h3>ON windows</h3><p class="card-description">Mosaic requests the display on during these windows and off outside them.</p><p class="display-schedule-status" role="status" data-display-schedule-status>${escapeHtml(displayScheduleStatus)}</p></div>
+                  <label class="switch"><input id="display-schedule-enabled" name="powerScheduleEnabled" type="checkbox" value="true" data-feature-toggle aria-label="Enable Display Scheduling" aria-controls="display-schedule-settings"${config.display.powerSchedule.enabled ? " checked" : ""}><span class="switch-track"></span><span class="switch-state"></span></label>
+                </div>
+                <div class="settings-content" id="display-schedule-settings" data-feature-content${config.display.powerSchedule.enabled ? "" : " hidden"}>
+                  <input name="powerScheduleDraft" type="hidden" value="${escapeHtml(displayScheduleDaysJson)}">
+                  <div class="schedule-builder" aria-label="Add an ON window">
+                    <div class="field"><label for="display-schedule-day-group">Day or day group</label><select id="display-schedule-day-group">${displayScheduleDayGroupOptions}</select></div>
+                    <div class="field"><label for="display-schedule-start">Start</label><select id="display-schedule-start">${displayScheduleStartOptions}</select></div>
+                    <div class="field"><label for="display-schedule-end">End</label><select id="display-schedule-end" aria-describedby="display-schedule-builder-error">${displayScheduleEndOptions}</select></div>
+                    <button class="button button-secondary" type="button" data-add-display-schedule-window>Add to schedule</button>
+                  </div>
+                  <p class="field-error" id="display-schedule-builder-error" data-display-schedule-builder-error role="alert" hidden></p>
+                  <div class="schedule-summary-header"><h4>Current schedule</h4></div>
+                  <div class="schedule-summary" data-display-schedule-summary>${displayScheduleSummary}</div>
+                  <p class="empty-state" data-display-schedule-empty${displayScheduleSummary ? " hidden" : ""}>No ON windows configured.</p>
+                </div>
+              </section></div>
             </section>
 
             <section class="settings-category-panel" data-settings-panel="calendar" hidden>
@@ -1185,6 +1423,7 @@ app.get("/control", (req, res) => {
         <button class="command-item" type="button" data-command-section="overview"><span>Open Overview</span><small>General</small></button>
         <button class="command-item" type="button" data-command-section="settings" data-command-focus="profile-name"><span>Open Personalization</span><small>Settings</small></button>
         <button class="command-item" type="button" data-command-section="settings" data-command-focus="display-theme"><span>Open Appearance</span><small>Settings</small></button>
+        <button class="command-item" type="button" data-command-section="settings" data-command-focus="display-schedule-enabled"><span>Open Display Schedule</span><small>Settings</small></button>
         <button class="command-item" type="button" data-command-section="settings" data-command-focus="calendar-enabled"><span>Open Calendar</span><small>Settings</small></button>
         <button class="command-item" type="button" data-command-section="settings" data-command-focus="sports-enabled"><span>Open Sports</span><small>Settings</small></button>
         <button class="command-item" type="button" data-command-section="settings" data-command-focus="discovery-enabled"><span>Open Discovery</span><small>Settings</small></button>
@@ -1328,6 +1567,7 @@ app.get("/control", (req, res) => {
       } catch (error) {}
       if ([
         "appearance",
+        "display-schedule",
         "calendar",
         "sports",
         "discovery",
@@ -1543,12 +1783,38 @@ app.get("/control", (req, res) => {
     })();
 
     (() => {
+      const statusElements = [...document.querySelectorAll(
+        "[data-display-schedule-status]"
+      )];
+
+      if (statusElements.length === 0) return;
+
+      const refreshStatus = async () => {
+        try {
+          const response = await fetch("/api/display-power/status");
+          if (!response.ok) return;
+          const status = await response.json();
+          if (typeof status.statusText !== "string") return;
+          statusElements.forEach((element) => {
+            element.textContent = status.statusText;
+          });
+        } catch {}
+      };
+      const timer = setInterval(refreshStatus, 30 * 1000);
+      window.addEventListener("pagehide", () => clearInterval(timer), {
+        once: true
+      });
+    })();
+
+    (() => {
       const form = document.querySelector(".settings-form");
       const status = document.querySelector("[data-save-status]");
       const savedFieldNames = new Set([
         "profileName",
         "locationQuery",
         "theme",
+        "powerScheduleEnabled",
+        "powerScheduleDraft",
         "calendarEnabled",
         "calendarProvider",
         "calendarSourcesDraft",
@@ -1585,6 +1851,217 @@ app.get("/control", (req, res) => {
           settingsPanel.dataset.settingsPanel
         );
       }, true);
+    })();
+
+    (() => {
+      const form = document.querySelector(".settings-form");
+      const draftField = document.querySelector(
+        "[name=powerScheduleDraft]"
+      );
+      const dayGroup = document.getElementById(
+        "display-schedule-day-group"
+      );
+      const startSelect = document.getElementById(
+        "display-schedule-start"
+      );
+      const endSelect = document.getElementById("display-schedule-end");
+      const addButton = document.querySelector(
+        "[data-add-display-schedule-window]"
+      );
+      const summary = document.querySelector(
+        "[data-display-schedule-summary]"
+      );
+      const emptyState = document.querySelector(
+        "[data-display-schedule-empty]"
+      );
+      const builderError = document.querySelector(
+        "[data-display-schedule-builder-error]"
+      );
+      const weekdays = [
+        "monday", "tuesday", "wednesday", "thursday", "friday"
+      ];
+      const weekend = ["saturday", "sunday"];
+      const allDays = [...weekdays, ...weekend];
+      const dayLabels = {
+        monday: "Monday",
+        tuesday: "Tuesday",
+        wednesday: "Wednesday",
+        thursday: "Thursday",
+        friday: "Friday",
+        saturday: "Saturday",
+        sunday: "Sunday"
+      };
+      const dayGroups = {
+        "every-day": allDays,
+        weekdays,
+        weekend
+      };
+      let draft = null;
+
+      if (
+        !form || !draftField || !dayGroup || !startSelect ||
+        !endSelect || !addButton || !summary || !emptyState ||
+        !builderError
+      ) return;
+
+      try {
+        draft = JSON.parse(draftField.value);
+      } catch {
+        draft = Object.fromEntries(allDays.map((day) => [day, []]));
+      }
+
+      const formatTime = (value) => {
+        const [hour, minute] = value.split(":").map(Number);
+        return (hour % 12 || 12) + ":" +
+          String(minute).padStart(2, "0") +
+          (hour < 12 ? " AM" : " PM");
+      };
+
+      const getSelectedDays = () =>
+        dayGroups[dayGroup.value] || [dayGroup.value];
+      const signature = (day) => JSON.stringify(draft[day] || []);
+      const identical = (days) => days.every(
+        (day) => signature(day) === signature(days[0])
+      );
+      const createGroup = (label, days) => ({
+        label,
+        days,
+        windows: draft[days[0]] || []
+      });
+
+      const getPresentationGroups = () => {
+        if (identical(allDays) && draft[allDays[0]].length > 0) {
+          return [createGroup("Every Day", allDays)];
+        }
+
+        const groups = [];
+        if (identical(weekdays) && draft.monday.length > 0) {
+          groups.push(createGroup("Weekdays", weekdays));
+        } else {
+          weekdays.forEach((day) => {
+            if (draft[day].length > 0) {
+              groups.push(createGroup(dayLabels[day], [day]));
+            }
+          });
+        }
+
+        if (identical(weekend) && draft.saturday.length > 0) {
+          groups.push(createGroup("Weekend", weekend));
+        } else {
+          weekend.forEach((day) => {
+            if (draft[day].length > 0) {
+              groups.push(createGroup(dayLabels[day], [day]));
+            }
+          });
+        }
+        return groups;
+      };
+
+      const createSummaryRow = (group, window) => {
+        const row = document.createElement("div");
+        row.className = "schedule-summary-row";
+        row.dataset.displaySummaryWindow = "";
+        row.dataset.days = group.days.join(",");
+        row.dataset.start = window.start;
+        row.dataset.end = window.end;
+        const time = document.createElement("span");
+        time.textContent = formatTime(window.start) + " – " +
+          formatTime(window.end);
+        const remove = document.createElement("button");
+        remove.className = "button button-quiet";
+        remove.type = "button";
+        remove.dataset.removeDisplaySummaryWindow = "";
+        remove.textContent = "Remove";
+        remove.setAttribute(
+          "aria-label",
+          "Remove " + group.label + " " + time.textContent
+        );
+        row.append(time, remove);
+        return row;
+      };
+
+      const renderSummary = () => {
+        const groups = getPresentationGroups();
+        summary.replaceChildren(...groups.map((group) => {
+          const section = document.createElement("section");
+          section.className = "schedule-summary-group";
+          section.dataset.displaySummaryGroup = "";
+          const heading = document.createElement("h4");
+          heading.textContent = group.label;
+          section.append(
+            heading,
+            ...group.windows.map((window) =>
+              createSummaryRow(group, window)
+            )
+          );
+          return section;
+        }));
+        emptyState.hidden = groups.length > 0;
+      };
+
+      const markDraftChanged = () => {
+        draftField.value = JSON.stringify(draft);
+        draftField.dispatchEvent(new Event("input", { bubbles: true }));
+        renderSummary();
+      };
+
+      const clearBuilderError = () => {
+        endSelect.setCustomValidity("");
+        builderError.textContent = "";
+        builderError.hidden = true;
+      };
+
+      [startSelect, endSelect].forEach((select) => {
+        select.addEventListener("change", clearBuilderError);
+      });
+
+      addButton.addEventListener("click", () => {
+        clearBuilderError();
+        if (startSelect.value === endSelect.value) {
+          const message = "Start and end times must be different.";
+          endSelect.setCustomValidity(message);
+          builderError.textContent = message;
+          builderError.hidden = false;
+          endSelect.focus();
+          return;
+        }
+
+        const window = {
+          start: startSelect.value,
+          end: endSelect.value
+        };
+        getSelectedDays().forEach((day) => {
+          draft[day] ||= [];
+          const duplicate = draft[day].some((candidate) =>
+            candidate.start === window.start && candidate.end === window.end
+          );
+          if (!duplicate) draft[day].push({ ...window });
+          draft[day].sort((first, second) =>
+            first.start.localeCompare(second.start) ||
+            first.end.localeCompare(second.end)
+          );
+        });
+        markDraftChanged();
+      });
+
+      summary.addEventListener("click", (event) => {
+        const button = event.target.closest(
+          "[data-remove-display-summary-window]"
+        );
+        const row = button?.closest("[data-display-summary-window]");
+        if (!row) return;
+
+        row.dataset.days.split(",").forEach((day) => {
+          const index = draft[day].findIndex((window) =>
+            window.start === row.dataset.start &&
+            window.end === row.dataset.end
+          );
+          if (index >= 0) draft[day].splice(index, 1);
+        });
+        markDraftChanged();
+      });
+
+      renderSummary();
     })();
 
     (() => {
@@ -2830,9 +3307,19 @@ app.post("/control", async (req, res) => {
         baseUrl: req.body.homeAssistantBaseUrl,
         tokenOperation: req.body.homeAssistantTokenOperation,
         accessToken: req.body.homeAssistantAccessToken
-      })
+      }),
+      resolveDisplayPowerScheduleUpdate(
+        currentConfig.display.powerSchedule,
+        {
+          enabled: req.body.powerScheduleEnabled === "true",
+          daysDraft: req.body.powerScheduleDraft
+        }
+      )
     );
     await writeConfig(config);
+    await displayPowerRuntime.updateSchedule(
+      config.display.powerSchedule
+    );
     res.redirect(303, "/control?saved=1");
   } catch (error) {
     const isValidationError = error instanceof Error &&
@@ -2856,7 +3343,8 @@ app.post("/control", async (req, res) => {
         error.message === "Home Assistant URL must be a string." ||
         error.message === "Home Assistant URL is invalid." ||
         error.message === "Home Assistant token operation is invalid." ||
-        error.message === "A replacement Home Assistant token is required.");
+        error.message === "A replacement Home Assistant token is required." ||
+        error.message.startsWith("Display power schedule "));
 
     if (isValidationError) {
       return res.status(400).json({ error: error.message });
@@ -3071,6 +3559,15 @@ app.get("/api/config", (req, res) => {
     homeAssistant: createPublicHomeAssistantConfig(
       config.homeAssistant
     )
+  });
+});
+
+app.get("/api/display-power/status", (req, res) => {
+  const status = displayPowerRuntime.getStatus();
+
+  res.json({
+    ...status,
+    statusText: createDisplayScheduleStatus(status)
   });
 });
 
@@ -4132,11 +4629,18 @@ app.get("/api/discovery", async (req, res) => {
 ========================== */
 
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(
-      `Project Mosaic running at http://localhost:${PORT}`
-    );
-  });
+  displayPowerRuntime.start()
+    .then(() => {
+      app.listen(PORT, () => {
+        console.log(
+          `Project Mosaic running at http://localhost:${PORT}`
+        );
+      });
+    })
+    .catch((error) => {
+      console.error("Unable to start Display Power runtime:", error);
+      process.exitCode = 1;
+    });
 }
 
 module.exports = {
@@ -4146,11 +4650,15 @@ module.exports = {
   acquireSportsWidgetLeague,
   acquireSportsWidgetLeagues,
   buildSportsWidgetAcquisitionResponse,
+  createDisplayScheduleStatus,
+  getDisplaySchedulePresentationGroups,
   createNflDailyScheduleHandler,
   createNflGamecastHandler,
   mlbDailyScheduleCache,
   mlbGamecastScheduleCache,
   readConfig,
+  displayPowerRuntime,
+  resolveDisplayPowerScheduleUpdate,
   resolveHomeAssistantConfigUpdate,
   resolveCalendarSourceDraft,
   resolveDiscoverySourceDraft,
