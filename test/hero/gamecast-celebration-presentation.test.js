@@ -154,3 +154,133 @@ test("presentation uses theme fallback, future palette variables, and reduced mo
   assert.match(css, /pointer-events:\s*none/);
   assert.match(css, /position:\s*absolute/);
 });
+
+test("validated palette colors opt into the team-colored popup state", () => {
+  const hero = loadHero();
+  const properties = new Map();
+  const classes = [];
+  const layer = {
+    style: {
+      setProperty: (name, value) => properties.set(name, value)
+    },
+    classList: { add: (name) => classes.push(name) }
+  };
+
+  hero.applyCelebrationColors(layer, {
+    primary: "#002244",
+    highlight: "#000000"
+  });
+
+  assert.equal(
+    properties.get("--gamecast-celebration-primary"),
+    "#002244"
+  );
+  assert.equal(properties.has("--gamecast-celebration-highlight"), false);
+  assert.deepEqual(classes, ["has-team-palette"]);
+});
+
+test("null, partial, and malformed colors preserve the generic fallback", () => {
+  const hero = loadHero();
+
+  for (const colors of [
+    null,
+    {},
+    { primary: "red" },
+    { primary: "var(--gamecast-celebration-primary)" }
+  ]) {
+    const properties = [];
+    const classes = [];
+    hero.applyCelebrationColors({
+      style: { setProperty: (...args) => properties.push(args) },
+      classList: { add: (name) => classes.push(name) }
+    }, colors);
+    assert.deepEqual(properties, []);
+    assert.deepEqual(classes, []);
+  }
+});
+
+test("team palette CSS uses a translucent surface without fading content", () => {
+  const teamRule = css.match(
+    /\.gamecast-celebration-layer\.has-team-palette\s+\.gamecast-celebration-message\s*\{([\s\S]*?)\n\}/
+  )?.[1] || "";
+  assert.match(
+    teamRule,
+    /background:\s*color-mix\([\s\S]*?var\(--gamecast-celebration-primary\) 65%,[\s\S]*?transparent/
+  );
+  assert.match(
+    teamRule,
+    /color:\s*var\(--color-text\)/
+  );
+  assert.doesNotMatch(teamRule, /var\(--color-background\)/);
+  assert.match(css, /background:\s*rgba\(255, 255, 255, \.92\)/);
+  assert.match(css, /box-sizing:\s*border-box/);
+  assert.doesNotMatch(teamRule, /opacity:/);
+  assert.doesNotMatch(css, /!important/);
+});
+
+test("bright team palettes cannot switch the celebration label to black", () => {
+  const hero = loadHero();
+  const properties = new Map();
+  const classes = [];
+  hero.applyCelebrationColors({
+    style: {
+      setProperty: (name, value) => properties.set(name, value)
+    },
+    classList: { add: (name) => classes.push(name) }
+  }, {
+    primary: "#DF4601",
+    highlight: "#000000"
+  });
+
+  assert.equal(
+    properties.get("--gamecast-celebration-primary"),
+    "#DF4601"
+  );
+  assert.equal(properties.has("--gamecast-celebration-highlight"), false);
+  assert.deepEqual(classes, ["has-team-palette"]);
+  const teamRule = css.match(
+    /\.gamecast-celebration-layer\.has-team-palette\s+\.gamecast-celebration-message\s*\{([\s\S]*?)\n\}/
+  )?.[1] || "";
+  assert.match(teamRule, /color:\s*var\(--color-text\)/);
+});
+
+test("team popup reuses Mosaic radius and prominent typography tokens", () => {
+  const teamRule = css.match(
+    /\.gamecast-celebration-layer\.has-team-palette\s+\.gamecast-celebration-message\s*\{([\s\S]*?)\n\}/
+  )?.[1] || "";
+  assert.match(teamRule, /border-radius:\s*var\(--radius-lg\)/);
+  assert.match(teamRule, /font-family:\s*"Outfit", sans-serif/);
+  assert.match(teamRule, /font-weight:\s*600/);
+  assert.match(teamRule, /letter-spacing:\s*\.08em/);
+  assert.match(teamRule, /line-height:\s*1/);
+  assert.doesNotMatch(teamRule, /inset\s+0/);
+  assert.match(
+    css,
+    /\.gamecast-celebration-layer\.has-team-palette[\s\S]*?\.gamecast-celebration-logo[\s\S]*?border-radius:\s*var\(--radius-md\)/
+  );
+});
+
+test("generic celebration fallback retains its original Mosaic treatment", () => {
+  const baseRule = css.match(
+    /\.gamecast-celebration-message\s*\{([\s\S]*?)\n\}/
+  )?.[1] || "";
+  assert.match(baseRule, /border-block:\s*1px solid var\(--gamecast-celebration-primary\)/);
+  assert.match(
+    baseRule,
+    /color:\s*var\(--gamecast-celebration-highlight\)/
+  );
+  assert.match(baseRule, /var\(--gamecast-celebration-primary\) 22%/);
+  assert.match(baseRule, /letter-spacing:\s*\.16em/);
+  assert.match(baseRule, /text-shadow:\s*0 0 14px/);
+  assert.doesNotMatch(baseRule, /border-radius:/);
+});
+
+test("team treatment preserves the existing animation and reduced-motion paths", () => {
+  assert.match(css, /animation:\s*gamecast-celebration-popup 4s ease both/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.match(css, /gamecast-celebration-popup-reduced 2\.5s ease both/);
+  assert.doesNotMatch(
+    css,
+    /gamecast-celebration-(?:perimeter|trace|trail|discharge)/
+  );
+});

@@ -17,7 +17,8 @@ const {
   mlbDailyScheduleCache
 } = require("./sports/mlb-espn-acquirer");
 const {
-  sportsSimulationProfileRegistry
+  sportsSimulationProfileRegistry,
+  teamPalettePreviewTeams
 } = require(
   "../frontend/providers/sports-simulation-profile-registry"
 );
@@ -58,6 +59,24 @@ const {
   createHomeAssistantRouter
 } = require("./home-assistant/home-assistant-routes");
 const {
+  TeamLogoFetcher
+} = require("./team-palettes/team-logo-fetcher");
+const {
+  TeamPaletteCache
+} = require("./team-palettes/team-palette-cache");
+const {
+  TeamPaletteResolver
+} = require("./team-palettes/team-palette-resolver");
+const {
+  createTeamPaletteRouter
+} = require("./team-palettes/team-palette-routes");
+const {
+  enqueueAggregateSportsPalettes,
+  enqueueFavoriteTeamPalettes,
+  enqueueGamecastPalettes,
+  enqueueSportsSchedulePalettes
+} = require("./team-palettes/team-palette-pre-resolution");
+const {
   normalizeDisplayPowerSchedule,
   validateDisplayPowerSchedule
 } = require("./display-power/display-schedule-config");
@@ -70,6 +89,17 @@ const PORT = 3000;
 
 const frontendPath = path.join(__dirname, "..", "frontend");
 const configPath = path.join(__dirname, "..", "config.json");
+const teamPaletteCachePath = path.join(
+  __dirname,
+  "..",
+  "data",
+  "cache",
+  "team-palettes.v1.json"
+);
+const teamPaletteResolver = new TeamPaletteResolver({
+  cache: new TeamPaletteCache({ filePath: teamPaletteCachePath }),
+  fetcher: new TeamLogoFetcher()
+});
 const calendarProviderRegistry = new CalendarProviderRegistry();
 calendarProviderRegistry.register(new DemoCalendarDataProvider());
 const icalCalendarProvider = new IcalCalendarProvider();
@@ -187,6 +217,10 @@ app.use(
   createHomeAssistantRouter({
     getStoredConfig: () => readConfig().homeAssistant
   })
+);
+app.use(
+  "/api/team-palettes",
+  createTeamPaletteRouter({ resolver: teamPaletteResolver })
 );
 app.use(express.urlencoded({ extended: false }));
 
@@ -925,6 +959,11 @@ app.get("/control", (req, res) => {
   const sportsSimulationProfilesJson = JSON.stringify(
     sportsSimulationProfiles
   ).replace(/</g, "\\u003c");
+  const teamPalettePreviewOptions = teamPalettePreviewTeams
+    .map((team) =>
+      `<option value="${escapeHtml(team.teamId)}">${escapeHtml(team.name)} (${team.league})</option>`
+    )
+    .join("");
   const calendarSourceDraft = JSON.stringify(
     config.calendar.sources
   );
@@ -1425,6 +1464,15 @@ app.get("/control", (req, res) => {
               <button class="button button-secondary" type="button" data-scoring-celebration="home-run">MLB Home Run</button>
               <button class="button button-secondary" type="button" data-scoring-celebration="touchdown">NFL Touchdown</button>
               <button class="button button-secondary" type="button" data-scoring-celebration="field-goal">NFL Field Goal</button>
+            </div>
+            <h4 class="subsection-title">Team Palette Preview</h4>
+            <div class="field control-selection-row">
+              <label for="team-palette-preview-team">Team</label>
+              <select id="team-palette-preview-team">${teamPalettePreviewOptions}</select>
+            </div>
+            <div class="button-row">
+              <button class="button button-secondary" type="button" data-team-palette-preview>Preview Score</button>
+              <span class="card-description" data-team-palette-preview-status role="status" aria-live="polite">Palette: Idle</span>
             </div>
             <h4 class="subsection-title">Gamecast Ownership</h4>
             <div class="button-row" data-gamecast-ownership-controls>
@@ -2641,6 +2689,15 @@ app.get("/control", (req, res) => {
       const celebrationButtons = [
         ...document.querySelectorAll("[data-scoring-celebration]")
       ];
+      const palettePreviewSelect = document.getElementById(
+        "team-palette-preview-team"
+      );
+      const palettePreviewButton = document.querySelector(
+        "[data-team-palette-preview]"
+      );
+      const palettePreviewStatus = document.querySelector(
+        "[data-team-palette-preview-status]"
+      );
       const ownershipButtons = [
         ...document.querySelectorAll("[data-gamecast-ownership]")
       ];
@@ -2663,6 +2720,8 @@ app.get("/control", (req, res) => {
         runButton,
         clearButton,
         ...celebrationButtons,
+        palettePreviewSelect,
+        palettePreviewButton,
         ...ownershipButtons
       ].filter(Boolean);
 
@@ -2720,6 +2779,13 @@ app.get("/control", (req, res) => {
           });
         });
       });
+      palettePreviewButton?.addEventListener("click", () => {
+        palettePreviewStatus.textContent = "Palette: Resolving";
+        channel.postMessage({
+          action: "palette-preview",
+          teamId: palettePreviewSelect.value
+        });
+      });
       ownershipButtons.forEach((button) => {
         button.addEventListener("click", () => {
           channel.postMessage({
@@ -2729,6 +2795,14 @@ app.get("/control", (req, res) => {
         });
       });
       channel.addEventListener("message", (event) => {
+        if (
+          event.data?.action === "palette-preview-status" &&
+          palettePreviewStatus
+        ) {
+          palettePreviewStatus.textContent =
+            "Palette: " + event.data.status;
+          return;
+        }
         if (event.data?.action !== "ownership-status" || !ownershipStatus) {
           return;
         }
@@ -3547,6 +3621,10 @@ app.post("/control", async (req, res) => {
     await displayPowerRuntime.updateSchedule(
       config.display.powerSchedule
     );
+    enqueueFavoriteTeamPalettes(
+      teamPaletteResolver,
+      config.sports.favoriteTeams
+    );
     res.redirect(303, "/control?saved=1");
   } catch (error) {
     const isValidationError = error instanceof Error &&
@@ -3598,13 +3676,15 @@ app.post("/control/favorite-teams/add", async (req, res) => {
       ]
     });
 
-    await writeConfig({
+    const savedConfig = {
       ...config,
       sports: {
         ...config.sports,
         favoriteTeams
       }
-    });
+    };
+    await writeConfig(savedConfig);
+    enqueueFavoriteTeamPalettes(teamPaletteResolver, favoriteTeams);
     res.redirect(303, "/control");
   } catch (error) {
     console.error("Unable to add favorite team:", error);
@@ -3619,15 +3699,17 @@ app.post("/control/favorite-teams/remove", async (req, res) => {
       ? req.body.removeTeamId.trim().toUpperCase()
       : "";
 
+    const favoriteTeams = config.sports.favoriteTeams.filter(
+      (team) => team.id !== teamId
+    );
     await writeConfig({
       ...config,
       sports: {
         ...config.sports,
-        favoriteTeams: config.sports.favoriteTeams.filter(
-          (team) => team.id !== teamId
-        )
+        favoriteTeams
       }
     });
+    enqueueFavoriteTeamPalettes(teamPaletteResolver, favoriteTeams);
     res.redirect(303, "/control");
   } catch (error) {
     console.error("Unable to remove favorite team:", error);
@@ -4429,7 +4511,9 @@ async function handleMlbDailySchedule(req, res) {
   }
 
   try {
-    res.json(await acquireMlbDailySchedule(requestedDate));
+    const schedule = await acquireMlbDailySchedule(requestedDate);
+    enqueueSportsSchedulePalettes(teamPaletteResolver, "MLB", schedule);
+    res.json(schedule);
   } catch (error) {
     res.status(500).json({
       error:
@@ -4448,7 +4532,13 @@ async function handleMlbGamecastSchedule(req, res) {
   }
 
   try {
-    res.json(await acquireMlbGamecastSchedule(requestedDate));
+    const gamecastSchedule = await acquireMlbGamecastSchedule(requestedDate);
+    enqueueSportsSchedulePalettes(
+      teamPaletteResolver,
+      "MLB",
+      gamecastSchedule
+    );
+    res.json(gamecastSchedule);
   } catch (error) {
     res.status(500).json({
       error: "MLB Gamecast is temporarily unavailable."
@@ -4476,7 +4566,8 @@ function resolveNflEventId(queryEventId) {
 }
 
 function createNflDailyScheduleHandler(
-  acquire = acquireNflDailySchedule
+  acquire = acquireNflDailySchedule,
+  options = {}
 ) {
   return async function handleNflDailySchedule(req, res) {
     const requestedDate = resolveRequiredSportsDate(req.query.date);
@@ -4488,7 +4579,14 @@ function createNflDailyScheduleHandler(
     }
 
     try {
-      return res.json(await acquire(requestedDate));
+      const schedule = await acquire(requestedDate);
+      enqueueSportsSchedulePalettes(
+        options.paletteResolver || teamPaletteResolver,
+        "NFL",
+        schedule,
+        options
+      );
+      return res.json(schedule);
     } catch (error) {
       return res.status(500).json({
         error: "NFL daily schedule is temporarily unavailable."
@@ -4515,13 +4613,18 @@ function createNflGamecastHandler(options = {}) {
     }
 
     try {
-      return res.json(
-        await acquireCachedNflGamecast(
-          requestedDate,
-          eventId,
-          options
-        )
+      const result = await acquireCachedNflGamecast(
+        requestedDate,
+        eventId,
+        options
       );
+      enqueueGamecastPalettes(
+        options.paletteResolver || teamPaletteResolver,
+        "NFL",
+        result,
+        options
+      );
+      return res.json(result);
     } catch (error) {
       return res.status(500).json({
         error: "NFL Gamecast is temporarily unavailable."
@@ -4664,12 +4767,12 @@ app.get("/api/sports", async (req, res) => {
 
   const config = readConfig();
 
-  res.json(
-    await buildSportsWidgetAcquisitionResponse(
-      config.sports,
-      requestedDate
-    )
+  const acquisition = await buildSportsWidgetAcquisitionResponse(
+    config.sports,
+    requestedDate
   );
+  enqueueAggregateSportsPalettes(teamPaletteResolver, acquisition);
+  res.json(acquisition);
 });
 
 app.get("/api/sports/mlb", handleMlbDailySchedule);
@@ -4862,6 +4965,10 @@ if (require.main === module) {
         console.log(
           `Project Mosaic running at http://localhost:${PORT}`
         );
+        enqueueFavoriteTeamPalettes(
+          teamPaletteResolver,
+          readConfig().sports.favoriteTeams
+        );
       });
     })
     .catch((error) => {
@@ -4893,5 +5000,10 @@ module.exports = {
   resolveNflEventId,
   resolveRequiredSportsDate,
   resolveSportsDate,
-  sportsWidgetAcquisitionRegistry
+  sportsWidgetAcquisitionRegistry,
+  teamPaletteResolver,
+  enqueueAggregateSportsPalettes,
+  enqueueFavoriteTeamPalettes,
+  enqueueGamecastPalettes,
+  enqueueSportsSchedulePalettes
 };

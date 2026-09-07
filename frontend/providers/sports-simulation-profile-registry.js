@@ -80,6 +80,51 @@ const simulationTeams = {
     }
 };
 
+const teamPalettePreviewTeams = [
+    createTeamPalettePreview(
+        "NFL:SEA", "Seattle Seahawks", "NFL", "football",
+        "https://a.espncdn.com/i/teamlogos/nfl/500/sea.png"
+    ),
+    createTeamPalettePreview(
+        "NFL:SF", "San Francisco 49ers", "NFL", "football",
+        "https://a.espncdn.com/i/teamlogos/nfl/500/sf.png"
+    ),
+    createTeamPalettePreview(
+        "NFL:GB", "Green Bay Packers", "NFL", "football",
+        "https://a.espncdn.com/i/teamlogos/nfl/500/gb.png"
+    ),
+    createTeamPalettePreview(
+        "NFL:DEN", "Denver Broncos", "NFL", "football",
+        "https://a.espncdn.com/i/teamlogos/nfl/500/den.png"
+    ),
+    createTeamPalettePreview(
+        "MLB:SEA", "Seattle Mariners", "MLB", "baseball",
+        "https://www.mlbstatic.com/team-logos/136.svg"
+    ),
+    createTeamPalettePreview(
+        "MLB:LAD", "Los Angeles Dodgers", "MLB", "baseball",
+        "https://www.mlbstatic.com/team-logos/119.svg"
+    ),
+    createTeamPalettePreview(
+        "MLB:NYY", "New York Yankees", "MLB", "baseball",
+        "https://www.mlbstatic.com/team-logos/147.svg"
+    ),
+    createTeamPalettePreview(
+        "MLB:BAL", "Baltimore Orioles", "MLB", "baseball",
+        "https://www.mlbstatic.com/team-logos/110.svg"
+    )
+];
+
+function createTeamPalettePreview(teamId, name, league, sport, logo) {
+    return Object.freeze({
+        teamId,
+        name,
+        league,
+        sport,
+        logo
+    });
+}
+
 function createSimulationTeam(
     id,
     name,
@@ -508,11 +553,13 @@ const sportsSimulationProfileRegistry =
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         SportsSimulationProfileRegistry,
-        sportsSimulationProfileRegistry
+        sportsSimulationProfileRegistry,
+        teamPalettePreviewTeams
     };
 }
 
 if (typeof window !== "undefined") {
     window.sportsSimulationProfileRegistry =
         sportsSimulationProfileRegistry;
+    window.teamPalettePreviewTeams = teamPalettePreviewTeams;
 }

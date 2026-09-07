@@ -257,3 +257,146 @@ test("safe production and synthetic label mappings remain explicit", () => {
   assert.equal(coordinator.getDisplayLabel("field-goal"), "FIELD GOAL");
   assert.equal(coordinator.getDisplayLabel("unknown"), "SCORE");
 });
+
+test("displayed Gamecast asynchronously preloads both teams", async () => {
+  const calls = [];
+  let finish;
+  const teamPaletteStore = {
+    preload: (teams) => {
+      calls.push(teams);
+      return new Promise((resolve) => { finish = resolve; });
+    },
+    getCached: () => null
+  };
+  const { coordinator } = harness({ teamPaletteStore });
+
+  coordinator.handleHeroDisplay(candidate());
+  assert.deepEqual(calls, []);
+  await Promise.resolve();
+  assert.deepEqual(calls[0], [
+    { teamId: "MLB:BOS", logoUrl: "https://example.test/bos.svg" },
+    { teamId: "MLB:SEA", logoUrl: "https://example.test/sea.svg" }
+  ]);
+  assert.equal(coordinator.displayedGamecast.gameId, "MLB:777");
+  finish();
+});
+
+test("preload failure cannot alter display or celebration lifecycle", async () => {
+  const { coordinator, timers } = harness({
+    teamPaletteStore: {
+      preload: async () => { throw new Error("palette unavailable"); },
+      getCached: () => null
+    }
+  });
+  coordinator.handleHeroDisplay(candidate());
+  assert.equal(coordinator.accept(scoreEvent()), true);
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.equal(coordinator.active.colors, null);
+  assert.equal(timers.length, 1);
+});
+
+test("matching scoring team synchronously maps cached palette colors", () => {
+  const lookups = [];
+  const { coordinator } = harness({
+    teamPaletteStore: {
+      preload: async () => {},
+      getCached: (team) => {
+        lookups.push(team);
+        return {
+          primary: "#002244",
+          secondary: "#69BE28",
+          accent: "#A5ACAF",
+          textOnPrimary: "#FFFFFF"
+        };
+      }
+    }
+  });
+  coordinator.handleHeroDisplay(candidate());
+  coordinator.accept(scoreEvent());
+
+  assert.deepEqual(lookups, [{
+    teamId: "MLB:SEA",
+    logoUrl: "https://example.test/sea.svg"
+  }]);
+  assert.deepEqual(coordinator.active.colors, {
+    primary: "#002244"
+  });
+  assert.equal(coordinator.active.logo, "https://example.test/sea.svg");
+});
+
+test("pending palette does not delay activation and late arrival does not restyle", () => {
+  let cached = null;
+  const { coordinator, timers } = harness({
+    teamPaletteStore: {
+      preload: () => new Promise(() => {}),
+      getCached: () => cached
+    }
+  });
+  coordinator.handleHeroDisplay(candidate());
+  coordinator.accept(scoreEvent());
+  const active = coordinator.active;
+
+  assert.equal(active.colors, null);
+  assert.equal(timers.length, 1);
+  cached = { primary: "#002244", textOnPrimary: "#FFFFFF" };
+  assert.equal(coordinator.active, active);
+  assert.equal(coordinator.active.colors, null);
+  assert.equal(timers.length, 1);
+});
+
+test("same-display preload reruns safely for store-level dedupe without resetting", async () => {
+  let preloads = 0;
+  const { coordinator, timers } = harness({
+    teamPaletteStore: {
+      preload: async () => { preloads += 1; },
+      getCached: () => null
+    }
+  });
+  coordinator.handleHeroDisplay(candidate());
+  coordinator.accept(scoreEvent());
+  const active = coordinator.active;
+  coordinator.handleHeroDisplay({
+    ...candidate(),
+    payload: { type: "baseball-game", score: { away: 1, home: 2 } }
+  });
+  await Promise.resolve();
+
+  assert.equal(preloads, 2);
+  assert.equal(coordinator.active, active);
+  assert.equal(timers.length, 1);
+});
+
+test("production and simulation ignore colors supplied by score events", () => {
+  for (const simulation of [false, true]) {
+    const { coordinator } = harness();
+    coordinator.handleHeroDisplay(candidate());
+    coordinator.accept(scoreEvent(`colors-${simulation}`, {
+      simulation,
+      colors: { primary: "#FF0000", highlight: "#00FF00" }
+    }));
+    assert.equal(coordinator.active.colors, null);
+  }
+});
+
+test("palette integration leaves score events and eligibility policies unchanged", () => {
+  const { coordinator } = harness({
+    teamPaletteStore: {
+      preload: async () => {},
+      getCached: () => ({ primary: "#000000", textOnPrimary: "#FFFFFF" })
+    }
+  });
+  const event = scoreEvent();
+  const snapshot = structuredClone(event);
+  coordinator.handleHeroDisplay(candidate());
+  assert.equal(coordinator.accept(event), true);
+  assert.deepEqual(event, snapshot);
+  coordinator.clear();
+  assert.equal(coordinator.accept(scoreEvent("wrong", {
+    gameId: "MLB:999"
+  })), false);
+  assert.equal(coordinator.accept(scoreEvent("opponent", {
+    scoringTeamId: "MLB:BOS"
+  })), false);
+});

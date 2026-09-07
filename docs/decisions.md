@@ -93,3 +93,15 @@ Mosaic will remain independent from any specific display hardware or hosting pla
 
 Reason:
 The display environment is a deployment choice. The application architecture should support different devices and hosting methods without requiring changes to core functionality.
+
+---
+
+## 2026-09-07
+
+### Backend Team Logo Decoding
+
+Decision:
+Mosaic will use Sharp behind an isolated byte-decoder boundary for team palette analysis. Palette extraction requires Node.js 20.9 or newer. Resolution is invoked opportunistically through non-blocking startup, configuration, sports acquisition, and Gamecast hooks, while scoring performs only synchronous browser-cache lookup.
+
+Reason:
+The team-logo sources already used by Mosaic provide both raster and SVG artwork. Sharp supplies bounded metadata inspection, resizing, alpha preservation, and consistent PNG/SVG/WebP/JPEG/GIF decoding without browser canvas behavior or a separately installed host program. Its current packages include prebuilt Linux ARM and ARM64 binaries on supported modern libc versions. The production Raspberry Pi's architecture, libc, and Node version must be confirmed before deployment because the repository does not currently record them.

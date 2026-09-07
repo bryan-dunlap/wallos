@@ -19,6 +19,7 @@ class DemoContextProvider {
         this.ownershipSimulationCandidates = new Map();
         this.ownershipSimulationState = null;
         this.ownershipSimulationScenario = null;
+        this.palettePreviewSequence = 0;
     }
 
     start() {
@@ -121,6 +122,10 @@ class DemoContextProvider {
                 this.startOwnershipScenario("single-game"),
             reset: () => this.resetOwnershipSimulation()
         };
+        window.mosaicDemo.teamPalette = {
+            preview: (teamId) => this.previewTeamPalette(teamId),
+            reset: () => this.clearSportsSimulation()
+        };
 
         this.startSportsDemoChannel();
     }
@@ -152,6 +157,10 @@ class DemoContextProvider {
 
                 if (event.data?.action === "celebrate") {
                     this.triggerScoreCelebration(event.data.eventType);
+                }
+
+                if (event.data?.action === "palette-preview") {
+                    this.previewTeamPalette(event.data.teamId);
                 }
 
                 if (event.data?.action === "ownership") {
@@ -382,6 +391,7 @@ class DemoContextProvider {
     }
 
     clearSportsSimulation() {
+        this.palettePreviewSequence += 1;
         this.displayedSimulationGameId = null;
         this.pendingScoreCelebrations = [];
         this.publishSportsFacts({
@@ -391,6 +401,107 @@ class DemoContextProvider {
             game: null
         });
         this.publishSportsSimulationState(false);
+        this.publishPalettePreviewStatus("Idle");
+    }
+
+    async previewTeamPalette(teamId) {
+        const team = window.teamPalettePreviewTeams?.find(
+            (candidate) => candidate.teamId === teamId
+        );
+        const store = window.mosaicApp.teamPaletteStore;
+        if (!team || !store) return null;
+
+        const baseFacts = window.sportsSimulationProfileRegistry
+            ?.createFacts(
+                team.league,
+                team.league === "NFL" ? "live-drive" : "live-bottom"
+            );
+        if (!baseFacts) return null;
+
+        const sequence = ++this.palettePreviewSequence;
+        const abbreviation = team.teamId.split(":").at(-1);
+        const opponent = [
+            baseFacts.game.teams.away,
+            baseFacts.game.teams.home
+        ].find((candidate) =>
+            this.qualifySimulationIdentity(team.league, candidate.id) !==
+                team.teamId
+        );
+        const previewTeam = {
+            id: team.teamId,
+            abbreviation,
+            name: team.name,
+            shortName: team.name.split(" ").at(-1),
+            league: team.league,
+            sport: team.sport,
+            logo: team.logo
+        };
+        const rawGameId = `PALETTE-PREVIEW:${abbreviation}`;
+        const gameId = this.qualifySimulationIdentity(
+            team.league,
+            rawGameId
+        );
+        const gamecast = {
+            ...(baseFacts.game.gamecast || {}),
+            eventId: rawGameId
+        };
+        const facts = {
+            ...baseFacts,
+            simulation: true,
+            favoriteTeam: previewTeam,
+            game: {
+                ...baseFacts.game,
+                eventId: rawGameId,
+                opponent: opponent.name,
+                teams: { away: previewTeam, home: opponent },
+                gamecast
+            }
+        };
+
+        this.publishPalettePreviewStatus("Resolving");
+        this.publishSportsSimulationState(true);
+        this.publishSportsFacts(facts);
+        await store.preload([{
+            teamId: team.teamId,
+            logoUrl: team.logo
+        }]);
+
+        if (sequence !== this.palettePreviewSequence) return null;
+        if (!store.getCached({ teamId: team.teamId, logoUrl: team.logo })) {
+            this.publishPalettePreviewStatus("Unavailable");
+            return null;
+        }
+
+        this.publishPalettePreviewStatus("Ready");
+        this.celebrationSequence += 1;
+        const event = {
+            schemaVersion: 1,
+            id: `palette-preview-score:${this.celebrationSequence}`,
+            gameId,
+            sport: team.sport,
+            league: team.league,
+            scoringTeamId: team.teamId,
+            scoringSide: "away",
+            eventType: team.league === "NFL" ? "touchdown" : "run",
+            points: team.league === "NFL" ? 6 : 1,
+            intensity: "score",
+            observedAt: new Date().toISOString(),
+            simulation: true
+        };
+
+        if (this.displayedSimulationGameId === gameId) {
+            this.publishScoreEvent(event);
+        } else {
+            this.pendingScoreCelebrations.push({ gameId, event });
+        }
+        return event;
+    }
+
+    publishPalettePreviewStatus(status) {
+        this.sportsDemoChannel?.postMessage({
+            action: "palette-preview-status",
+            status
+        });
     }
 
     publishSportsSimulationState(active) {

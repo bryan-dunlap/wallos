@@ -15,6 +15,7 @@ class GamecastCelebrationCoordinator {
         this.now = options.now || Date.now;
         this.setTimer = options.setTimer || setTimeout;
         this.clearTimer = options.clearTimer || clearTimeout;
+        this.teamPaletteStore = options.teamPaletteStore || null;
         this.unsubscribers = [];
         this.displayedGamecast = null;
         this.active = null;
@@ -64,6 +65,7 @@ class GamecastCelebrationCoordinator {
 
         if (!sameDisplay) this.clear();
         this.displayedGamecast = next;
+        this.preloadDisplayedTeams(next);
     }
 
     getDisplayedGamecast(candidate) {
@@ -135,13 +137,22 @@ class GamecastCelebrationCoordinator {
 
     activate(queued) {
         const startedAt = this.now();
+        const scoringTeam = this.resolveScoringTeam(queued.event);
+        const palette = scoringTeam && this.teamPaletteStore
+            ? this.teamPaletteStore.getCached({
+                teamId: scoringTeam.id,
+                logoUrl: scoringTeam.logo
+            })
+            : null;
         this.active = {
             event: queued.event,
             label: this.getDisplayLabel(queued.event.eventType),
             startedAt,
             endsAt: startedAt + this.durationMs,
-            colors: queued.event.colors || null,
-            logo: this.resolveScoringTeamLogo(queued.event)
+            colors: palette ? {
+                primary: palette.primary
+            } : null,
+            logo: scoringTeam?.logo || ""
         };
         this.publishState();
         this.timer = this.setTimer(
@@ -200,7 +211,19 @@ class GamecastCelebrationCoordinator {
         this.recentEventIds.delete(this.recentEventIds.values().next().value);
     }
 
-    resolveScoringTeamLogo(scoreEvent) {
+    preloadDisplayedTeams(display) {
+        if (!display?.teams || !this.teamPaletteStore) return;
+        const teams = [display.teams.away, display.teams.home]
+            .map((team) => ({
+                teamId: team?.id,
+                logoUrl: team?.logo
+            }));
+        Promise.resolve()
+            .then(() => this.teamPaletteStore.preload(teams))
+            .catch(() => {});
+    }
+
+    resolveScoringTeam(scoreEvent) {
         const teams = this.displayedGamecast?.teams;
         const side = scoreEvent.scoringSide;
         const sideTeam = ["away", "home"].includes(side)
@@ -211,7 +234,8 @@ class GamecastCelebrationCoordinator {
             sideTeam?.id === scoreEvent.scoringTeamId &&
             typeof sideTeam.logo === "string"
         ) {
-            return sideTeam.logo.trim();
+            const logo = sideTeam.logo.trim();
+            return logo ? { id: sideTeam.id, logo } : null;
         }
 
         for (const team of [teams?.away, teams?.home]) {
@@ -219,11 +243,16 @@ class GamecastCelebrationCoordinator {
                 team?.id === scoreEvent.scoringTeamId &&
                 typeof team.logo === "string"
             ) {
-                return team.logo.trim();
+                const logo = team.logo.trim();
+                return logo ? { id: team.id, logo } : null;
             }
         }
 
-        return "";
+        return null;
+    }
+
+    resolveScoringTeamLogo(scoreEvent) {
+        return this.resolveScoringTeam(scoreEvent)?.logo || "";
     }
 
     getDisplayLabel(eventType) {

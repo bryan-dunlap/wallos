@@ -54,6 +54,16 @@ test("Developer Tools exposes session-only scoring celebration controls", () => 
   assert.doesNotMatch(serverSource, /name="scoringCelebration/);
 });
 
+test("Developer Tools exposes a compact session-only Team Palette Preview", () => {
+  assert.match(serverSource, /<h4 class="subsection-title">Team Palette Preview<\/h4>/);
+  assert.match(serverSource, /<select id="team-palette-preview-team">/);
+  assert.match(serverSource, /data-team-palette-preview>Preview Score<\/button>/);
+  assert.match(serverSource, /data-team-palette-preview-status/);
+  assert.match(serverSource, /action:\s*"palette-preview"/);
+  assert.doesNotMatch(serverSource, /name="teamPalettePreview/);
+  assert.doesNotMatch(serverSource, /teamPalettePreview[^\n]*(?:primary|secondary|accent)/i);
+});
+
 test("Developer Tools exposes the compact Gamecast Ownership simulator", () => {
   assert.match(serverSource, /<h4 class="subsection-title">Gamecast Ownership<\/h4>/);
   for (const [command, label] of [

@@ -668,22 +668,18 @@ class MosaicHero {
     applyCelebrationColors(layer, colors){
         if (!layer?.style || !colors) return;
 
-        const supported = (value) =>
-            typeof value === "string" &&
-            (typeof CSS === "undefined" || CSS.supports("color", value));
+        const normalizeHex = (value) =>
+            typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value)
+                ? value.toUpperCase()
+                : "";
+        const primary = normalizeHex(colors.primary);
 
-        if (supported(colors.primary)) {
-            layer.style.setProperty(
-                "--gamecast-celebration-primary",
-                colors.primary
-            );
-        }
-        if (supported(colors.highlight)) {
-            layer.style.setProperty(
-                "--gamecast-celebration-highlight",
-                colors.highlight
-            );
-        }
+        if (!primary) return;
+        layer.style.setProperty(
+            "--gamecast-celebration-primary",
+            primary
+        );
+        layer.classList?.add("has-team-palette");
     }
 
 

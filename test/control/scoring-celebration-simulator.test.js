@@ -4,7 +4,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 const {
-  sportsSimulationProfileRegistry
+  sportsSimulationProfileRegistry,
+  teamPalettePreviewTeams
 } = require(
   "../../frontend/providers/sports-simulation-profile-registry"
 );
@@ -31,13 +32,15 @@ class EventBus {
 
 function loadSimulationHarness(coordinatorOptions = {}) {
   const bus = new EventBus();
+  const teamPaletteStore = coordinatorOptions.teamPaletteStore || null;
   const context = vm.createContext({
     console,
     Date,
     Map,
     window: {
-      mosaicApp: { eventBus: bus },
-      sportsSimulationProfileRegistry
+      mosaicApp: { eventBus: bus, teamPaletteStore },
+      sportsSimulationProfileRegistry,
+      teamPalettePreviewTeams
     }
   });
   const activeSource = fs.readFileSync(
@@ -76,7 +79,8 @@ function loadSimulationHarness(coordinatorOptions = {}) {
   demo.start();
 
   return {
-    bus, coordinator, demo, heroCoordinator, activeGenerator
+    bus, coordinator, demo, heroCoordinator, activeGenerator,
+    teamPaletteStore
   };
 }
 
@@ -339,4 +343,131 @@ test("cross-league trigger supersedes an active popup and old Hero candidate", (
   assert.equal(coordinator.active.event.id, nfl.id);
   assert.equal(coordinator.active.label, "TOUCHDOWN");
   assert.equal(coordinator.queue.length, 0);
+});
+
+test("palette preview registry provides eight qualified real-logo teams without colors", () => {
+  assert.deepEqual(
+    teamPalettePreviewTeams.map((team) => team.teamId),
+    [
+      "NFL:SEA", "NFL:SF", "NFL:GB", "NFL:DEN",
+      "MLB:SEA", "MLB:LAD", "MLB:NYY", "MLB:BAL"
+    ]
+  );
+  for (const team of teamPalettePreviewTeams) {
+    assert.match(team.teamId, /^(?:NFL|MLB):[A-Z0-9]+$/);
+    assert.match(
+      team.logo,
+      /^https:\/\/(?:a\.espncdn\.com|www\.mlbstatic\.com)\//
+    );
+    assert.equal("colors" in team, false);
+    assert.equal("palette" in team, false);
+  }
+});
+
+test("team preview waits for TeamPaletteStore before publishing score", async () => {
+  let resolvePreload;
+  let cached = null;
+  const calls = [];
+  const preload = new Promise((resolve) => { resolvePreload = resolve; });
+  const store = {
+    preload: (teams) => {
+      calls.push(teams);
+      return preload;
+    },
+    getCached: (team) => cached && team.teamId === "NFL:GB"
+      ? cached
+      : null
+  };
+  const { bus, coordinator, demo } = loadSimulationHarness({
+    teamPaletteStore: store
+  });
+  const pending = demo.previewTeamPalette("NFL:GB");
+  await Promise.resolve();
+
+  assert.equal(
+    bus.events.some((event) => event.type === "gamecast-score-event"),
+    false
+  );
+  assert.ok(calls.some((teams) => teams.some((team) =>
+    team.teamId === "NFL:GB" &&
+    team.logoUrl === "https://a.espncdn.com/i/teamlogos/nfl/500/gb.png"
+  )));
+
+  cached = { primary: "#000001", textOnPrimary: "#FFFFFF" };
+  resolvePreload();
+  const event = await pending;
+  assert.equal(event.scoringTeamId, "NFL:GB");
+  assert.equal(coordinator.active.event.id, event.id);
+  assert.match(coordinator.active.logo, /\/gb\.png$/);
+  assert.equal(
+    bus.events.some((item) => item.type === "config-save"),
+    false
+  );
+});
+
+test("changing preview teams updates identity and latest request wins", async () => {
+  const resolvers = new Map();
+  const preloads = new Map();
+  const ready = new Set();
+  const store = {
+    preload: ([team]) => {
+      if (!preloads.has(team.teamId)) {
+        preloads.set(team.teamId, new Promise((resolve) => {
+          resolvers.set(team.teamId, () => {
+            ready.add(team.teamId);
+            resolve();
+          });
+        }));
+      }
+      return preloads.get(team.teamId);
+    },
+    getCached: ({ teamId }) => ready.has(teamId)
+      ? { primary: "#000001", textOnPrimary: "#FFFFFF" }
+      : null
+  };
+  const { bus, demo } = loadSimulationHarness({ teamPaletteStore: store });
+  const first = demo.previewTeamPalette("MLB:NYY");
+  const second = demo.previewTeamPalette("MLB:BAL");
+  await Promise.resolve();
+  resolvers.get("MLB:BAL")();
+  const secondEvent = await second;
+  resolvers.get("MLB:NYY")();
+  const firstEvent = await first;
+
+  assert.equal(firstEvent, null);
+  assert.equal(secondEvent.scoringTeamId, "MLB:BAL");
+  assert.equal(secondEvent.gameId, "MLB:PALETTE-PREVIEW:BAL");
+  const scoreEvents = bus.events.filter(
+    (event) => event.type === "gamecast-score-event"
+  );
+  assert.deepEqual(
+    scoreEvents.map((event) => event.payload.scoringTeamId),
+    ["MLB:BAL"]
+  );
+});
+
+test("Sports Simulator clear cancels pending palette preview state", async () => {
+  let finish;
+  let ready = false;
+  const preload = new Promise((resolve) => { finish = resolve; });
+  const store = {
+    preload: () => preload,
+    getCached: () => ready ? {
+      primary: "#000001", textOnPrimary: "#FFFFFF"
+    } : null
+  };
+  const { bus, coordinator, demo } = loadSimulationHarness({
+    teamPaletteStore: store
+  });
+  const pending = demo.previewTeamPalette("NFL:DEN");
+  demo.clearSportsSimulation();
+  ready = true;
+  finish();
+
+  assert.equal(await pending, null);
+  assert.equal(coordinator.active, null);
+  assert.equal(
+    bus.events.some((event) => event.type === "gamecast-score-event"),
+    false
+  );
 });

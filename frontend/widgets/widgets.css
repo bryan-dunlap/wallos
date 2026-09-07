@@ -1402,6 +1402,35 @@
 }
 
 
+.gamecast-celebration-layer.has-team-palette
+    .gamecast-celebration-message {
+
+    color: var(--color-text);
+    border-radius: var(--radius-lg);
+    border: 1px solid color-mix(
+        in srgb,
+        var(--color-text) 24%,
+        transparent
+    );
+    background: color-mix(
+        in srgb,
+        var(--gamecast-celebration-primary) 65%,
+        transparent
+    );
+    box-shadow: 0 10px 30px color-mix(
+        in srgb,
+        var(--gamecast-celebration-primary) 34%,
+        transparent
+    );
+    font-family: "Outfit", sans-serif;
+    font-weight: 600;
+    letter-spacing: .08em;
+    line-height: 1;
+    text-shadow: none;
+
+}
+
+
 .gamecast-celebration-logo {
 
     width: 58px;
@@ -1409,6 +1438,21 @@
     flex: 0 0 58px;
     object-fit: contain;
     filter: drop-shadow(0 0 8px var(--gamecast-celebration-primary));
+
+}
+
+
+.gamecast-celebration-layer.has-team-palette
+    .gamecast-celebration-logo {
+
+    box-sizing: border-box;
+    padding: 6px;
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, .92);
+    box-shadow:
+        0 0 0 1px rgba(255, 255, 255, .24),
+        0 3px 12px rgba(0, 0, 0, .28);
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .42));
 
 }
 

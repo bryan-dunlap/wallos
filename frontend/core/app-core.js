@@ -2,8 +2,13 @@ class MosaicApp {
 
     constructor() {
         this.eventBus = new MosaicEventBus();
+        this.teamPaletteStore = new TeamPaletteStore({
+            fetch: window.fetch.bind(window)
+        });
         this.gamecastCelebrationCoordinator =
-            new GamecastCelebrationCoordinator(this.eventBus);
+            new GamecastCelebrationCoordinator(this.eventBus, {
+                teamPaletteStore: this.teamPaletteStore
+            });
         this.gamecastOwnershipCoordinator =
             new GamecastOwnershipCoordinator(this.eventBus);
         this.gamecastOwnershipSimulationCoordinator =
