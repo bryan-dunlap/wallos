@@ -899,10 +899,16 @@ app.get("/control", (req, res) => {
     }))
   ).replace(/</g, "\\u003c");
   const favoriteTeamRows = config.sports.favoriteTeams
-    .map((team) => `
-        <li class="item-row" data-favorite-team-row data-team-id="${escapeHtml(team.id)}">
+    .map((team, index) => `
+        <li class="item-row favorite-team-row" data-favorite-team-row data-team-id="${escapeHtml(team.id)}">
+          <button class="favorite-team-drag-handle" type="button" draggable="true" data-favorite-team-drag-handle aria-label="Drag ${escapeHtml(team.name)} to reorder" title="Drag to reorder">☰</button>
+          <span class="favorite-team-rank" data-favorite-team-rank aria-hidden="true">#${index + 1}</span>
           <span class="item-copy"><strong>${escapeHtml(team.name)}</strong><small>${team.league}</small></span>
-          <button class="button button-quiet" type="button" data-remove-favorite-team>Remove</button>
+          <span class="favorite-team-actions">
+            <button class="button button-quiet favorite-team-move" type="button" data-move-favorite-team="up" aria-label="Move ${escapeHtml(team.name)} up"${index === 0 ? " disabled" : ""}>↑</button>
+            <button class="button button-quiet favorite-team-move" type="button" data-move-favorite-team="down" aria-label="Move ${escapeHtml(team.name)} down"${index === config.sports.favoriteTeams.length - 1 ? " disabled" : ""}>↓</button>
+            <button class="button button-quiet" type="button" data-remove-favorite-team>Remove</button>
+          </span>
           <input name="favoriteTeams" type="hidden" value="${escapeHtml(team.id)}">
         </li>`).join("");
   const sportsSimulationProfileOptions = sportsSimulationProfiles
@@ -1038,6 +1044,13 @@ app.get("/control", (req, res) => {
     .item-copy { display: grid; gap: 3px; min-width: 0; }
     .item-copy strong { overflow: hidden; text-overflow: ellipsis; }
     .item-copy small { color: #64748b; }
+    .favorite-team-row { grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 10px; }
+    .favorite-team-drag-handle { width: 32px; min-height: 44px; padding: 0; color: #94a3b8; border: 0; background: transparent; cursor: grab; font-size: 1rem; }
+    .favorite-team-drag-handle:active { cursor: grabbing; }
+    .favorite-team-rank { color: #94a3b8; font-size: .75rem; font-weight: 750; font-variant-numeric: tabular-nums; }
+    .favorite-team-actions { display: flex; align-items: center; gap: 2px; }
+    .favorite-team-move { width: 36px; padding-inline: 6px; }
+    .favorite-team-row.is-drag-target { border-color: rgba(37, 99, 235, .55); }
     .source-address { min-width: 0; color: #526174; font-size: .78rem; line-height: 1.4; overflow-wrap: anywhere; }
     [data-calendar-source-actions], [data-discovery-source-actions] { display: flex; gap: 6px; }
     .status-dot { display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: #94a3b8; }
@@ -1405,6 +1418,28 @@ app.get("/control", (req, res) => {
             <div class="button-row">
               <button class="button button-secondary" type="button" data-sports-simulation-run>Run Simulation</button>
               <button class="button button-quiet" type="button" data-sports-simulation-clear>Clear</button>
+            </div>
+            <h4 class="subsection-title">Scoring Celebration</h4>
+            <div class="button-row" data-scoring-celebration-controls>
+              <button class="button button-secondary" type="button" data-scoring-celebration="run">MLB Run</button>
+              <button class="button button-secondary" type="button" data-scoring-celebration="home-run">MLB Home Run</button>
+              <button class="button button-secondary" type="button" data-scoring-celebration="touchdown">NFL Touchdown</button>
+              <button class="button button-secondary" type="button" data-scoring-celebration="field-goal">NFL Field Goal</button>
+            </div>
+            <h4 class="subsection-title">Gamecast Ownership</h4>
+            <div class="button-row" data-gamecast-ownership-controls>
+              <button class="button button-secondary" type="button" data-gamecast-ownership="rotation">Test Rotation</button>
+              <button class="button button-secondary" type="button" data-gamecast-ownership="mariners-priority">Mariners Takes Priority</button>
+              <button class="button button-secondary" type="button" data-gamecast-ownership="seahawks-priority">Seahawks Takes Priority</button>
+              <button class="button button-secondary" type="button" data-gamecast-ownership="single-game">Test Single Game</button>
+            </div>
+            <div class="card-description" data-gamecast-ownership-status role="status" aria-live="polite">
+              <div>Testing: <span data-gamecast-ownership-testing>—</span></div>
+              <div>Showing: <span data-gamecast-ownership-showing>—</span></div>
+              <div>Next: <span data-gamecast-ownership-next>—</span></div>
+            </div>
+            <div class="button-row">
+              <button class="button button-quiet" type="button" data-gamecast-ownership="reset">Reset</button>
             </div>
             <details class="advanced-section"><summary>Advanced</summary><p>Simulator state is temporary and is never written to Mosaic configuration.</p></details>
           </div>
@@ -2309,6 +2344,7 @@ app.get("/control", (req, res) => {
         "[data-save-status]"
       );
       const teams = ${favoriteTeamRegistryJson};
+      let draggedTeamRow = null;
 
       if (
         !leagueSelect ||
@@ -2324,6 +2360,36 @@ app.get("/control", (req, res) => {
 
       const markUnsaved = () => {
         if (saveStatus) saveStatus.hidden = false;
+      };
+
+      const syncReorderControls = () => {
+        const rows = getSelectedRows();
+        rows.forEach((row, index) => {
+          const name = row.querySelector(".item-copy strong")
+            ?.textContent || "team";
+          const rank = row.querySelector("[data-favorite-team-rank]");
+          const handle = row.querySelector(
+            "[data-favorite-team-drag-handle]"
+          );
+          const moveUp = row.querySelector(
+            '[data-move-favorite-team="up"]'
+          );
+          const moveDown = row.querySelector(
+            '[data-move-favorite-team="down"]'
+          );
+          if (rank) rank.textContent = "#" + (index + 1);
+          if (handle) handle.setAttribute(
+            "aria-label", "Drag " + name + " to reorder"
+          );
+          if (moveUp) {
+            moveUp.disabled = index === 0;
+            moveUp.setAttribute("aria-label", "Move " + name + " up");
+          }
+          if (moveDown) {
+            moveDown.disabled = index === rows.length - 1;
+            moveDown.setAttribute("aria-label", "Move " + name + " down");
+          }
+        });
       };
 
       const syncTeamOptions = () => {
@@ -2357,13 +2423,27 @@ app.get("/control", (req, res) => {
         teamSelect.disabled = availableTeams.length === 0;
         addButton.disabled = availableTeams.length === 0;
         emptyState.hidden = getSelectedRows().length > 0;
+        syncReorderControls();
       };
 
       const createTeamRow = (team) => {
         const row = document.createElement("li");
-        row.className = "item-row";
+        row.className = "item-row favorite-team-row";
         row.dataset.favoriteTeamRow = "";
         row.dataset.teamId = team.id;
+
+        const handle = document.createElement("button");
+        handle.className = "favorite-team-drag-handle";
+        handle.type = "button";
+        handle.draggable = true;
+        handle.dataset.favoriteTeamDragHandle = "";
+        handle.title = "Drag to reorder";
+        handle.textContent = "☰";
+
+        const rank = document.createElement("span");
+        rank.className = "favorite-team-rank";
+        rank.dataset.favoriteTeamRank = "";
+        rank.setAttribute("aria-hidden", "true");
 
         const copy = document.createElement("span");
         copy.className = "item-copy";
@@ -2379,12 +2459,24 @@ app.get("/control", (req, res) => {
         removeButton.dataset.removeFavoriteTeam = "";
         removeButton.textContent = "Remove";
 
+        const actions = document.createElement("span");
+        actions.className = "favorite-team-actions";
+        ["up", "down"].forEach((direction) => {
+          const button = document.createElement("button");
+          button.className = "button button-quiet favorite-team-move";
+          button.type = "button";
+          button.dataset.moveFavoriteTeam = direction;
+          button.textContent = direction === "up" ? "↑" : "↓";
+          actions.append(button);
+        });
+        actions.append(removeButton);
+
         const field = document.createElement("input");
         field.type = "hidden";
         field.name = "favoriteTeams";
         field.value = team.id;
 
-        row.append(copy, removeButton, field);
+        row.append(handle, rank, copy, actions, field);
         return row;
       };
 
@@ -2404,6 +2496,28 @@ app.get("/control", (req, res) => {
       });
 
       list.addEventListener("click", (event) => {
+        const moveButton = event.target.closest(
+          "[data-move-favorite-team]"
+        );
+        if (moveButton) {
+          const row = moveButton.closest("[data-favorite-team-row]");
+          const direction = moveButton.dataset.moveFavoriteTeam;
+          const sibling = direction === "up"
+            ? row?.previousElementSibling
+            : row?.nextElementSibling;
+          if (!row || !sibling?.matches("[data-favorite-team-row]")) {
+            return;
+          }
+          if (direction === "up") {
+            list.insertBefore(row, sibling);
+          } else {
+            list.insertBefore(sibling, row);
+          }
+          syncReorderControls();
+          markUnsaved();
+          return;
+        }
+
         const removeButton = event.target.closest(
           "[data-remove-favorite-team]"
         );
@@ -2419,6 +2533,52 @@ app.get("/control", (req, res) => {
         row.remove();
         syncTeamOptions();
         markUnsaved();
+      });
+
+      list.addEventListener("dragstart", (event) => {
+        const handle = event.target.closest(
+          "[data-favorite-team-drag-handle]"
+        );
+        draggedTeamRow = handle?.closest("[data-favorite-team-row]") || null;
+        if (!draggedTeamRow) {
+          event.preventDefault();
+          return;
+        }
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", draggedTeamRow.dataset.teamId);
+      });
+
+      list.addEventListener("dragover", (event) => {
+        const target = event.target.closest("[data-favorite-team-row]");
+        if (!draggedTeamRow || !target || target === draggedTeamRow) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        getSelectedRows().forEach((row) => {
+          row.classList.toggle("is-drag-target", row === target);
+        });
+      });
+
+      list.addEventListener("drop", (event) => {
+        const target = event.target.closest("[data-favorite-team-row]");
+        if (!draggedTeamRow || !target || target === draggedTeamRow) return;
+        event.preventDefault();
+        const before = getSelectedRows().map((row) => row.dataset.teamId);
+        const bounds = target.getBoundingClientRect();
+        const insertAfter = event.clientY > bounds.top + bounds.height / 2;
+        list.insertBefore(
+          draggedTeamRow,
+          insertAfter ? target.nextElementSibling : target
+        );
+        const after = getSelectedRows().map((row) => row.dataset.teamId);
+        if (before.join("|") !== after.join("|")) markUnsaved();
+        syncReorderControls();
+      });
+
+      list.addEventListener("dragend", () => {
+        draggedTeamRow = null;
+        getSelectedRows().forEach((row) => {
+          row.classList.remove("is-drag-target");
+        });
       });
 
       leagueSelect.addEventListener("change", syncTeamOptions);
@@ -2478,12 +2638,32 @@ app.get("/control", (req, res) => {
       const clearButton = document.querySelector(
         "[data-sports-simulation-clear]"
       );
+      const celebrationButtons = [
+        ...document.querySelectorAll("[data-scoring-celebration]")
+      ];
+      const ownershipButtons = [
+        ...document.querySelectorAll("[data-gamecast-ownership]")
+      ];
+      const ownershipStatus = document.querySelector(
+        "[data-gamecast-ownership-status]"
+      );
+      const ownershipTesting = document.querySelector(
+        "[data-gamecast-ownership-testing]"
+      );
+      const ownershipShowing = document.querySelector(
+        "[data-gamecast-ownership-showing]"
+      );
+      const ownershipNext = document.querySelector(
+        "[data-gamecast-ownership-next]"
+      );
       const profiles = ${sportsSimulationProfilesJson};
       const controls = [
         profileSelect,
         scenarioSelect,
         runButton,
-        clearButton
+        clearButton,
+        ...celebrationButtons,
+        ...ownershipButtons
       ].filter(Boolean);
 
       if (typeof BroadcastChannel !== "function") {
@@ -2532,8 +2712,55 @@ app.get("/control", (req, res) => {
       clearButton.addEventListener("click", () => {
         channel.postMessage({ action: "clear" });
       });
+      celebrationButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          channel.postMessage({
+            action: "celebrate",
+            eventType: button.dataset.scoringCelebration
+          });
+        });
+      });
+      ownershipButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          channel.postMessage({
+            action: "ownership",
+            command: button.dataset.gamecastOwnership
+          });
+        });
+      });
+      channel.addEventListener("message", (event) => {
+        if (event.data?.action !== "ownership-status" || !ownershipStatus) {
+          return;
+        }
+        const state = event.data.state;
+        const scenarios = {
+          rotation: "Normal Rotation",
+          "mariners-priority": "Mariners Priority",
+          "seahawks-priority": "Seahawks Priority",
+          "single-game": "Single Game"
+        };
+        const label = (id) => id?.endsWith(":nfl")
+          ? "Seahawks"
+          : id?.endsWith(":mlb") ? "Mariners" : "—";
+        if (ownershipTesting) {
+          ownershipTesting.textContent = scenarios[event.data.scenario] || "—";
+        }
+        if (ownershipShowing) {
+          ownershipShowing.textContent = label(state?.displayedCandidateId);
+        }
+        if (ownershipNext) {
+          const nextId = state?.secondaryCandidateId &&
+            state.displayedCandidateId === state.primaryCandidateId
+            ? state.secondaryCandidateId
+            : state?.primaryCandidateId !== state?.displayedCandidateId
+              ? state?.primaryCandidateId
+              : null;
+          ownershipNext.textContent = label(nextId);
+        }
+      });
 
       syncScenarios();
+      channel.postMessage({ action: "ownership-status-request" });
 
       window.addEventListener(
         "pagehide",
@@ -4656,6 +4883,7 @@ module.exports = {
   createNflGamecastHandler,
   mlbDailyScheduleCache,
   mlbGamecastScheduleCache,
+  normalizeFavoriteTeams,
   readConfig,
   displayPowerRuntime,
   resolveDisplayPowerScheduleUpdate,

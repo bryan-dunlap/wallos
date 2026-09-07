@@ -59,6 +59,11 @@ function createHarness() {
   const HeroCoordinator = loadClass(
     "frontend/coordinator/hero-coordinator.js", "HeroCoordinator", globals
   );
+  const GamecastOwnershipCoordinator = loadClass(
+    "frontend/coordinator/gamecast-ownership-coordinator.js",
+    "GamecastOwnershipCoordinator",
+    globals
+  );
   const DailySnapshotGenerator = loadClass(
     "frontend/providers/daily-snapshot-generator.js", "DailySnapshotGenerator", globals
   );
@@ -67,6 +72,7 @@ function createHarness() {
   );
   const MosaicHero = loadClass("frontend/widgets/hero.js", "MosaicHero", globals);
   const coordinator = new HeroCoordinator(bus);
+  const ownership = new GamecastOwnershipCoordinator(bus);
   const daily = new DailySnapshotGenerator();
   const active = new SportsActiveContextGenerator();
 
@@ -77,7 +83,8 @@ function createHarness() {
   bus.subscribe("sports-facts", (event) => active.evaluate(event.payload));
 
   return {
-    bus, coordinator, daily, active, displays, timers, MosaicHero,
+    bus, coordinator, ownership, daily, active,
+    displays, timers, MosaicHero,
     setNow: (value) => { now = value.getTime(); }
   };
 }
@@ -117,7 +124,11 @@ function facts(league, status, typedFinal = false) {
 for (const league of ["MLB", "NFL"]) {
   test(`${league} favorite lifecycle returns final result to Daily Context`, () => {
     const harness = createHarness();
-    const { bus, coordinator, daily, active, displays, timers, MosaicHero } = harness;
+    const {
+      bus, coordinator, ownership, daily, active,
+      displays, timers, MosaicHero
+    } = harness;
+    ownership.start();
     coordinator.start();
     daily.publishSnapshot();
 

@@ -36,7 +36,13 @@ class SportsActiveContextGenerator {
             return;
         }
 
-        this.publishCandidate(candidate);
+        candidate.gamecastOwnership = {
+            favoriteRank: Number.isInteger(facts.favoriteRank)
+                ? facts.favoriteRank
+                : Number.MAX_SAFE_INTEGER,
+            critical: this.isCriticalGamecast(candidate)
+        };
+        this.publishOwnershipCandidate(candidate);
         this.activeCandidateIds.set(favoriteTeamId, candidate.id);
     }
 
@@ -88,8 +94,16 @@ class SportsActiveContextGenerator {
             headline:
                 `${game.teams.away.name} at ${game.teams.home.name}`,
             summary: this.formatGameSummary(game),
+            gamecastIdentity: {
+                gameId: this.qualifyGameId("MLB", game.eventId),
+                favoriteTeamId: this.qualifyTeamId(
+                    "MLB", favoriteTeam.id
+                ),
+                teams: this.createCelebrationTeams("MLB", game.teams)
+            },
             payload: {
                 type: "baseball-game",
+                eventId: game.eventId || null,
                 teams: {
                     away: this.createBaseballTeamIdentity(
                         game.teams.away
@@ -132,6 +146,20 @@ class SportsActiveContextGenerator {
             priority: 100,
             headline: `${away.name} at ${home.name}`,
             summary: this.formatGenericGameSummary(game),
+            gamecastIdentity: {
+                gameId: this.qualifyGameId(
+                    favoriteTeam.league,
+                    payload.eventId || game.eventId
+                ),
+                favoriteTeamId: this.qualifyTeamId(
+                    favoriteTeam.league,
+                    favoriteTeam.id
+                ),
+                teams: this.createCelebrationTeams(
+                    favoriteTeam.league,
+                    game.teams
+                )
+            },
             payload,
             behavior: {
                 sticky: !isFinal,
@@ -218,6 +246,41 @@ class SportsActiveContextGenerator {
         }
 
         return details.join(" · ") || "Game in progress";
+    }
+
+    qualifyGameId(league, eventId) {
+        return this.qualifyIdentity(league, eventId);
+    }
+
+    qualifyTeamId(league, teamId) {
+        return this.qualifyIdentity(league, teamId);
+    }
+
+    qualifyIdentity(league, value) {
+        const normalizedLeague = String(league || "").toUpperCase();
+        const normalizedValue = String(value ?? "").toUpperCase();
+
+        if (!normalizedLeague || !normalizedValue) return null;
+        return normalizedValue.startsWith(`${normalizedLeague}:`)
+            ? normalizedValue
+            : `${normalizedLeague}:${normalizedValue}`;
+    }
+
+    createCelebrationTeams(league, teams = {}) {
+        return {
+            away: this.createCelebrationTeam(league, teams.away),
+            home: this.createCelebrationTeam(league, teams.home)
+        };
+    }
+
+    createCelebrationTeam(league, team = {}) {
+        return {
+            id: this.qualifyTeamId(
+                league,
+                team.abbreviation || team.id
+            ),
+            logo: typeof team.logo === "string" ? team.logo : ""
+        };
     }
 
     getBattingTeam(game) {
@@ -320,7 +383,7 @@ class SportsActiveContextGenerator {
     evaluateSimulationCandidate(candidate) {
         if (!candidate) {
             if (this.activeSimulationCandidateId) {
-                this.publishWithdrawal(
+                this.publishSimulationWithdrawal(
                     this.activeSimulationCandidateId
                 );
                 this.activeSimulationCandidateId = null;
@@ -328,15 +391,47 @@ class SportsActiveContextGenerator {
             return;
         }
 
+        const simulationCandidate = {
+            ...candidate,
+            id: `sports:simulation:${candidate.gamecastIdentity?.gameId}`,
+            priority: candidate.priority + 1,
+            simulation: true
+        };
+
         if (
             this.activeSimulationCandidateId &&
-            this.activeSimulationCandidateId !== candidate.id
+            this.activeSimulationCandidateId !== simulationCandidate.id
         ) {
-            this.publishWithdrawal(this.activeSimulationCandidateId);
+            this.publishSimulationWithdrawal(
+                this.activeSimulationCandidateId
+            );
         }
 
-        this.publishCandidate(candidate);
-        this.activeSimulationCandidateId = candidate.id;
+        this.publishCandidate(simulationCandidate);
+        this.activeSimulationCandidateId = simulationCandidate.id;
+    }
+
+    isCriticalGamecast(candidate) {
+        const payload = candidate?.payload;
+
+        if (payload?.type === "baseball-game") {
+            return Number(payload.inning?.number) >= 9;
+        }
+
+        if (payload?.type === "football-game") {
+            return Number(payload.gameState?.quarter) >= 4 ||
+                payload.gameState?.phase === "overtime";
+        }
+
+        return false;
+    }
+
+    publishOwnershipCandidate(candidate) {
+        window.mosaicApp.eventBus.publish({
+            type: "gamecast-ownership-candidate",
+            source: "sports",
+            payload: { candidate }
+        });
     }
 
     publishCandidate(candidate) {
@@ -344,6 +439,14 @@ class SportsActiveContextGenerator {
             type: "hero-candidate",
             source: "sports",
             payload: { candidate }
+        });
+    }
+
+    publishSimulationWithdrawal(id) {
+        window.mosaicApp.eventBus.publish({
+            type: "hero-candidate-withdraw",
+            source: "sports",
+            payload: { id }
         });
     }
 
@@ -365,7 +468,7 @@ class SportsActiveContextGenerator {
 
     publishWithdrawal(id) {
         window.mosaicApp.eventBus.publish({
-            type: "hero-candidate-withdraw",
+            type: "gamecast-ownership-withdraw",
             source: "sports",
             payload: {
                 id

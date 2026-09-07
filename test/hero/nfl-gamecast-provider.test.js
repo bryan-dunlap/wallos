@@ -8,6 +8,11 @@ const {
 } = require(
   "../../frontend/providers/nfl-gamecast-lifecycle-state"
 );
+const {
+  createDetailedGamecastSnapshot
+} = require(
+  "../../frontend/sports/gamecast/score-event-detector"
+);
 
 const PROJECT_ROOT = path.join(__dirname, "..", "..");
 
@@ -34,6 +39,7 @@ function loadProvider(overrides = {}) {
     clearTimeout: (timer) => {
       timer.cleared = true;
     },
+    createDetailedGamecastSnapshot,
     window: {
       mosaicApp: {
         eventBus: {
@@ -267,6 +273,46 @@ test("event change invalidates late detail and starts the matching lifecycle", a
   assert.deepEqual(requests, ["401772831", "401772999"]);
   assert.equal(published.length, 1);
   assert.equal(published[0].payload.game.eventId, "401772999");
+});
+
+test("late invalidated lifecycle response never reaches score detection", async () => {
+  let release;
+  const pending = new Promise((resolve) => {
+    release = resolve;
+  });
+  const accepted = [];
+  const { Provider } = loadProvider();
+  const detector = {
+    accept: (snapshot) => accepted.push(snapshot),
+    reset: () => {}
+  };
+  const provider = new Provider(null, detector);
+  provider.fetchGamecast = async (_date, eventId) => {
+    if (eventId === "401772831") {
+      await pending;
+      return { gamecast: detailedGamecast(), stale: false };
+    }
+
+    return {
+      gamecast: {
+        ...detailedGamecast(),
+        eventId: "401772999"
+      },
+      stale: false
+    };
+  };
+
+  provider.handleSportsFacts(facts());
+  provider.handleHeroDisplay(candidate());
+  provider.handleSportsFacts(facts({ eventId: "401772999" }));
+  provider.handleHeroDisplay(candidate({
+    payload: { type: "football-game", eventId: "401772999" }
+  }));
+  release();
+  await settle();
+  await settle();
+
+  assert.equal(accepted.length, 1);
 });
 
 test("two NFL favorites retain facts and only the displayed favorite polls", async () => {

@@ -2,6 +2,22 @@ class MosaicApp {
 
     constructor() {
         this.eventBus = new MosaicEventBus();
+        this.gamecastCelebrationCoordinator =
+            new GamecastCelebrationCoordinator(this.eventBus);
+        this.gamecastOwnershipCoordinator =
+            new GamecastOwnershipCoordinator(this.eventBus);
+        this.gamecastOwnershipSimulationCoordinator =
+            new GamecastOwnershipCoordinator(this.eventBus, {
+                primaryWindowMs: 8 * 1000,
+                secondaryWindowMs: 2 * 1000,
+                candidateEventType:
+                    "gamecast-ownership-simulation-candidate",
+                withdrawEventType:
+                    "gamecast-ownership-simulation-withdraw",
+                stateEventType:
+                    "gamecast-ownership-simulation-state",
+                allowSimulation: true
+            });
         this.eventCoordinator = new EventCoordinator(
             this.eventBus
         );
@@ -17,6 +33,9 @@ class MosaicApp {
     }
 
     start() {
+        this.gamecastOwnershipCoordinator.start();
+        this.gamecastOwnershipSimulationCoordinator.start();
+        this.gamecastCelebrationCoordinator.start();
         registerMosaicWidgets(this.widgetRegistry);
         initializeMosaicLayout(this);
         this.heroCoordinator.start();

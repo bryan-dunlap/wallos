@@ -195,6 +195,11 @@ test("prefers scoreboard last play over current-drive enrichment", () => {
     "G.Smith pass complete to D.Metcalf for 12 yards."
   );
   assert.equal(lastPlay.type, "Pass Reception");
+  assert.equal(lastPlay.id, "4017728314100");
+  assert.equal(lastPlay.providerTypeId, "24");
+  assert.equal(lastPlay.providerTypeAbbreviation, "REC");
+  assert.equal(lastPlay.team, "away");
+  assert.equal(lastPlay.providerTeamId, "26");
   assert.equal(lastPlay.quarter, 4);
   assert.equal(lastPlay.clock, "2:48");
   assert.equal(lastPlay.start.yardLine, 26);

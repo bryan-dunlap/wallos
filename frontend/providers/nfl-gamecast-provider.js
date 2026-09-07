@@ -2,7 +2,7 @@ const NFL_GAMECAST_REFRESH_INTERVAL_MS = 5 * 1000;
 
 class NflGamecastProvider {
 
-    constructor(lifecycleState = null) {
+    constructor(lifecycleState = null, scoreEventDetector = null) {
         this.unsubscribers = [];
         this.factsByFavoriteId = new Map();
         this.displayedCandidate = null;
@@ -14,6 +14,8 @@ class NflGamecastProvider {
             (typeof nflGamecastLifecycleState !== "undefined"
                 ? nflGamecastLifecycleState
                 : null);
+        this.scoreEventDetector = scoreEventDetector ||
+            this.createScoreEventDetector();
         this.handlePageHide = () => this.stop();
         this.handleVisibilityChange = () => {
             if (document.visibilityState === "hidden") {
@@ -215,6 +217,7 @@ class NflGamecastProvider {
             }
 
             const detailedFacts = this.createDetailedFacts(facts, response);
+            this.acceptDetailedSnapshot(detailedFacts);
             this.factsByFavoriteId.set(
                 facts.favoriteTeam.id,
                 detailedFacts
@@ -327,11 +330,62 @@ class NflGamecastProvider {
     stopRefreshLoop() {
         this.lifecycleVersion += 1;
         this.activeLifecycleKey = null;
+        this.scoreEventDetector?.reset();
 
         if (this.refreshTimer) {
             clearTimeout(this.refreshTimer);
             this.refreshTimer = null;
         }
+    }
+
+    createScoreEventDetector() {
+        if (typeof ScoreEventDetector === "undefined") return null;
+
+        return new ScoreEventDetector({
+            onEvent: (scoreEvent) => {
+                window.mosaicApp.eventBus.publish({
+                    type: "gamecast-score-event",
+                    source: "sports-gamecast",
+                    payload: scoreEvent
+                });
+            }
+        });
+    }
+
+    acceptDetailedSnapshot(facts) {
+        if (
+            !this.scoreEventDetector ||
+            typeof createDetailedGamecastSnapshot === "undefined"
+        ) {
+            return [];
+        }
+
+        const gamecast = facts.game.gamecast;
+        const lastPlay = gamecast.lastPlay;
+
+        return this.scoreEventDetector.accept(
+            createDetailedGamecastSnapshot({
+                gameId: gamecast.eventId,
+                sport: "football",
+                league: "NFL",
+                score: gamecast.score,
+                teams: gamecast.teams,
+                stale: facts.gamecastStale,
+                sourceRevision: facts.gamecastUpdatedAt,
+                providerEvent: lastPlay ? {
+                    id: lastPlay.id || null,
+                    team: lastPlay.team || null,
+                    providerTeamId: lastPlay.providerTeamId || null,
+                    type: lastPlay.type || null,
+                    providerTypeId: lastPlay.providerTypeId || null,
+                    providerTypeAbbreviation:
+                        lastPlay.providerTypeAbbreviation || null,
+                    period: lastPlay.quarter ?? null,
+                    gameClock: lastPlay.clock || null,
+                    occurredAt: null
+                } : null
+            })
+        );
     }
 
 }

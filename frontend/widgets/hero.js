@@ -27,6 +27,10 @@ class MosaicHero {
             "hero-display",
             (event) => this.showEvent(event)
         );
+        window.mosaicApp.eventCoordinator.subscribe(
+            "gamecast-celebration-state",
+            () => this.reconcileGamecastCelebration()
+        );
     }
 
 
@@ -589,6 +593,96 @@ class MosaicHero {
 
                 if (summaryRegion) summaryRegion.hidden = true;
             }
+        }
+
+        this.reconcileGamecastCelebration();
+    }
+
+
+    reconcileGamecastCelebration(){
+        const contentRegion = this.element?.querySelector(
+            ".hero-active-content"
+        );
+        const existingLayer = contentRegion?.querySelector?.(
+            ".gamecast-celebration-layer"
+        );
+        const presentation = window.mosaicApp
+            ?.gamecastCelebrationCoordinator
+            ?.getCurrentPresentation?.();
+
+        if (!contentRegion || !presentation) {
+            existingLayer?.remove?.();
+            return;
+        }
+
+        const elapsed = Math.max(0, Date.now() - presentation.startedAt);
+        const eventId = presentation.event?.id || "";
+
+        if (existingLayer?.dataset?.eventId === eventId) return;
+        existingLayer?.remove?.();
+
+        if (typeof contentRegion.insertAdjacentHTML !== "function") return;
+
+        contentRegion.insertAdjacentHTML(
+            "beforeend",
+            this.renderGamecastCelebration(presentation, elapsed)
+        );
+        const layer = contentRegion.querySelector(
+            ".gamecast-celebration-layer"
+        );
+
+        this.applyCelebrationColors(layer, presentation.colors);
+    }
+
+
+    renderGamecastCelebration(presentation, elapsed = 0){
+        const eventId = this.escape(presentation.event?.id || "");
+        const label = this.escape(presentation.label || "SCORE");
+        const logo = typeof presentation.logo === "string" &&
+            presentation.logo.trim()
+            ? `<img class="gamecast-celebration-logo"
+                src="${this.escape(presentation.logo.trim())}" alt=""
+                width="58" height="58"
+                onerror="this.hidden=true">`
+            : "";
+        const intensity = ["minor", "score", "major"].includes(
+            presentation.event?.intensity
+        ) ? presentation.event.intensity : "score";
+
+        return `
+            <div class="gamecast-celebration-layer is-${intensity}"
+                data-event-id="${eventId}"
+                style="--gamecast-celebration-delay: -${elapsed}ms"
+                role="status" aria-live="polite">
+                <div class="gamecast-celebration-popup">
+                    <span class="gamecast-celebration-message">
+                        ${logo}
+                        <span class="gamecast-celebration-label">${label}</span>
+                    </span>
+                </div>
+            </div>
+        `;
+    }
+
+
+    applyCelebrationColors(layer, colors){
+        if (!layer?.style || !colors) return;
+
+        const supported = (value) =>
+            typeof value === "string" &&
+            (typeof CSS === "undefined" || CSS.supports("color", value));
+
+        if (supported(colors.primary)) {
+            layer.style.setProperty(
+                "--gamecast-celebration-primary",
+                colors.primary
+            );
+        }
+        if (supported(colors.highlight)) {
+            layer.style.setProperty(
+                "--gamecast-celebration-highlight",
+                colors.highlight
+            );
         }
     }
 

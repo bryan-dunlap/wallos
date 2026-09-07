@@ -119,8 +119,12 @@ class SportsProvider {
             const date = this.getDateKey(new Date());
             const factsByFavorite = await Promise.all(
                 config.favoriteTeams.map(
-                    (favoriteTeam) =>
-                        this.getFavoriteTeamFacts(favoriteTeam, date)
+                    (favoriteTeam, favoriteRank) =>
+                        this.getFavoriteTeamFacts(
+                            favoriteTeam,
+                            date,
+                            favoriteRank
+                        )
                 )
             );
 
@@ -149,7 +153,7 @@ class SportsProvider {
         }
     }
 
-    async getFavoriteTeamFacts(favoriteTeam, date) {
+    async getFavoriteTeamFacts(favoriteTeam, date, favoriteRank = null) {
         const league = String(favoriteTeam?.league || "")
             .trim()
             .toUpperCase();
@@ -158,13 +162,27 @@ class SportsProvider {
         if (!provider) return null;
 
         try {
-            return await provider.getScheduleFacts(favoriteTeam, date);
+            const facts = await provider.getScheduleFacts(
+                favoriteTeam,
+                date
+            );
+            return {
+                ...facts,
+                ...(Number.isInteger(favoriteRank)
+                    ? { favoriteRank }
+                    : {})
+            };
         } catch (error) {
             console.error(
                 `Unable to load ${league} favorite-team schedule:`,
                 error
             );
-            return provider.createUnavailableFacts(favoriteTeam);
+            return {
+                ...provider.createUnavailableFacts(favoriteTeam),
+                ...(Number.isInteger(favoriteRank)
+                    ? { favoriteRank }
+                    : {})
+            };
         }
     }
 

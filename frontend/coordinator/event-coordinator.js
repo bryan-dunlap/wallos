@@ -11,7 +11,8 @@ class EventCoordinator {
             "weather",
             "sports",
             "calendar",
-            "hero-display"
+            "hero-display",
+            "gamecast-celebration-state"
         ].forEach((type) => {
             this.eventBus.subscribe(
                 type,

@@ -289,11 +289,15 @@ test("suppressed final schedule facts preserve the existing candidate expiry", (
   });
 
   assert.equal(
-    events.filter((event) => event.type === "hero-candidate").length,
+    events.filter((event) =>
+      event.type === "gamecast-ownership-candidate"
+    ).length,
     1
   );
   assert.equal(
-    events.filter((event) => event.type === "hero-candidate-withdraw").length,
+    events.filter((event) =>
+      event.type === "gamecast-ownership-withdraw"
+    ).length,
     0
   );
   assert.equal(
@@ -342,7 +346,10 @@ test("SportsProvider dispatches MLB and NFL favorites independently", async () =
 
   const states = await provider.refreshSportsFacts();
 
-  assert.deepEqual(published, [mlb, nfl]);
+  assert.deepEqual(JSON.parse(JSON.stringify(published)), [
+    { ...mlb, favoriteRank: 0 },
+    { ...nfl, favoriteRank: 1 }
+  ]);
   assert.deepEqual(JSON.parse(JSON.stringify(states)), ["live", "live"]);
 });
 
@@ -378,11 +385,15 @@ test("SportsProvider isolates one favorite acquisition failure", async () => {
   ]);
 
   assert.deepEqual(
-    await provider.getFavoriteTeamFacts(mlbTeam, "2026-09-07"),
+    JSON.parse(JSON.stringify(
+      await provider.getFavoriteTeamFacts(mlbTeam, "2026-09-07")
+    )),
     unavailableMlb
   );
   assert.deepEqual(
-    await provider.getFavoriteTeamFacts(nfl.favoriteTeam, "2026-09-07"),
+    JSON.parse(JSON.stringify(
+      await provider.getFavoriteTeamFacts(nfl.favoriteTeam, "2026-09-07")
+    )),
     nfl
   );
   assert.equal(
@@ -428,6 +439,84 @@ test("production NFL facts pass unchanged into a football Hero candidate", () =>
   assert.equal(candidate.behavior.sticky, true);
 });
 
+test("production candidates retain favorite rank and normalized critical state", () => {
+  const events = [];
+  const SportsActiveContextGenerator = loadClass(
+    "frontend/providers/sports-active-context-generator.js",
+    "SportsActiveContextGenerator",
+    {
+      Date,
+      Map,
+      Number,
+      window: {
+        mosaicApp: {
+          eventBus: { publish: (event) => events.push(event) }
+        }
+      }
+    }
+  );
+  const generator = new SportsActiveContextGenerator();
+  const evaluate = (facts, favoriteRank) => {
+    generator.evaluate({ ...facts, favoriteRank });
+    return JSON.parse(JSON.stringify(
+      events.at(-1).payload.candidate.gamecastOwnership
+    ));
+  };
+  const mlbFacts = (inning) => ({
+    status: "available",
+    favoriteRank: 0,
+    favoriteTeam: {
+      id: "SEA", name: "Seattle Mariners",
+      league: "MLB", sport: "baseball"
+    },
+    game: {
+      status: "live", eventId: "777",
+      teams: {
+        away: { id: "SEA", name: "Mariners" },
+        home: { id: "LAA", name: "Angels" }
+      },
+      score: { away: 2, home: 1 },
+      inning: { half: "top", number: inning }
+    }
+  });
+  const nflFacts = (quarter, phase = "regulation") => {
+    const facts = footballFacts();
+    return {
+      ...facts,
+      game: {
+        ...facts.game,
+        gamecast: {
+          ...facts.game.gamecast,
+          gameState: {
+            ...facts.game.gamecast.gameState,
+            quarter,
+            phase
+          }
+        }
+      }
+    };
+  };
+
+  assert.deepEqual(evaluate(mlbFacts(8), 0), {
+    favoriteRank: 0, critical: false
+  });
+  assert.deepEqual(evaluate(mlbFacts(9), 0), {
+    favoriteRank: 0, critical: true
+  });
+  assert.deepEqual(evaluate(mlbFacts(10), 0), {
+    favoriteRank: 0, critical: true
+  });
+  assert.deepEqual(evaluate(nflFacts(3), 1), {
+    favoriteRank: 1, critical: false
+  });
+  assert.deepEqual(evaluate(nflFacts(4), 1), {
+    favoriteRank: 1, critical: true
+  });
+  assert.deepEqual(evaluate(nflFacts(5, "overtime"), 1), {
+    favoriteRank: 1, critical: true
+  });
+});
+
 test("production MLB and NFL candidates coexist and withdraw independently", () => {
   const events = [];
   const SportsActiveContextGenerator = loadClass(
@@ -471,7 +560,9 @@ test("production MLB and NFL candidates coexist and withdraw independently", () 
     ["SEA", "NFL:SEA"]
   );
   assert.equal(
-    events.filter((event) => event.type === "hero-candidate-withdraw").length,
+    events.filter((event) =>
+      event.type === "gamecast-ownership-withdraw"
+    ).length,
     0
   );
 
@@ -497,7 +588,7 @@ test("production MLB and NFL candidates coexist and withdraw independently", () 
   assert.equal(events.at(-1).payload.id, "sports:live:NFL:SEA");
 });
 
-test("simulation profile switching withdraws only the previous simulation candidate", () => {
+test("simulation candidates use an isolated identity and replace the same game", () => {
   const events = [];
   const SportsActiveContextGenerator = loadClass(
     "frontend/providers/sports-active-context-generator.js",
@@ -519,16 +610,27 @@ test("simulation profile switching withdraws only the previous simulation candid
   generator.evaluate(first);
   generator.evaluate(second);
 
+  const publishedCandidates = events.filter(
+    (event) => event.type === "hero-candidate"
+  );
+  assert.equal(publishedCandidates.length, 2);
+  assert.equal(publishedCandidates.at(-1).payload.candidate.priority, 101);
+  assert.equal(publishedCandidates.at(-1).payload.candidate.simulation, true);
+  assert.notEqual(
+    publishedCandidates.at(-1).payload.candidate.id,
+    "sports:live:NFL:SF"
+  );
+
   assert.equal(
     generator.activeSimulationCandidateId,
-    "sports:live:NFL:SF"
+    "sports:simulation:NFL:401772831"
   );
   assert.equal(
     events.filter((event) =>
       event.type === "hero-candidate-withdraw" &&
-      event.payload.id === "sports:live:NFL:SEA"
+      event.payload.id === "sports:simulation:NFL:401772831"
     ).length,
-    1
+    0
   );
 
   generator.evaluate({
@@ -538,7 +640,10 @@ test("simulation profile switching withdraws only the previous simulation candid
     game: null
   });
   assert.equal(generator.activeSimulationCandidateId, null);
-  assert.equal(events.at(-1).payload.id, "sports:live:NFL:SF");
+  assert.equal(
+    events.at(-1).payload.id,
+    "sports:simulation:NFL:401772831"
+  );
 });
 
 test("final typed Gamecast candidate is supported without becoming sticky", () => {

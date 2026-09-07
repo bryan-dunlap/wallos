@@ -190,12 +190,24 @@ function normalizeDrive(drive, teams) {
   };
 }
 
-function normalizePlay(play) {
+function normalizePlay(play, teams) {
   if (!play?.text) return null;
 
+  const providerTeamId = play.team?.id ??
+    play.start?.team?.id ??
+    play.end?.team?.id ??
+    null;
+
   return {
+    id: play.id == null ? null : String(play.id),
     description: play.text,
     type: play.type?.text || null,
+    providerTypeId: play.type?.id == null ? null : String(play.type.id),
+    providerTypeAbbreviation: play.type?.abbreviation || null,
+    team: matchTeamSide(providerTeamId, teams),
+    providerTeamId: providerTeamId == null
+      ? null
+      : String(providerTeamId),
     quarter: toNullableNumber(play.period?.number),
     clock: play.clock?.displayValue || null,
     start: normalizeFieldPoint(play.start),
@@ -319,7 +331,7 @@ function normalizeNflGamecast(scoreboardEvent, summary = {}) {
     possession: normalizedSituation.possession,
     situation: normalizedSituation.situation,
     drive: normalizeDrive(drive, teams),
-    lastPlay: normalizePlay(lastPlay),
+    lastPlay: normalizePlay(lastPlay, teams),
     lineScore: normalizeLineScore(awayCompetitor, homeCompetitor)
   };
 }

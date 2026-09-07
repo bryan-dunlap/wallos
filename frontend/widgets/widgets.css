@@ -1326,6 +1326,8 @@
 
 .hero-active-content {
 
+    position: relative;
+
     width: 100%;
 
     min-height: 0;
@@ -1336,6 +1338,119 @@
 
     line-height: 1.25;
 
+}
+
+
+.gamecast-celebration-layer {
+
+    --gamecast-celebration-primary: var(--color-accent);
+    --gamecast-celebration-highlight: var(--color-text);
+
+    position: absolute;
+    z-index: 4;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+
+}
+
+
+.gamecast-celebration-popup {
+
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    opacity: 0;
+    animation: gamecast-celebration-popup 4s ease both;
+    animation-delay: var(--gamecast-celebration-delay, 0ms);
+
+}
+
+
+.gamecast-celebration-message {
+
+    padding: 12px 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    color: var(--gamecast-celebration-highlight);
+    border-block: 1px solid var(--gamecast-celebration-primary);
+    background: linear-gradient(
+        90deg,
+        transparent,
+        color-mix(
+            in srgb,
+            var(--gamecast-celebration-primary) 22%,
+            var(--color-background)
+        ) 18% 82%,
+        transparent
+    );
+    box-shadow: 0 0 28px color-mix(
+        in srgb,
+        var(--gamecast-celebration-primary) 30%,
+        transparent
+    );
+    font-size: 2.5rem;
+    font-weight: 600;
+    letter-spacing: .16em;
+    line-height: 1;
+    text-shadow: 0 0 14px var(--gamecast-celebration-primary);
+    text-transform: uppercase;
+
+}
+
+
+.gamecast-celebration-logo {
+
+    width: 58px;
+    height: 58px;
+    flex: 0 0 58px;
+    object-fit: contain;
+    filter: drop-shadow(0 0 8px var(--gamecast-celebration-primary));
+
+}
+
+
+.gamecast-celebration-label {
+
+    white-space: nowrap;
+
+}
+
+
+@keyframes gamecast-celebration-popup {
+    0%, 6% { opacity: 0; transform: scale(.92); }
+    12% { opacity: 1; transform: scale(1); }
+    68% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(1.03); }
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+    .gamecast-celebration-layer {
+        animation: gamecast-celebration-layer-reduced 2.5s ease both;
+        animation-delay: var(--gamecast-celebration-delay, 0ms);
+    }
+
+    .gamecast-celebration-popup {
+        animation: gamecast-celebration-popup-reduced 2.5s ease both;
+        animation-delay: var(--gamecast-celebration-delay, 0ms);
+    }
+}
+
+
+@keyframes gamecast-celebration-layer-reduced {
+    0%, 88% { visibility: visible; }
+    100% { visibility: hidden; }
+}
+
+
+@keyframes gamecast-celebration-popup-reduced {
+    0% { opacity: 0; }
+    12%, 72% { opacity: 1; }
+    100% { opacity: 0; }
 }
 
 

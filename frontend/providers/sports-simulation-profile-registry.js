@@ -162,6 +162,7 @@ function createMlbLiveScenario(id, label, overrides = {}) {
         }));
 
         return createFacts(profile, createBaseGame(profile, "live", {
+            eventId: "simulation:mlb:sea-laa",
             score,
             inning,
             outs: overrides.outs ?? 1,

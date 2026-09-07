@@ -80,7 +80,9 @@ class MlbDataProvider {
         return {
             status: "available",
             favoriteTeam: this.normalizeFavoriteTeam(favoriteTeam),
-            game: this.normalizeGame(game, favoriteTeam)
+            game: this.normalizeGame(game, favoriteTeam),
+            gamecastUpdatedAt: schedule.updatedAt || null,
+            gamecastStale: schedule.stale === true
         };
     }
 
@@ -108,6 +110,8 @@ class MlbDataProvider {
         if (!opponent?.name || !game.scheduledAt) return null;
 
         const normalizedGame = {
+            eventId: game.eventId == null ? null : String(game.eventId),
+            eventDate: game.date || null,
             status,
             opponent: opponent.name,
             opponentLogo: opponent.logo || "",

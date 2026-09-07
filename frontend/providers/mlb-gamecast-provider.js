@@ -7,15 +7,19 @@ const MLB_GAMECAST_REFRESH_INTERVAL_MS = 5 * 1000;
  */
 class MlbGamecastProvider {
 
-    constructor() {
+    constructor(scoreEventDetector = null) {
         this.unsubscribers = [];
         this.favoriteTeam = null;
+        this.favoriteRank = null;
         this.liveCandidateId = null;
+        this.liveEventId = null;
         this.displayedCandidateId = null;
         this.refreshTimer = null;
         this.refreshInFlight = null;
         this.lifecycleVersion = 0;
         this.mlbDataProvider = new MlbDataProvider();
+        this.scoreEventDetector = scoreEventDetector ||
+            this.createScoreEventDetector();
         this.handlePageHide = () => this.stop();
     }
 
@@ -41,7 +45,9 @@ class MlbGamecastProvider {
         this.unsubscribers.forEach((unsubscribe) => unsubscribe());
         this.unsubscribers = [];
         this.favoriteTeam = null;
+        this.favoriteRank = null;
         this.liveCandidateId = null;
+        this.liveEventId = null;
         this.displayedCandidateId = null;
         window.removeEventListener("pagehide", this.handlePageHide);
     }
@@ -66,13 +72,25 @@ class MlbGamecastProvider {
 
         if (!gameIsLive) {
             this.favoriteTeam = null;
+            this.favoriteRank = null;
             this.liveCandidateId = null;
+            this.liveEventId = null;
             this.stopRefreshLoop();
             return;
         }
 
+        const nextEventId = String(facts.game.eventId || "");
+
+        if (this.liveEventId && this.liveEventId !== nextEventId) {
+            this.stopRefreshLoop();
+        }
+
         this.favoriteTeam = favoriteTeam;
+        this.favoriteRank = Number.isInteger(facts.favoriteRank)
+            ? facts.favoriteRank
+            : null;
         this.liveCandidateId = `sports:live:${favoriteTeam.id}`;
+        this.liveEventId = nextEventId;
         this.reconcileRefreshLoop();
     }
 
@@ -101,6 +119,7 @@ class MlbGamecastProvider {
         return Boolean(
             this.favoriteTeam &&
             this.liveCandidateId &&
+            this.liveEventId &&
             this.displayedCandidateId === this.liveCandidateId
         );
     }
@@ -133,11 +152,22 @@ class MlbGamecastProvider {
         try {
             const facts = await this.refreshInFlight;
 
-            if (lifecycleVersion === this.lifecycleVersion) {
+            if (
+                lifecycleVersion === this.lifecycleVersion &&
+                this.shouldRefresh() &&
+                String(facts?.game?.eventId || "") === this.liveEventId
+            ) {
+                const rankedFacts = {
+                    ...facts,
+                    ...(Number.isInteger(this.favoriteRank)
+                        ? { favoriteRank: this.favoriteRank }
+                        : {})
+                };
+                this.acceptDetailedSnapshot(rankedFacts);
                 window.mosaicApp.eventBus.publish({
                     type: "sports-facts",
                     source: "sports-gamecast",
-                    payload: facts
+                    payload: rankedFacts
                 });
             }
         } catch (error) {
@@ -151,6 +181,7 @@ class MlbGamecastProvider {
 
     stopRefreshLoop() {
         this.lifecycleVersion += 1;
+        this.scoreEventDetector?.reset();
 
         if (this.refreshTimer) {
             clearTimeout(this.refreshTimer);
@@ -164,6 +195,41 @@ class MlbGamecastProvider {
         const day = String(date.getDate()).padStart(2, "0");
 
         return `${year}-${month}-${day}`;
+    }
+
+    createScoreEventDetector() {
+        if (typeof ScoreEventDetector === "undefined") return null;
+
+        return new ScoreEventDetector({
+            onEvent: (scoreEvent) => {
+                window.mosaicApp.eventBus.publish({
+                    type: "gamecast-score-event",
+                    source: "sports-gamecast",
+                    payload: scoreEvent
+                });
+            }
+        });
+    }
+
+    acceptDetailedSnapshot(facts) {
+        if (
+            !this.scoreEventDetector ||
+            typeof createDetailedGamecastSnapshot === "undefined"
+        ) {
+            return [];
+        }
+
+        return this.scoreEventDetector.accept(
+            createDetailedGamecastSnapshot({
+                gameId: facts.game.eventId,
+                sport: "baseball",
+                league: "MLB",
+                score: facts.game.score,
+                teams: facts.game.teams,
+                stale: facts.gamecastStale,
+                sourceRevision: facts.gamecastUpdatedAt
+            })
+        );
     }
 
 }

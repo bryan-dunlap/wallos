@@ -38,3 +38,50 @@ test("Sports Simulator command navigation targets the profile selector", () => {
     /data-command-focus="sports-simulator-enabled"/
   );
 });
+
+test("Developer Tools exposes session-only scoring celebration controls", () => {
+  assert.match(serverSource, /<h4 class="subsection-title">Scoring Celebration<\/h4>/);
+  assert.match(serverSource, /data-scoring-celebration="run">MLB Run<\/button>/);
+  assert.match(serverSource, /data-scoring-celebration="home-run">MLB Home Run<\/button>/);
+  assert.match(serverSource, /data-scoring-celebration="touchdown">NFL Touchdown<\/button>/);
+  assert.match(serverSource, /data-scoring-celebration="field-goal">NFL Field Goal<\/button>/);
+  assert.doesNotMatch(serverSource, /id="scoring-celebration-intensity"/);
+  assert.doesNotMatch(serverSource, /<option value="minor">Minor<\/option>/);
+  assert.doesNotMatch(serverSource, /<option value="score"[^>]*>Score<\/option>/);
+  assert.doesNotMatch(serverSource, /<option value="major">Major<\/option>/);
+  assert.match(serverSource, /action:\s*"celebrate"/);
+  assert.doesNotMatch(serverSource, /intensity:\s*celebrationIntensity/);
+  assert.doesNotMatch(serverSource, /name="scoringCelebration/);
+});
+
+test("Developer Tools exposes the compact Gamecast Ownership simulator", () => {
+  assert.match(serverSource, /<h4 class="subsection-title">Gamecast Ownership<\/h4>/);
+  for (const [command, label] of [
+    ["rotation", "Test Rotation"],
+    ["mariners-priority", "Mariners Takes Priority"],
+    ["seahawks-priority", "Seahawks Takes Priority"],
+    ["single-game", "Test Single Game"],
+    ["reset", "Reset"]
+  ]) {
+    assert.match(
+      serverSource,
+      new RegExp(`data-gamecast-ownership="${command}">${label}<\\/button>`)
+    );
+  }
+  for (const removed of [
+    "Start Dual Gamecast",
+    "Make MLB Critical",
+    "Make NFL Critical",
+    "End MLB",
+    "End NFL"
+  ]) {
+    assert.doesNotMatch(serverSource, new RegExp(`>${removed}<`));
+  }
+  assert.match(serverSource, /data-gamecast-ownership-status/);
+  assert.match(serverSource, /Testing: <span data-gamecast-ownership-testing>/);
+  assert.match(serverSource, /Showing: <span data-gamecast-ownership-showing>/);
+  assert.match(serverSource, /Next: <span data-gamecast-ownership-next>/);
+  assert.doesNotMatch(serverSource, /MLB Critical:/);
+  assert.doesNotMatch(serverSource, /NFL Critical:/);
+  assert.doesNotMatch(serverSource, /name="gamecastOwnership/);
+});
