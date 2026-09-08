@@ -1,0 +1,43 @@
+[
+  {
+    "entity_id": "sensor.living_room_temperature",
+    "state": "72.4",
+    "attributes": {
+      "friendly_name": " Living Room Temperature ",
+      "unit_of_measurement": " °F ",
+      "device_class": "temperature",
+      "state_class": "measurement",
+      "icon": "mdi:thermometer",
+      "attribution": "must not cross the boundary",
+      "secret_metadata": "private-native-value"
+    },
+    "last_changed": "2026-09-07T17:00:00.000Z",
+    "last_updated": "2026-09-07T17:01:00.000Z",
+    "context": {
+      "id": "native-context-id",
+      "user_id": "native-user-id"
+    }
+  },
+  {
+    "entity_id": "binary_sensor.front_door",
+    "state": "off",
+    "attributes": { "device_class": "door" },
+    "last_changed": "invalid",
+    "last_updated": null
+  },
+  {
+    "entity_id": "switch.coffee_machine",
+    "state": "unavailable",
+    "attributes": { "friendly_name": "Kitchen Device" }
+  },
+  {
+    "entity_id": "light.desk_lamp",
+    "state": "unknown",
+    "attributes": { "friendly_name": "Kitchen Device", "brightness": 200 }
+  },
+  {
+    "entity_id": "climate.upstairs_hall",
+    "state": "heat",
+    "attributes": { "friendly_name": 42, "icon": false }
+  }
+]

@@ -1,7 +1,10 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const {
+  acquireStates,
+  HomeAssistantClientError,
   MAX_HOME_ASSISTANT_RESPONSE_BYTES,
+  MAX_HOME_ASSISTANT_STATES_RESPONSE_BYTES,
   testConnection
 } = require(
   "../../backend/home-assistant/home-assistant-client"
@@ -40,6 +43,146 @@ test("authenticated Home Assistant API response connects", async () => {
   assert.equal(requestOptions.headers.Accept, "application/json");
   assert.equal(requestOptions.method, "GET");
   assert.equal(requestOptions.redirect, "manual");
+});
+
+async function assertStatesFailure(fetchImpl, code, options = {}) {
+  await assert.rejects(
+    acquireStates(
+      { baseUrl: "https://ha.example.test", accessToken: TOKEN },
+      { fetchImpl, ...options }
+    ),
+    (error) =>
+      error instanceof HomeAssistantClientError && error.code === code
+  );
+}
+
+test("acquires authenticated Home Assistant states without exposing token", async () => {
+  const requests = [];
+  const states = [{ entity_id: "sensor.safe", state: "1", attributes: {} }];
+  const result = await acquireStates(
+    { baseUrl: "https://ha.example.test/root/", accessToken: TOKEN },
+    {
+      fetchImpl: async (url, options) => {
+        requests.push({ url, options });
+        return jsonResponse(states);
+      }
+    }
+  );
+
+  assert.deepEqual(result, states);
+  assert.equal(requests[0].url, "https://ha.example.test/root/api/states");
+  assert.equal(requests[0].options.headers.Authorization, `Bearer ${TOKEN}`);
+  assert.equal(requests[0].options.redirect, "manual");
+  assert.equal(JSON.stringify(result).includes(TOKEN), false);
+});
+
+test("states acquisition follows only validated same-origin redirects", async () => {
+  const urls = [];
+  const result = await acquireStates(
+    { baseUrl: "https://ha.example.test", accessToken: TOKEN },
+    {
+      fetchImpl: async (url) => {
+        urls.push(url);
+        return urls.length === 1
+          ? new Response(null, {
+            status: 307,
+            headers: { location: "/api/states/" }
+          })
+          : jsonResponse([]);
+      }
+    }
+  );
+
+  assert.deepEqual(result, []);
+  assert.deepEqual(urls, [
+    "https://ha.example.test/api/states",
+    "https://ha.example.test/api/states/"
+  ]);
+
+  for (const location of [
+    "https://other.example.test/api/states",
+    "http://[invalid"
+  ]) {
+    await assertStatesFailure(
+      async () => new Response(null, {
+        status: 302,
+        headers: { location }
+      }),
+      "upstream_error"
+    );
+  }
+});
+
+test("states acquisition sanitizes timeout, network, and HTTP failures", async () => {
+  await assertStatesFailure(
+    async (url, { signal }) => new Promise((resolve, reject) => {
+      signal.addEventListener("abort", () => reject(signal.reason));
+    }),
+    "timeout",
+    { timeoutMs: 1 }
+  );
+  await assertStatesFailure(
+    async () => { throw new Error(`network ${TOKEN}`); },
+    "unreachable"
+  );
+
+  for (const status of [401, 403]) {
+    await assertStatesFailure(
+      async () => new Response(null, { status }),
+      "unauthorized"
+    );
+  }
+
+  for (const status of [404, 500]) {
+    await assertStatesFailure(
+      async () => new Response(null, { status }),
+      "upstream_error"
+    );
+  }
+});
+
+test("states acquisition rejects wrong content, JSON, and top-level shape", async () => {
+  await assertStatesFailure(
+    async () => new Response("[]", {
+      status: 200,
+      headers: { "content-type": "text/plain" }
+    }),
+    "unexpected_response"
+  );
+  await assertStatesFailure(
+    async () => new Response("not json", {
+      status: 200,
+      headers: { "content-type": "application/json" }
+    }),
+    "unexpected_response"
+  );
+  await assertStatesFailure(
+    async () => jsonResponse({ states: [] }),
+    "unexpected_response"
+  );
+});
+
+test("states acquisition enforces the four MiB body limit", async () => {
+  await assertStatesFailure(
+    async () => new Response("[]", {
+      status: 200,
+      headers: {
+        "content-type": "application/json",
+        "content-length": String(MAX_HOME_ASSISTANT_STATES_RESPONSE_BYTES + 1)
+      }
+    }),
+    "unexpected_response"
+  );
+  await assertStatesFailure(
+    async () => new Response(
+      `["${"x".repeat(MAX_HOME_ASSISTANT_STATES_RESPONSE_BYTES)}"]`,
+      {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      }
+    ),
+    "unexpected_response"
+  );
 });
 
 test("authorization failures use the stable unauthorized result", async () => {

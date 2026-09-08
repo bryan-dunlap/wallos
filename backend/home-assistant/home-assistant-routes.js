@@ -2,18 +2,60 @@ const express = require("express");
 const {
   testConnection
 } = require("./home-assistant-client");
+const {
+  isHomeAssistantConfigured,
+  normalizeHomeAssistantConfig
+} = require("./home-assistant-config");
+const {
+  createUnavailableSnapshot,
+  HomeAssistantStateCache,
+  MAX_HOME_ASSISTANT_ENTITIES
+} = require("./home-assistant-state-cache");
 
 const HOME_ASSISTANT_REQUEST_LIMIT = "4kb";
 
 function createHomeAssistantRouter({
   testConnectionImpl = testConnection,
-  getStoredConfig = () => null
+  getStoredConfig = () => null,
+  stateCache = new HomeAssistantStateCache()
 } = {}) {
   const router = express.Router();
   const jsonParser = express.json({
     limit: HOME_ASSISTANT_REQUEST_LIMIT,
     strict: true,
     type: "application/json"
+  });
+
+  router.get("/entities", setNoStore, async (req, res) => {
+    const unsupportedQuery = Object.keys(req.query).some(
+      (key) => !["domain", "limit"].includes(key)
+    );
+    const domains = normalizeDomainFilter(req.query.domain);
+    const limit = normalizeResponseLimit(req.query.limit);
+
+    if (unsupportedQuery || domains === null || limit === null) {
+      return res.status(400).json({ status: "invalid_request" });
+    }
+
+    const config = normalizeHomeAssistantConfig(getStoredConfig());
+
+    if (!config.enabled) {
+      return res.json(createUnavailableSnapshot("disabled"));
+    }
+
+    if (!isHomeAssistantConfigured(config)) {
+      return res.json(createUnavailableSnapshot("unconfigured"));
+    }
+
+    let snapshot;
+
+    try {
+      snapshot = await stateCache.getSnapshot(config);
+    } catch {
+      snapshot = createUnavailableSnapshot();
+    }
+
+    return res.json(filterSnapshot(snapshot, domains, limit));
   });
 
   router.post(
@@ -76,6 +118,72 @@ function createHomeAssistantRouter({
   return router;
 }
 
+function normalizeDomainFilter(value) {
+  if (typeof value === "undefined") return [];
+
+  const values = Array.isArray(value) ? value : [value];
+
+  if (
+    values.length === 0 ||
+    values.length > 20 ||
+    values.some((domain) =>
+      typeof domain !== "string" ||
+      !/^[a-z0-9_]+$/.test(domain)
+    )
+  ) {
+    return null;
+  }
+
+  return [...new Set(values)];
+}
+
+function normalizeResponseLimit(value) {
+  if (typeof value === "undefined") return MAX_HOME_ASSISTANT_ENTITIES;
+
+  if (
+    typeof value !== "string" ||
+    !/^\d+$/.test(value) ||
+    Number(value) < 1 ||
+    Number(value) > MAX_HOME_ASSISTANT_ENTITIES
+  ) {
+    return null;
+  }
+
+  return Number(value);
+}
+
+function filterSnapshot(snapshot, domains, limit) {
+  if (snapshot?.status !== "available") {
+    return createUnavailableSnapshot(snapshot?.status || "unavailable");
+  }
+
+  const requestedDomains = new Set(domains);
+  const filtered = domains.length === 0
+    ? snapshot.entities
+    : snapshot.entities.filter((entity) =>
+      requestedDomains.has(entity.domain)
+    );
+  const total = domains.length === 0
+    ? snapshot.total
+    : domains.reduce(
+      (sum, domain) => sum + (snapshot.domainTotals?.[domain] || 0),
+      0
+    );
+
+  return {
+    schemaVersion: 1,
+    status: "available",
+    entities: filtered.slice(0, limit),
+    updatedAt: snapshot.updatedAt,
+    stale: snapshot.stale === true,
+    total,
+    truncated:
+      snapshot.truncated === true ||
+      filtered.length > limit ||
+      total > filtered.length
+  };
+}
+
 function setNoStore(req, res, next) {
   res.set("Cache-Control", "no-store");
   next();
@@ -125,9 +233,12 @@ function normalizeConnectionStatus(status) {
 }
 
 module.exports = {
+  filterSnapshot,
   HOME_ASSISTANT_REQUEST_LIMIT,
   createHomeAssistantRouter,
   getResultHttpStatus,
+  normalizeDomainFilter,
   normalizeConnectionStatus,
+  normalizeResponseLimit,
   validateRequestOrigin
 };

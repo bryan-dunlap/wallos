@@ -53,6 +53,30 @@ async function request(baseUrl, {
   };
 }
 
+async function entityRequest(baseUrl, query = "") {
+  const response = await fetch(
+    `${baseUrl}/api/home-assistant/entities${query}`
+  );
+
+  return {
+    body: await response.json(),
+    cacheControl: response.headers.get("cache-control"),
+    status: response.status
+  };
+}
+
+function emptySnapshot(status) {
+  return {
+    schemaVersion: 1,
+    status,
+    entities: [],
+    updatedAt: null,
+    stale: false,
+    total: 0,
+    truncated: false
+  };
+}
+
 test("route accepts draft credentials without persisting or exposing them", async () => {
   let received;
   let calls = 0;
@@ -192,5 +216,171 @@ test("route strips unexpected client data and sanitizes thrown errors", async ()
     assert.equal(response.status, 502);
     assert.deepEqual(response.body, { status: "unreachable" });
     assert.equal(JSON.stringify(response).includes(TOKEN), false);
+  });
+});
+
+test("entities route distinguishes disabled and unconfigured settings", async () => {
+  for (const [storedConfig, status] of [
+    [{ enabled: false }, "disabled"],
+    [{ enabled: true, baseUrl: "https://ha.example.test" }, "unconfigured"]
+  ]) {
+    await withTestServer(null, async (baseUrl) => {
+      const response = await entityRequest(baseUrl);
+
+      assert.equal(response.status, 200);
+      assert.equal(response.cacheControl, "no-store");
+      assert.deepEqual(response.body, emptySnapshot(status));
+    }, { getStoredConfig: () => storedConfig });
+  }
+});
+
+test("entities route uses stored credentials and returns only normalized data", async () => {
+  let receivedConfig;
+  const stateCache = {
+    getSnapshot: async (config) => {
+      receivedConfig = config;
+      return {
+        schemaVersion: 1,
+        status: "available",
+        entities: [{
+          entityId: "sensor.safe",
+          domain: "sensor",
+          state: "1",
+          displayName: "Safe",
+          unit: null,
+          deviceClass: null,
+          stateClass: null,
+          icon: null,
+          availability: "available",
+          lastChanged: null,
+          updatedAt: null
+        }],
+        updatedAt: "2026-09-07T18:00:00.000Z",
+        stale: false,
+        total: 1,
+        truncated: false,
+        context: { id: "raw-context" },
+        attributes: { secret_metadata: "raw-attribute" }
+      };
+    }
+  };
+
+  await withTestServer(null, async (baseUrl) => {
+    const response = await entityRequest(baseUrl);
+    const serialized = JSON.stringify(response.body);
+
+    assert.equal(response.status, 200);
+    assert.equal(response.cacheControl, "no-store");
+    assert.equal(response.body.status, "available");
+    assert.equal(serialized.includes(TOKEN), false);
+    assert.equal(serialized.includes("raw-context"), false);
+    assert.equal(serialized.includes("raw-attribute"), false);
+  }, {
+    getStoredConfig: () => ({
+      enabled: true,
+      baseUrl: "https://ha.example.test",
+      accessToken: TOKEN
+    }),
+    stateCache
+  });
+
+  assert.equal(receivedConfig.accessToken, TOKEN);
+});
+
+test("entities route preserves unavailable and stale snapshot contracts", async () => {
+  for (const snapshot of [
+    emptySnapshot("unavailable"),
+    {
+      schemaVersion: 1,
+      status: "available",
+      entities: [],
+      updatedAt: "2026-09-07T18:00:00.000Z",
+      stale: true,
+      total: 0,
+      truncated: false
+    }
+  ]) {
+    await withTestServer(null, async (baseUrl) => {
+      const response = await entityRequest(baseUrl);
+      assert.equal(response.status, 200);
+      assert.equal(response.body.status, snapshot.status);
+      assert.equal(response.body.stale, snapshot.stale);
+    }, {
+      getStoredConfig: () => ({
+        enabled: true,
+        baseUrl: "https://ha.example.test",
+        accessToken: TOKEN
+      }),
+      stateCache: { getSnapshot: async () => snapshot }
+    });
+  }
+});
+
+test("entities route filters repeated domains and applies a bounded limit", async () => {
+  const snapshot = {
+    schemaVersion: 1,
+    status: "available",
+    entities: [
+      { entityId: "light.a", domain: "light" },
+      { entityId: "sensor.a", domain: "sensor" },
+      { entityId: "sensor.b", domain: "sensor" }
+    ],
+    updatedAt: "2026-09-07T18:00:00.000Z",
+    stale: false,
+    total: 4,
+    truncated: true
+  };
+  Object.defineProperty(snapshot, "domainTotals", {
+    value: { light: 1, sensor: 3 },
+    enumerable: false
+  });
+
+  await withTestServer(null, async (baseUrl) => {
+    const response = await entityRequest(
+      baseUrl,
+      "?domain=sensor&domain=light&limit=2"
+    );
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(
+      response.body.entities.map((entity) => entity.entityId),
+      ["light.a", "sensor.a"]
+    );
+    assert.equal(response.body.total, 4);
+    assert.equal(response.body.truncated, true);
+  }, {
+    getStoredConfig: () => ({
+      enabled: true,
+      baseUrl: "https://ha.example.test",
+      accessToken: TOKEN
+    }),
+    stateCache: { getSnapshot: async () => snapshot }
+  });
+});
+
+test("entities route rejects invalid filters, limits, and credential overrides", async () => {
+  await withTestServer(null, async (baseUrl) => {
+    for (const query of [
+      "?domain=Sensor",
+      "?domain=sensor.bad",
+      "?limit=0",
+      "?limit=2001",
+      "?limit=1.5",
+      `?accessToken=${TOKEN}`,
+      "?baseUrl=https%3A%2F%2Fother.example.test"
+    ]) {
+      const response = await entityRequest(baseUrl, query);
+
+      assert.equal(response.status, 400);
+      assert.deepEqual(response.body, { status: "invalid_request" });
+      assert.equal(response.cacheControl, "no-store");
+    }
+  }, {
+    getStoredConfig: () => ({
+      enabled: true,
+      baseUrl: "https://ha.example.test",
+      accessToken: TOKEN
+    }),
+    stateCache: { getSnapshot: async () => emptySnapshot("unavailable") }
   });
 });

@@ -98,6 +98,16 @@ The display environment is a deployment choice. The application architecture sho
 
 ## 2026-09-07
 
+### Home Assistant Entity Boundary
+
+Decision:
+Home Assistant state payloads terminate at a backend normalization boundary. Phase 2A exposes a bounded, request-driven Mosaic entity snapshot with no frontend polling, Home Assistant actions, or raw attribute passthrough. Future consumers will depend on this normalized snapshot rather than HA-native responses.
+
+Reason:
+This keeps credentials and provider-specific data backend-only while establishing one stable, cacheable contract for later Control, Hero, and widget work.
+
+---
+
 ### Backend Team Logo Decoding
 
 Decision:
