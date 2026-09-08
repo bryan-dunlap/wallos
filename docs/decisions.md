@@ -108,6 +108,16 @@ This keeps credentials and provider-specific data backend-only while establishin
 
 ---
 
+### Home Assistant Entity Selection
+
+Decision:
+Mosaic persists an ordered, bounded Home Assistant selection as entity IDs only. Control resolves current names and metadata from normalized snapshots, preserves selected IDs that are temporarily missing, and treats selection as presentation-agnostic configuration. Home Assistant control and service actions remain out of scope.
+
+Reason:
+Stable IDs survive state and metadata changes without duplicating provider data in configuration, while retaining missing selections prevents temporary device outages from silently changing user intent.
+
+---
+
 ### Backend Team Logo Decoding
 
 Decision:

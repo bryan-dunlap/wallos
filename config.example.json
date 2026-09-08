@@ -44,6 +44,7 @@
   "homeAssistant": {
     "enabled": false,
     "baseUrl": "",
-    "accessToken": ""
+    "accessToken": "",
+    "entities": []
   }
 }

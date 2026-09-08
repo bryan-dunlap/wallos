@@ -1,7 +1,14 @@
+const {
+  normalizeEntityId
+} = require("./home-assistant-entity-normalizer");
+
+const MAX_HOME_ASSISTANT_SELECTED_ENTITIES = 32;
+
 const DEFAULT_HOME_ASSISTANT_CONFIG = Object.freeze({
   enabled: false,
   baseUrl: "",
-  accessToken: ""
+  accessToken: "",
+  entities: Object.freeze([])
 });
 
 function normalizeHomeAssistantConfig(config) {
@@ -12,11 +19,13 @@ function normalizeHomeAssistantConfig(config) {
   const accessToken = normalizeHomeAssistantAccessToken(
     config?.accessToken
   );
+  const entities = normalizeHomeAssistantEntities(config?.entities);
 
   return {
     enabled,
     baseUrl: baseUrl || "",
-    accessToken
+    accessToken,
+    entities
   };
 }
 
@@ -48,6 +57,44 @@ function normalizeHomeAssistantAccessToken(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function normalizeHomeAssistantEntities(value, { strict = false } = {}) {
+  if (typeof value === "undefined") return [];
+
+  if (!Array.isArray(value)) {
+    if (strict) throw new Error("Home Assistant entities must be an array.");
+    return [];
+  }
+
+  const entities = [];
+  const seen = new Set();
+
+  for (const candidate of value) {
+    const entityId = normalizeEntityId(candidate);
+
+    if (!entityId) {
+      if (strict) throw new Error("Home Assistant entity ID is invalid.");
+      continue;
+    }
+
+    if (seen.has(entityId)) continue;
+
+    seen.add(entityId);
+    entities.push(entityId);
+  }
+
+  if (entities.length > MAX_HOME_ASSISTANT_SELECTED_ENTITIES) {
+    if (strict) {
+      throw new Error(
+        `Home Assistant supports at most ${MAX_HOME_ASSISTANT_SELECTED_ENTITIES} selected entities.`
+      );
+    }
+
+    return entities.slice(0, MAX_HOME_ASSISTANT_SELECTED_ENTITIES);
+  }
+
+  return entities;
+}
+
 function isHomeAssistantConfigured(config) {
   const normalized = normalizeHomeAssistantConfig(config);
 
@@ -60,15 +107,18 @@ function createPublicHomeAssistantConfig(config) {
   return {
     enabled: normalized.enabled,
     baseUrl: normalized.baseUrl,
-    configured: isHomeAssistantConfigured(normalized)
+    configured: isHomeAssistantConfigured(normalized),
+    entities: [...normalized.entities]
   };
 }
 
 module.exports = {
   DEFAULT_HOME_ASSISTANT_CONFIG,
+  MAX_HOME_ASSISTANT_SELECTED_ENTITIES,
   createPublicHomeAssistantConfig,
   isHomeAssistantConfigured,
   normalizeHomeAssistantAccessToken,
   normalizeHomeAssistantBaseUrl,
-  normalizeHomeAssistantConfig
+  normalizeHomeAssistantConfig,
+  normalizeHomeAssistantEntities
 };

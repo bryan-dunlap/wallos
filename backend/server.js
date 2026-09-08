@@ -50,10 +50,12 @@ const {
 } = require("./discovery/discovery-aggregator");
 const {
   DEFAULT_HOME_ASSISTANT_CONFIG,
+  MAX_HOME_ASSISTANT_SELECTED_ENTITIES,
   createPublicHomeAssistantConfig,
   normalizeHomeAssistantAccessToken,
   normalizeHomeAssistantBaseUrl,
-  normalizeHomeAssistantConfig
+  normalizeHomeAssistantConfig,
+  normalizeHomeAssistantEntities
 } = require("./home-assistant/home-assistant-config");
 const {
   createHomeAssistantRouter
@@ -626,6 +628,7 @@ function resolveHomeAssistantConfigUpdate(currentConfig, update) {
   const enabled = update?.enabled;
   const baseUrlDraft = update?.baseUrl;
   const tokenOperation = update?.tokenOperation;
+  let entities;
 
   if (typeof enabled !== "boolean") {
     throw new Error("Home Assistant enabled must be a boolean.");
@@ -647,6 +650,26 @@ function resolveHomeAssistantConfigUpdate(currentConfig, update) {
     throw new Error("Home Assistant token operation is invalid.");
   }
 
+  try {
+    const entitiesDraft = typeof update?.entitiesDraft === "string"
+      ? update.entitiesDraft
+      : JSON.stringify(current.entities);
+    entities = normalizeHomeAssistantEntities(
+      JSON.parse(entitiesDraft),
+      { strict: true }
+    );
+  } catch (error) {
+    if (
+      error?.message === "Home Assistant entities must be an array." ||
+      error?.message === "Home Assistant entity ID is invalid." ||
+      error?.message === `Home Assistant supports at most ${MAX_HOME_ASSISTANT_SELECTED_ENTITIES} selected entities.`
+    ) {
+      throw error;
+    }
+
+    throw new Error("Home Assistant entities are invalid.");
+  }
+
   let accessToken = current.accessToken;
 
   if (tokenOperation === "replace") {
@@ -658,7 +681,7 @@ function resolveHomeAssistantConfigUpdate(currentConfig, update) {
     accessToken = "";
   }
 
-  return { enabled, baseUrl, accessToken };
+  return { enabled, baseUrl, accessToken, entities };
 }
 
 function resolveDisplayPowerScheduleUpdate(currentSchedule, update) {
@@ -1025,6 +1048,9 @@ app.get("/control", (req, res) => {
           </div>` : ""}
         </li>`;
       }).join("");
+  const homeAssistantEntitiesDraft = JSON.stringify(
+    config.homeAssistant.entities
+  );
 
   res.type("html").send(`<!doctype html>
 <html lang="en">
@@ -1137,6 +1163,19 @@ app.get("/control", (req, res) => {
     .developer-status-item { display: grid; gap: 3px; min-width: 0; padding: 10px 12px; border-radius: 10px; background: rgba(203, 218, 230, .5); }
     .developer-status-item dt { color: #64748b; font-size: .72rem; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
     .developer-status-item dd { margin: 0; color: #334155; font-size: .9rem; font-weight: 650; overflow-wrap: anywhere; }
+    .ha-selection-summary { margin: 8px 0 10px; color: #64748b; font-size: .84rem; }
+    .ha-selected-list, .ha-discovery-results { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+    .ha-selected-row, .ha-discovery-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 11px 12px; border: 1px solid rgba(239, 246, 250, .42); border-radius: 10px; background: rgba(203, 218, 230, .46); }
+    .ha-selected-row.is-missing, .ha-discovery-row.is-unavailable { opacity: .68; }
+    .ha-entity-copy { display: grid; gap: 3px; min-width: 0; }
+    .ha-entity-copy strong, .ha-entity-copy code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ha-entity-copy code { color: #526174; font: inherit; font-size: .76rem; }
+    .ha-entity-meta { color: #64748b; font-size: .74rem; }
+    .ha-selected-actions { display: flex; align-items: center; gap: 2px; }
+    .ha-discovery-toolbar { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(150px, .45fr) minmax(170px, .5fr); gap: 10px; align-items: end; margin: 12px 0; }
+    .ha-discovery-status { min-height: 22px; margin: 8px 0; color: #526174; font-size: .84rem; font-weight: 650; }
+    .ha-discovery-results { max-height: 420px; overflow: auto; padding-right: 3px; }
+    .ha-selection-feedback { margin-left: 4px; color: #a52a22; font-size: .82rem; font-weight: 650; }
     .save-bar { position: sticky; bottom: 16px; z-index: 5; display: flex; justify-content: flex-end; padding: 12px; border: 1px solid rgba(236, 244, 249, .52); border-radius: 14px; background: rgba(219, 230, 238, .9); box-shadow: 0 10px 30px rgba(15, 23, 42, .12), inset 0 1px 0 rgba(246, 250, 253, .58); backdrop-filter: blur(14px); }
     .save-status { align-self: center; margin-right: auto; padding: 0 10px; color: #64748b; font-size: .86rem; font-weight: 650; }
     .control-header-copy { min-width: 0; }
@@ -1223,6 +1262,7 @@ app.get("/control", (req, res) => {
       .settings-card-wide, .field-full { grid-column: auto; }
       .inline-form { grid-template-columns: 1fr; }
       .developer-status-grid { grid-template-columns: 1fr; }
+      .ha-discovery-toolbar { grid-template-columns: 1fr; }
       .item-row { align-items: start; }
       .schedule-builder { grid-template-columns: 1fr 1fr; }
       .schedule-builder .field:first-child, .schedule-builder .button { grid-column: 1 / -1; }
@@ -1443,6 +1483,23 @@ app.get("/control", (req, res) => {
                     <button class="button button-secondary" type="button" data-home-assistant-test>Test Connection</button>
                     <span data-home-assistant-test-result role="status" aria-live="polite"></span>
                   </div>
+                  <h4 class="subsection-title">Selected Entities</h4>
+                  <p class="ha-selection-summary"><span data-home-assistant-selected-count>${config.homeAssistant.entities.length}</span> of ${MAX_HOME_ASSISTANT_SELECTED_ENTITIES} selected</p>
+                  <ul class="ha-selected-list" data-home-assistant-selected-list aria-label="Selected Home Assistant entities"></ul>
+                  <p class="empty-state" data-home-assistant-selected-empty${config.homeAssistant.entities.length ? " hidden" : ""}>No Home Assistant entities selected.</p>
+                  <input name="homeAssistantEntitiesDraft" type="hidden" value="${escapeHtml(homeAssistantEntitiesDraft)}" data-home-assistant-entities-draft>
+                  <h4 class="subsection-title">Find Entities</h4>
+                  <div class="button-row">
+                    <button class="button button-secondary" type="button" data-home-assistant-refresh-entities>Refresh Entities</button>
+                    <span class="ha-selection-feedback" data-home-assistant-selection-feedback role="status" aria-live="polite"></span>
+                  </div>
+                  <div class="ha-discovery-toolbar">
+                    <div class="field"><label for="home-assistant-entity-search">Search</label><input id="home-assistant-entity-search" type="search" placeholder="Name or entity ID" autocomplete="off" data-home-assistant-entity-search></div>
+                    <div class="field"><label for="home-assistant-domain-filter">Domain</label><select id="home-assistant-domain-filter" data-home-assistant-domain-filter><option value="">All domains</option></select></div>
+                    <div class="field"><label for="home-assistant-availability-filter">Availability</label><select id="home-assistant-availability-filter" data-home-assistant-availability-filter><option value="">All</option><option value="available">Available</option><option value="unavailable">Unavailable / Unknown</option></select></div>
+                  </div>
+                  <p class="ha-discovery-status" data-home-assistant-discovery-status role="status" aria-live="polite">Loading Home Assistant entities…</p>
+                  <ul class="ha-discovery-results" data-home-assistant-discovery-results aria-label="Home Assistant entity discovery results"></ul>
                 </div>
               </section></div>
             </section>
@@ -1941,7 +1998,8 @@ app.get("/control", (req, res) => {
         "homeAssistantEnabled",
         "homeAssistantBaseUrl",
         "homeAssistantAccessToken",
-        "homeAssistantTokenOperation"
+        "homeAssistantTokenOperation",
+        "homeAssistantEntitiesDraft"
       ]);
 
       const showPendingState = (event) => {
@@ -2269,6 +2327,318 @@ app.get("/control", (req, res) => {
           testButton.disabled = false;
         }
       });
+    })();
+
+    (() => {
+      const draftField = document.querySelector(
+        "[data-home-assistant-entities-draft]"
+      );
+      const selectedList = document.querySelector(
+        "[data-home-assistant-selected-list]"
+      );
+      const selectedEmpty = document.querySelector(
+        "[data-home-assistant-selected-empty]"
+      );
+      const selectedCount = document.querySelector(
+        "[data-home-assistant-selected-count]"
+      );
+      const search = document.querySelector(
+        "[data-home-assistant-entity-search]"
+      );
+      const domainFilter = document.querySelector(
+        "[data-home-assistant-domain-filter]"
+      );
+      const availabilityFilter = document.querySelector(
+        "[data-home-assistant-availability-filter]"
+      );
+      const results = document.querySelector(
+        "[data-home-assistant-discovery-results]"
+      );
+      const discoveryStatus = document.querySelector(
+        "[data-home-assistant-discovery-status]"
+      );
+      const refreshButton = document.querySelector(
+        "[data-home-assistant-refresh-entities]"
+      );
+      const feedback = document.querySelector(
+        "[data-home-assistant-selection-feedback]"
+      );
+      const maximumSelections = ${MAX_HOME_ASSISTANT_SELECTED_ENTITIES};
+
+      if (
+        !draftField || !selectedList || !selectedEmpty ||
+        !selectedCount || !search || !domainFilter ||
+        !availabilityFilter || !results || !discoveryStatus ||
+        !refreshButton || !feedback
+      ) return;
+
+      let selectedIds;
+      try {
+        selectedIds = JSON.parse(draftField.value);
+      } catch {
+        selectedIds = [];
+      }
+      if (!Array.isArray(selectedIds)) selectedIds = [];
+
+      let discoveredEntities = [];
+      let discoveryLoaded = false;
+      const metadataById = new Map();
+
+      const humanize = (value) => value
+        .split("_")
+        .filter(Boolean)
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+
+      const fallbackName = (entityId) =>
+        humanize(entityId.split(".")[1] || entityId);
+
+      const createCopy = (entity, missing = false) => {
+        const copy = document.createElement("span");
+        copy.className = "ha-entity-copy";
+        const name = document.createElement("strong");
+        name.textContent = entity?.displayName || fallbackName(entity.entityId);
+        const id = document.createElement("code");
+        id.textContent = entity.entityId;
+        const metadata = document.createElement("span");
+        metadata.className = "ha-entity-meta";
+        metadata.textContent = missing
+          ? "Missing / Not currently reported"
+          : [
+            humanize(entity.domain),
+            entity.unit,
+            entity.deviceClass ? humanize(entity.deviceClass) : null,
+            entity.availability !== "available"
+              ? humanize(entity.availability)
+              : null
+          ].filter(Boolean).join(" · ");
+        copy.append(name, id, metadata);
+        return copy;
+      };
+
+      const syncDraft = () => {
+        draftField.value = JSON.stringify(selectedIds);
+        draftField.dispatchEvent(new Event("input", { bubbles: true }));
+        feedback.textContent = "";
+        renderSelected();
+        renderResults();
+      };
+
+      const renderSelected = () => {
+        selectedList.replaceChildren();
+        selectedIds.forEach((entityId, index) => {
+          const entity = metadataById.get(entityId) || { entityId };
+          const missing = discoveryLoaded && !metadataById.has(entityId);
+          const row = document.createElement("li");
+          row.className = "ha-selected-row" + (missing ? " is-missing" : "");
+          row.dataset.homeAssistantSelectedEntity = entityId;
+          row.append(createCopy(entity, missing));
+
+          const actions = document.createElement("span");
+          actions.className = "ha-selected-actions";
+          ["up", "down"].forEach((direction) => {
+            const button = document.createElement("button");
+            button.className = "button button-quiet";
+            button.type = "button";
+            button.dataset.moveHomeAssistantEntity = direction;
+            button.textContent = direction === "up" ? "↑" : "↓";
+            button.setAttribute(
+              "aria-label",
+              "Move " + entityId + " " + direction
+            );
+            button.disabled = direction === "up"
+              ? index === 0
+              : index === selectedIds.length - 1;
+            actions.append(button);
+          });
+          const remove = document.createElement("button");
+          remove.className = "button button-quiet";
+          remove.type = "button";
+          remove.dataset.removeHomeAssistantEntity = entityId;
+          remove.textContent = "Remove";
+          remove.setAttribute("aria-label", "Remove " + entityId);
+          actions.append(remove);
+          row.append(actions);
+          selectedList.append(row);
+        });
+        selectedEmpty.hidden = selectedIds.length > 0;
+        selectedCount.textContent = String(selectedIds.length);
+      };
+
+      const renderDomainFilters = () => {
+        const selectedDomain = domainFilter.value;
+        const counts = discoveredEntities.reduce((result, entity) => {
+          result.set(entity.domain, (result.get(entity.domain) || 0) + 1);
+          return result;
+        }, new Map());
+        domainFilter.replaceChildren();
+        const allOption = document.createElement("option");
+        allOption.value = "";
+        allOption.textContent = "All (" + discoveredEntities.length + ")";
+        domainFilter.append(allOption);
+        [...counts.entries()]
+          .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+          .forEach(([domain, count]) => {
+            const option = document.createElement("option");
+            option.value = domain;
+            option.textContent = humanize(domain) + " (" + count + ")";
+            domainFilter.append(option);
+          });
+        domainFilter.value = counts.has(selectedDomain) ? selectedDomain : "";
+      };
+
+      const matchesFilters = (entity) => {
+        const query = search.value.trim().toLowerCase();
+        const matchesSearch = !query ||
+          entity.displayName.toLowerCase().includes(query) ||
+          entity.entityId.toLowerCase().includes(query);
+        const matchesDomain = !domainFilter.value ||
+          entity.domain === domainFilter.value;
+        const matchesAvailability = !availabilityFilter.value ||
+          (availabilityFilter.value === "available"
+            ? entity.availability === "available"
+            : entity.availability === "unavailable" ||
+              entity.availability === "unknown");
+        return matchesSearch && matchesDomain && matchesAvailability;
+      };
+
+      const renderResults = () => {
+        results.replaceChildren();
+        if (!discoveryLoaded) return;
+
+        const visibleEntities = discoveredEntities.filter(matchesFilters);
+        visibleEntities.forEach((entity) => {
+          const selected = selectedIds.includes(entity.entityId);
+          const row = document.createElement("li");
+          row.className = "ha-discovery-row" +
+            (entity.availability === "available" ? "" : " is-unavailable");
+          row.dataset.homeAssistantDiscoveryEntity = entity.entityId;
+          row.append(createCopy(entity));
+          const add = document.createElement("button");
+          add.className = "button button-secondary";
+          add.type = "button";
+          add.dataset.addHomeAssistantEntity = entity.entityId;
+          add.textContent = selected ? "Selected" : "Add";
+          add.disabled = selected || selectedIds.length >= maximumSelections;
+          add.setAttribute("aria-label", "Add " + entity.entityId);
+          row.append(add);
+          results.append(row);
+        });
+
+        if (visibleEntities.length === 0 && discoveredEntities.length > 0) {
+          const empty = document.createElement("li");
+          empty.className = "empty-state";
+          empty.textContent = "No entities match these filters.";
+          results.append(empty);
+        }
+      };
+
+      const loadEntities = async () => {
+        refreshButton.disabled = true;
+        discoveryStatus.textContent = "Loading Home Assistant entities…";
+        feedback.textContent = "";
+        try {
+          const response = await fetch("/api/home-assistant/entities");
+          if (!response.ok) throw new Error("request failed");
+          const snapshot = await response.json();
+          discoveredEntities = Array.isArray(snapshot.entities)
+            ? snapshot.entities.filter((entity) =>
+              entity && typeof entity.entityId === "string" &&
+              typeof entity.domain === "string" &&
+              typeof entity.displayName === "string" &&
+              typeof entity.state === "string" &&
+              ["available", "unavailable", "unknown"].includes(
+                entity.availability
+              )
+            )
+            : [];
+          metadataById.clear();
+          discoveredEntities.forEach((entity) => {
+            metadataById.set(entity.entityId, entity);
+          });
+          discoveryLoaded = true;
+          renderDomainFilters();
+          renderSelected();
+          renderResults();
+
+          if (snapshot.status === "disabled") {
+            discoveryStatus.textContent = "Enable Home Assistant to find entities.";
+          } else if (snapshot.status === "unconfigured") {
+            discoveryStatus.textContent = "Save a Home Assistant URL and access token to find entities.";
+          } else if (snapshot.status !== "available") {
+            discoveryStatus.textContent = "Home Assistant entities are unavailable.";
+          } else if (discoveredEntities.length === 0) {
+            discoveryStatus.textContent = "Home Assistant reported no entities.";
+          } else {
+            discoveryStatus.textContent = discoveredEntities.length +
+              " entities available" +
+              (snapshot.stale ? " · List may be out of date" : "");
+          }
+        } catch {
+          discoveryLoaded = true;
+          discoveredEntities = [];
+          metadataById.clear();
+          renderDomainFilters();
+          renderSelected();
+          renderResults();
+          discoveryStatus.textContent = "Home Assistant entities could not be loaded.";
+        } finally {
+          refreshButton.disabled = false;
+        }
+      };
+
+      selectedList.addEventListener("click", (event) => {
+        const remove = event.target.closest(
+          "[data-remove-home-assistant-entity]"
+        );
+        if (remove) {
+          selectedIds = selectedIds.filter(
+            (entityId) => entityId !== remove.dataset.removeHomeAssistantEntity
+          );
+          syncDraft();
+          return;
+        }
+
+        const move = event.target.closest(
+          "[data-move-home-assistant-entity]"
+        );
+        const row = move?.closest("[data-home-assistant-selected-entity]");
+        const index = row
+          ? selectedIds.indexOf(row.dataset.homeAssistantSelectedEntity)
+          : -1;
+        const destination = move?.dataset.moveHomeAssistantEntity === "up"
+          ? index - 1
+          : index + 1;
+        if (
+          index < 0 || destination < 0 ||
+          destination >= selectedIds.length
+        ) return;
+        [selectedIds[index], selectedIds[destination]] =
+          [selectedIds[destination], selectedIds[index]];
+        syncDraft();
+      });
+
+      results.addEventListener("click", (event) => {
+        const add = event.target.closest("[data-add-home-assistant-entity]");
+        const entityId = add?.dataset.addHomeAssistantEntity;
+        if (!entityId || selectedIds.includes(entityId)) return;
+        if (selectedIds.length >= maximumSelections) {
+          feedback.textContent = "Remove an entity before adding another. The limit is " + maximumSelections + ".";
+          return;
+        }
+        selectedIds.push(entityId);
+        syncDraft();
+        if (selectedIds.length >= maximumSelections) {
+          feedback.textContent = "Selection limit reached (" + maximumSelections + ").";
+        }
+      });
+
+      search.addEventListener("input", renderResults);
+      domainFilter.addEventListener("change", renderResults);
+      availabilityFilter.addEventListener("change", renderResults);
+      refreshButton.addEventListener("click", loadEntities);
+      renderSelected();
+      loadEntities();
     })();
 
     (() => {
@@ -3637,7 +4007,8 @@ app.post("/control", async (req, res) => {
         enabled: req.body.homeAssistantEnabled === "true",
         baseUrl: req.body.homeAssistantBaseUrl,
         tokenOperation: req.body.homeAssistantTokenOperation,
-        accessToken: req.body.homeAssistantAccessToken
+        accessToken: req.body.homeAssistantAccessToken,
+        entitiesDraft: req.body.homeAssistantEntitiesDraft
       }),
       resolveDisplayPowerScheduleUpdate(
         currentConfig.display.powerSchedule,
@@ -3679,6 +4050,10 @@ app.post("/control", async (req, res) => {
         error.message === "Home Assistant URL is invalid." ||
         error.message === "Home Assistant token operation is invalid." ||
         error.message === "A replacement Home Assistant token is required." ||
+        error.message === "Home Assistant entities are invalid." ||
+        error.message === "Home Assistant entities must be an array." ||
+        error.message === "Home Assistant entity ID is invalid." ||
+        error.message === `Home Assistant supports at most ${MAX_HOME_ASSISTANT_SELECTED_ENTITIES} selected entities.` ||
         error.message.startsWith("Display power schedule "));
 
     if (isValidationError) {

@@ -3,9 +3,11 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 const {
+  MAX_HOME_ASSISTANT_SELECTED_ENTITIES,
   createPublicHomeAssistantConfig,
   normalizeHomeAssistantBaseUrl,
-  normalizeHomeAssistantConfig
+  normalizeHomeAssistantConfig,
+  normalizeHomeAssistantEntities
 } = require(
   "../../backend/home-assistant/home-assistant-config"
 );
@@ -14,7 +16,8 @@ test("missing Home Assistant configuration uses safe defaults", () => {
   assert.deepEqual(normalizeHomeAssistantConfig(), {
     enabled: false,
     baseUrl: "",
-    accessToken: ""
+    accessToken: "",
+    entities: []
   });
 });
 
@@ -22,7 +25,8 @@ test("existing Mosaic configuration without Home Assistant remains compatible", 
   assert.deepEqual(normalizeHomeAssistantConfig({ unrelated: true }), {
     enabled: false,
     baseUrl: "",
-    accessToken: ""
+    accessToken: "",
+    entities: []
   });
 });
 
@@ -54,18 +58,20 @@ test("public configuration reports state without exposing credentials", () => {
   const publicConfig = createPublicHomeAssistantConfig({
     enabled: true,
     baseUrl: "https://ha.example.test",
-    accessToken
+    accessToken,
+    entities: ["lock.front_door", "light.bedroom"]
   });
 
   assert.deepEqual(publicConfig, {
     enabled: true,
     baseUrl: "https://ha.example.test",
-    configured: true
+    configured: true,
+    entities: ["lock.front_door", "light.bedroom"]
   });
   assert.equal(JSON.stringify(publicConfig).includes(accessToken), false);
   assert.deepEqual(
     createPublicHomeAssistantConfig({ enabled: true }),
-    { enabled: true, baseUrl: "", configured: false }
+    { enabled: true, baseUrl: "", configured: false, entities: [] }
   );
 });
 
@@ -82,7 +88,8 @@ test("sanitized example contains the current schema without private values", () 
   assert.deepEqual(example.homeAssistant, {
     enabled: false,
     baseUrl: "",
-    accessToken: ""
+    accessToken: "",
+    entities: []
   });
   assert.deepEqual(example.calendar.sources, []);
   assert.deepEqual(example.discovery.sources, []);
@@ -103,4 +110,47 @@ test("serialized public API shape never includes a Home Assistant token", () => 
 
   assert.equal(JSON.stringify(apiConfig).includes(accessToken), false);
   assert.equal("accessToken" in apiConfig.homeAssistant, false);
+});
+
+test("normalizes selected entity IDs with stable order and deduplication", () => {
+  assert.deepEqual(normalizeHomeAssistantEntities([
+    " light.bedroom ",
+    "lock.front_door",
+    "light.bedroom",
+    "media_player.appletv4k"
+  ], { strict: true }), [
+    "light.bedroom",
+    "lock.front_door",
+    "media_player.appletv4k"
+  ]);
+});
+
+test("strict selected entity validation rejects malformed and oversized lists", () => {
+  assert.throws(
+    () => normalizeHomeAssistantEntities(["not-an-entity"], { strict: true }),
+    /entity ID is invalid/
+  );
+  assert.throws(
+    () => normalizeHomeAssistantEntities("sensor.one", { strict: true }),
+    /must be an array/
+  );
+  assert.throws(
+    () => normalizeHomeAssistantEntities(
+      Array.from(
+        { length: MAX_HOME_ASSISTANT_SELECTED_ENTITIES + 1 },
+        (_, index) => `sensor.item_${index}`
+      ),
+      { strict: true }
+    ),
+    /at most 32 selected entities/
+  );
+});
+
+test("legacy saved selections load tolerantly within the configured bound", () => {
+  const normalized = normalizeHomeAssistantConfig({
+    enabled: true,
+    entities: ["bad", "sensor.valid", "sensor.valid"]
+  });
+
+  assert.deepEqual(normalized.entities, ["sensor.valid"]);
 });

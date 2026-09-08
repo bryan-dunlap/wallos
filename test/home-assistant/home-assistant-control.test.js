@@ -11,6 +11,13 @@ const serverSource = fs.readFileSync(
   "utf8"
 );
 const STORED_TOKEN = "stored-private-token";
+const selectionStart = serverSource.indexOf(
+  "const maximumSelections = ${MAX_HOME_ASSISTANT_SELECTED_ENTITIES};"
+);
+const selectionEnd = serverSource.indexOf("loadEntities();", selectionStart);
+const selectionSource = selectionStart >= 0 && selectionEnd >= 0
+  ? serverSource.slice(selectionStart, selectionEnd + "loadEntities();".length)
+  : "";
 
 test("Control renders Home Assistant settings without hydrating a token", () => {
   assert.match(serverSource, /data-settings-panel="home-assistant"/);
@@ -55,7 +62,8 @@ test("save contract keeps, replaces, and removes the stored token explicitly", (
   }), {
     enabled: false,
     baseUrl: "https://draft.example.test",
-    accessToken: STORED_TOKEN
+    accessToken: STORED_TOKEN,
+    entities: []
   });
 
   assert.deepEqual(resolveHomeAssistantConfigUpdate(current, {
@@ -94,4 +102,88 @@ test("Test Connection selects draft or stored token without submitting settings"
   assert.match(serverSource, /data-home-assistant-test>Test Connection/);
   assert.match(serverSource, /testButton\.addEventListener\("click"/);
   assert.doesNotMatch(serverSource, /testButton\.addEventListener\("click"[^]*?\.submit\(/);
+});
+
+test("saving an entity draft preserves the stored token and ordered IDs", () => {
+  const updated = resolveHomeAssistantConfigUpdate({
+    enabled: true,
+    baseUrl: "https://saved.example.test",
+    accessToken: STORED_TOKEN,
+    entities: ["sensor.old"]
+  }, {
+    enabled: true,
+    baseUrl: "https://saved.example.test",
+    tokenOperation: "keep",
+    accessToken: "",
+    entitiesDraft: JSON.stringify([
+      "lock.front_door",
+      "light.bedroom",
+      "lock.front_door"
+    ])
+  });
+
+  assert.deepEqual(updated, {
+    enabled: true,
+    baseUrl: "https://saved.example.test",
+    accessToken: STORED_TOKEN,
+    entities: ["lock.front_door", "light.bedroom"]
+  });
+});
+
+test("Home Assistant entity discovery lives in Settings and remains a draft", () => {
+  assert.match(serverSource, /data-settings-panel="home-assistant"[^]*?data-home-assistant-selected-list/);
+  assert.match(serverSource, /name="homeAssistantEntitiesDraft" type="hidden"/);
+  assert.match(serverSource, /fetch\("\/api\/home-assistant\/entities"\)/);
+  assert.match(serverSource, /draftField\.dispatchEvent\(new Event\("input"/);
+  assert.doesNotMatch(serverSource, /fetch\("\/control\/home-assistant/);
+
+  const developerPanel = serverSource.match(
+    /data-control-panel="developer"[^]*?<\/section>\s*<\/div>/
+  )?.[0] || "";
+  assert.doesNotMatch(developerPanel, /data-home-assistant-selected-list/);
+});
+
+test("entity discovery searches normalized names and IDs with dynamic filters", () => {
+  assert.match(serverSource, /entity\.displayName\.toLowerCase\(\)\.includes\(query\)/);
+  assert.match(serverSource, /entity\.entityId\.toLowerCase\(\)\.includes\(query\)/);
+  assert.match(serverSource, /result\.set\(entity\.domain/);
+  assert.match(serverSource, /entity\.availability === "unavailable"/);
+  assert.match(serverSource, /entity\.availability === "unknown"/);
+  assert.match(serverSource, /search\.addEventListener\("input", renderResults\)/);
+  assert.doesNotMatch(selectionSource, /search\.addEventListener\("input", fetch/);
+});
+
+test("selection supports add, remove, missing metadata, and accessible ordering", () => {
+  assert.match(serverSource, /data-add-home-assistant-entity/);
+  assert.match(serverSource, /selectedIds\.includes\(entityId\)/);
+  assert.match(serverSource, /data-remove-home-assistant-entity/);
+  assert.match(serverSource, /Missing \/ Not currently reported/);
+  assert.match(serverSource, /data-move-home-assistant-entity/);
+  assert.match(serverSource, /"Move " \+ entityId \+ " " \+ direction/);
+  assert.match(
+    serverSource,
+    /maximumSelections = \$\{MAX_HOME_ASSISTANT_SELECTED_ENTITIES\}/
+  );
+  assert.match(serverSource, /Selection limit reached/);
+});
+
+test("discovery covers loading, unavailable, stale, empty, and refresh states", () => {
+  assert.match(serverSource, /Loading Home Assistant entities/);
+  assert.match(serverSource, /Home Assistant entities are unavailable/);
+  assert.match(serverSource, /List may be out of date/);
+  assert.match(serverSource, /Home Assistant reported no entities/);
+  assert.match(serverSource, /Home Assistant entities could not be loaded/);
+  assert.match(serverSource, /data-home-assistant-refresh-entities/);
+  assert.match(serverSource, /refreshButton\.addEventListener\("click", loadEntities\)/);
+  assert.doesNotMatch(selectionSource, /setInterval|setTimeout/);
+});
+
+test("Control consumes only normalized Home Assistant entity fields", () => {
+  assert.match(selectionSource, /entity\.entityId/);
+  assert.match(selectionSource, /entity\.displayName/);
+  assert.match(selectionSource, /entity\.domain/);
+  assert.match(selectionSource, /entity\.unit/);
+  assert.match(selectionSource, /entity\.deviceClass/);
+  assert.match(selectionSource, /entity\.availability/);
+  assert.doesNotMatch(selectionSource, /entity_id|friendly_name|attributes|context/);
 });
