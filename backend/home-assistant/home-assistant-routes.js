@@ -11,13 +11,20 @@ const {
   HomeAssistantStateCache,
   MAX_HOME_ASSISTANT_ENTITIES
 } = require("./home-assistant-state-cache");
+const {
+  HomeAssistantRegistryCache
+} = require("./home-assistant-registry-cache");
+const {
+  createDiscoveryEntities
+} = require("./home-assistant-discovery-normalizer");
 
 const HOME_ASSISTANT_REQUEST_LIMIT = "4kb";
 
 function createHomeAssistantRouter({
   testConnectionImpl = testConnection,
   getStoredConfig = () => null,
-  stateCache = new HomeAssistantStateCache()
+  stateCache = new HomeAssistantStateCache(),
+  registryCache = new HomeAssistantRegistryCache()
 } = {}) {
   const router = express.Router();
   const jsonParser = express.json({
@@ -28,12 +35,13 @@ function createHomeAssistantRouter({
 
   router.get("/entities", setNoStore, async (req, res) => {
     const unsupportedQuery = Object.keys(req.query).some(
-      (key) => !["domain", "limit"].includes(key)
+      (key) => !["domain", "limit", "refresh"].includes(key)
     );
     const domains = normalizeDomainFilter(req.query.domain);
     const limit = normalizeResponseLimit(req.query.limit);
+    const forceRefresh = normalizeRefresh(req.query.refresh);
 
-    if (unsupportedQuery || domains === null || limit === null) {
+    if (unsupportedQuery || domains === null || limit === null || forceRefresh === null) {
       return res.status(400).json({ status: "invalid_request" });
     }
 
@@ -50,7 +58,40 @@ function createHomeAssistantRouter({
     let snapshot;
 
     try {
-      snapshot = await stateCache.getSnapshot(config);
+      const [stateSnapshot, registrySnapshot] = await Promise.all([
+        stateCache.getSnapshot(config, { forceRefresh }),
+        registryCache.getSnapshot(config, { forceRefresh })
+      ]);
+      if (stateSnapshot.status !== "available") {
+        snapshot = stateSnapshot;
+      } else {
+        const entities = createDiscoveryEntities(
+          stateSnapshot.entities,
+          registrySnapshot.status === "available"
+            ? registrySnapshot.registries
+            : null
+        );
+        const domainTotals = stateSnapshot.domainTotals || entities.reduce((totals, entity) => {
+          totals[entity.domain] = (totals[entity.domain] || 0) + 1;
+          return totals;
+        }, Object.create(null));
+        snapshot = {
+          schemaVersion: 2,
+          status: "available",
+          entities,
+          updatedAt: stateSnapshot.updatedAt,
+          stale: stateSnapshot.stale === true,
+          registryStatus: registrySnapshot.status,
+          registryStale: registrySnapshot.stale === true,
+          enriched: registrySnapshot.status === "available",
+          total: stateSnapshot.total,
+          truncated: stateSnapshot.truncated
+        };
+        Object.defineProperty(snapshot, "domainTotals", {
+          value: domainTotals,
+          enumerable: false
+        });
+      }
     } catch {
       snapshot = createUnavailableSnapshot();
     }
@@ -118,6 +159,11 @@ function createHomeAssistantRouter({
   return router;
 }
 
+function normalizeRefresh(value) {
+  if (typeof value === "undefined") return false;
+  return value === "true" ? true : null;
+}
+
 function normalizeDomainFilter(value) {
   if (typeof value === "undefined") return [];
 
@@ -171,11 +217,16 @@ function filterSnapshot(snapshot, domains, limit) {
     );
 
   return {
-    schemaVersion: 1,
+    schemaVersion: snapshot.schemaVersion || 1,
     status: "available",
     entities: filtered.slice(0, limit),
     updatedAt: snapshot.updatedAt,
     stale: snapshot.stale === true,
+    ...(snapshot.schemaVersion === 2 ? {
+      registryStatus: snapshot.registryStatus,
+      registryStale: snapshot.registryStale === true,
+      enriched: snapshot.enriched === true
+    } : {}),
     total,
     truncated:
       snapshot.truncated === true ||
@@ -240,5 +291,6 @@ module.exports = {
   normalizeDomainFilter,
   normalizeConnectionStatus,
   normalizeResponseLimit,
+  normalizeRefresh,
   validateRequestOrigin
 };

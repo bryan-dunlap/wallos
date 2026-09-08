@@ -118,6 +118,16 @@ Stable IDs survive state and metadata changes without duplicating provider data 
 
 ---
 
+### Home Assistant Discovery Enrichment
+
+Decision:
+Home Assistant registry acquisition uses a bounded, backend-only WebSocket request/response lifecycle with no persistent connection or subscription. The Phase 2A state contract remains unchanged; a separate ephemeral discovery projection joins normalized states to sanitized entity, device, and area registry metadata. Standard and Advanced visibility relies only on authoritative registry category and hidden metadata, never entity-name or device-identity heuristics. Disabled registry-only entities are excluded because current-state discovery requires a Phase 2A state. Persisted selections continue to contain entity IDs only.
+
+Reason:
+Area and device context makes entity selection understandable without exposing provider internals or coupling stable state and configuration contracts to slower-changing registry data. A separate projection and cache preserve explicit security, freshness, and graceful-degradation boundaries.
+
+---
+
 ### Backend Team Logo Decoding
 
 Decision:

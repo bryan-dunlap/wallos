@@ -1164,7 +1164,7 @@ app.get("/control", (req, res) => {
     .developer-status-item dt { color: #64748b; font-size: .72rem; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
     .developer-status-item dd { margin: 0; color: #334155; font-size: .9rem; font-weight: 650; overflow-wrap: anywhere; }
     .ha-selection-summary { margin: 8px 0 10px; color: #64748b; font-size: .84rem; }
-    .ha-selected-list, .ha-discovery-results { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+    .ha-selected-list, .ha-discovery-results, .ha-discovery-entities { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
     .ha-selected-row, .ha-discovery-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 11px 12px; border: 1px solid rgba(239, 246, 250, .42); border-radius: 10px; background: rgba(203, 218, 230, .46); }
     .ha-selected-row.is-missing, .ha-discovery-row.is-unavailable { opacity: .68; }
     .ha-entity-copy { display: grid; gap: 3px; min-width: 0; }
@@ -1172,9 +1172,15 @@ app.get("/control", (req, res) => {
     .ha-entity-copy code { color: #526174; font: inherit; font-size: .76rem; }
     .ha-entity-meta { color: #64748b; font-size: .74rem; }
     .ha-selected-actions { display: flex; align-items: center; gap: 2px; }
-    .ha-discovery-toolbar { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(150px, .45fr) minmax(170px, .5fr); gap: 10px; align-items: end; margin: 12px 0; }
+    .ha-discovery-toolbar { display: grid; grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(140px, .4fr)); gap: 10px; align-items: end; margin: 12px 0; }
     .ha-discovery-status { min-height: 22px; margin: 8px 0; color: #526174; font-size: .84rem; font-weight: 650; }
     .ha-discovery-results { max-height: 420px; overflow: auto; padding-right: 3px; }
+    .ha-area-group { display: grid; gap: 9px; padding: 5px 0 12px; }
+    .ha-area-heading { position: sticky; top: 0; z-index: 1; margin: 0; padding: 7px 4px; background: rgba(239, 244, 247, .96); color: #243447; font-size: .9rem; letter-spacing: .035em; text-transform: uppercase; }
+    .ha-device-group { display: grid; gap: 7px; }
+    .ha-device-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 7px; margin: 0 4px; color: #33465a; font-size: .88rem; }
+    .ha-device-heading small { color: #6a7888; font-weight: 500; }
+    .ha-advanced-badge { display: inline-flex; margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: rgba(84, 93, 112, .12); color: #596576; font-size: .68rem; font-weight: 750; text-transform: uppercase; }
     .ha-selection-feedback { margin-left: 4px; color: #a52a22; font-size: .82rem; font-weight: 650; }
     .save-bar { position: sticky; bottom: 16px; z-index: 5; display: flex; justify-content: flex-end; padding: 12px; border: 1px solid rgba(236, 244, 249, .52); border-radius: 14px; background: rgba(219, 230, 238, .9); box-shadow: 0 10px 30px rgba(15, 23, 42, .12), inset 0 1px 0 rgba(246, 250, 253, .58); backdrop-filter: blur(14px); }
     .save-status { align-self: center; margin-right: auto; padding: 0 10px; color: #64748b; font-size: .86rem; font-weight: 650; }
@@ -1494,7 +1500,8 @@ app.get("/control", (req, res) => {
                     <span class="ha-selection-feedback" data-home-assistant-selection-feedback role="status" aria-live="polite"></span>
                   </div>
                   <div class="ha-discovery-toolbar">
-                    <div class="field"><label for="home-assistant-entity-search">Search</label><input id="home-assistant-entity-search" type="search" placeholder="Name or entity ID" autocomplete="off" data-home-assistant-entity-search></div>
+                    <div class="field"><label for="home-assistant-entity-search">Search</label><input id="home-assistant-entity-search" type="search" placeholder="Name, entity, device, or area" autocomplete="off" data-home-assistant-entity-search></div>
+                    <div class="field"><label for="home-assistant-discovery-mode">View</label><select id="home-assistant-discovery-mode" data-home-assistant-discovery-mode><option value="standard">Standard</option><option value="advanced">Advanced</option></select></div>
                     <div class="field"><label for="home-assistant-domain-filter">Domain</label><select id="home-assistant-domain-filter" data-home-assistant-domain-filter><option value="">All domains</option></select></div>
                     <div class="field"><label for="home-assistant-availability-filter">Availability</label><select id="home-assistant-availability-filter" data-home-assistant-availability-filter><option value="">All</option><option value="available">Available</option><option value="unavailable">Unavailable / Unknown</option></select></div>
                   </div>
@@ -2348,6 +2355,9 @@ app.get("/control", (req, res) => {
       const domainFilter = document.querySelector(
         "[data-home-assistant-domain-filter]"
       );
+      const discoveryMode = document.querySelector(
+        "[data-home-assistant-discovery-mode]"
+      );
       const availabilityFilter = document.querySelector(
         "[data-home-assistant-availability-filter]"
       );
@@ -2367,7 +2377,7 @@ app.get("/control", (req, res) => {
 
       if (
         !draftField || !selectedList || !selectedEmpty ||
-        !selectedCount || !search || !domainFilter ||
+        !selectedCount || !search || !domainFilter || !discoveryMode ||
         !availabilityFilter || !results || !discoveryStatus ||
         !refreshButton || !feedback
       ) return;
@@ -2491,7 +2501,14 @@ app.get("/control", (req, res) => {
         const query = search.value.trim().toLowerCase();
         const matchesSearch = !query ||
           entity.displayName.toLowerCase().includes(query) ||
-          entity.entityId.toLowerCase().includes(query);
+          entity.entityId.toLowerCase().includes(query) ||
+          (entity.device?.name || "").toLowerCase().includes(query) ||
+          (entity.area?.name || "").toLowerCase().includes(query);
+        const advanced = entity.hidden === true ||
+          entity.entityCategory === "diagnostic" ||
+          entity.entityCategory === "config";
+        const matchesMode = discoveryMode.value === "advanced" ||
+          !advanced || Boolean(query && matchesSearch);
         const matchesDomain = !domainFilter.value ||
           entity.domain === domainFilter.value;
         const matchesAvailability = !availabilityFilter.value ||
@@ -2499,7 +2516,35 @@ app.get("/control", (req, res) => {
             ? entity.availability === "available"
             : entity.availability === "unavailable" ||
               entity.availability === "unknown");
-        return matchesSearch && matchesDomain && matchesAvailability;
+        return matchesSearch && matchesMode && matchesDomain && matchesAvailability;
+      };
+
+      const createDiscoveryRow = (entity) => {
+        const selected = selectedIds.includes(entity.entityId);
+        const advanced = entity.hidden === true ||
+          entity.entityCategory === "diagnostic" ||
+          entity.entityCategory === "config";
+        const row = document.createElement("li");
+        row.className = "ha-discovery-row" +
+          (entity.availability === "available" ? "" : " is-unavailable");
+        row.dataset.homeAssistantDiscoveryEntity = entity.entityId;
+        const copy = createCopy(entity);
+        if (advanced && discoveryMode.value === "standard" && search.value.trim()) {
+          const badge = document.createElement("span");
+          badge.className = "ha-advanced-badge";
+          badge.textContent = "Advanced";
+          copy.querySelector("strong")?.append(badge);
+        }
+        row.append(copy);
+        const add = document.createElement("button");
+        add.className = "button button-secondary";
+        add.type = "button";
+        add.dataset.addHomeAssistantEntity = entity.entityId;
+        add.textContent = selected ? "Selected" : "Add";
+        add.disabled = selected || selectedIds.length >= maximumSelections;
+        add.setAttribute("aria-label", "Add " + entity.entityId);
+        row.append(add);
+        return row;
       };
 
       const renderResults = () => {
@@ -2507,22 +2552,53 @@ app.get("/control", (req, res) => {
         if (!discoveryLoaded) return;
 
         const visibleEntities = discoveredEntities.filter(matchesFilters);
+        const groups = new Map();
         visibleEntities.forEach((entity) => {
-          const selected = selectedIds.includes(entity.entityId);
-          const row = document.createElement("li");
-          row.className = "ha-discovery-row" +
-            (entity.availability === "available" ? "" : " is-unavailable");
-          row.dataset.homeAssistantDiscoveryEntity = entity.entityId;
-          row.append(createCopy(entity));
-          const add = document.createElement("button");
-          add.className = "button button-secondary";
-          add.type = "button";
-          add.dataset.addHomeAssistantEntity = entity.entityId;
-          add.textContent = selected ? "Selected" : "Add";
-          add.disabled = selected || selectedIds.length >= maximumSelections;
-          add.setAttribute("aria-label", "Add " + entity.entityId);
-          row.append(add);
-          results.append(row);
+          const areaName = entity.area?.name || (entity.device ? "No Area" : "Other / Ungrouped");
+          const deviceName = entity.device?.name || "";
+          const key = areaName + "\u0000" + (entity.device?.groupKey || deviceName);
+          if (!groups.has(key)) groups.set(key, { areaName, device: entity.device, entities: [] });
+          groups.get(key).entities.push(entity);
+        });
+        const areaOrder = (name) => name === "No Area" ? "\ufffe" :
+          name === "Other / Ungrouped" ? "\uffff" : name.toLowerCase();
+        [...groups.values()].sort((left, right) => {
+          const area = areaOrder(left.areaName).localeCompare(areaOrder(right.areaName));
+          if (area) return area;
+          return (left.device?.name || "").localeCompare(right.device?.name || "");
+        }).forEach((group, index, ordered) => {
+          const previousArea = ordered[index - 1]?.areaName;
+          let areaContainer = results.lastElementChild;
+          if (group.areaName !== previousArea) {
+            areaContainer = document.createElement("li");
+            areaContainer.className = "ha-area-group";
+            const heading = document.createElement("h5");
+            heading.className = "ha-area-heading";
+            heading.textContent = group.areaName;
+            areaContainer.append(heading);
+            results.append(areaContainer);
+          }
+          const deviceGroup = document.createElement("section");
+          deviceGroup.className = "ha-device-group";
+          if (group.device) {
+            const heading = document.createElement("h6");
+            heading.className = "ha-device-heading";
+            heading.textContent = group.device.name;
+            const deviceDetails = [group.device.manufacturer, group.device.model]
+              .filter(Boolean).filter((value, at, values) => values.indexOf(value) === at)
+              .join(" · ");
+            if (deviceDetails) {
+              const detail = document.createElement("small");
+              detail.textContent = deviceDetails;
+              heading.append(detail);
+            }
+            deviceGroup.append(heading);
+          }
+          const list = document.createElement("ul");
+          list.className = "ha-discovery-entities";
+          group.entities.forEach((entity) => list.append(createDiscoveryRow(entity)));
+          deviceGroup.append(list);
+          areaContainer.append(deviceGroup);
         });
 
         if (visibleEntities.length === 0 && discoveredEntities.length > 0) {
@@ -2533,12 +2609,14 @@ app.get("/control", (req, res) => {
         }
       };
 
-      const loadEntities = async () => {
+      const loadEntities = async (forceRefresh = false) => {
         refreshButton.disabled = true;
         discoveryStatus.textContent = "Loading Home Assistant entities…";
         feedback.textContent = "";
         try {
-          const response = await fetch("/api/home-assistant/entities");
+          const response = await fetch(
+            "/api/home-assistant/entities" + (forceRefresh ? "?refresh=true" : "")
+          );
           if (!response.ok) throw new Error("request failed");
           const snapshot = await response.json();
           discoveredEntities = Array.isArray(snapshot.entities)
@@ -2572,7 +2650,8 @@ app.get("/control", (req, res) => {
           } else {
             discoveryStatus.textContent = discoveredEntities.length +
               " entities available" +
-              (snapshot.stale ? " · List may be out of date" : "");
+              (snapshot.enriched === false ? " · Device grouping unavailable" : "") +
+              (snapshot.stale || snapshot.registryStale ? " · List may be out of date" : "");
           }
         } catch {
           discoveryLoaded = true;
@@ -2634,9 +2713,10 @@ app.get("/control", (req, res) => {
       });
 
       search.addEventListener("input", renderResults);
+      discoveryMode.addEventListener("change", renderResults);
       domainFilter.addEventListener("change", renderResults);
       availabilityFilter.addEventListener("change", renderResults);
-      refreshButton.addEventListener("click", loadEntities);
+      refreshButton.addEventListener("click", () => loadEntities(true));
       renderSelected();
       loadEntities();
     })();

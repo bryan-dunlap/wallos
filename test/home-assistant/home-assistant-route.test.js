@@ -12,9 +12,12 @@ const TOKEN = "route-private-test-token";
 
 async function withTestServer(testConnectionImpl, callback, options = {}) {
   const app = express();
+  const registryCache = options.registryCache || {
+    getSnapshot: async () => ({ status: "unavailable", stale: false, registries: null })
+  };
   app.use(
     "/api/home-assistant",
-    createHomeAssistantRouter({ testConnectionImpl, ...options })
+    createHomeAssistantRouter({ testConnectionImpl, registryCache, ...options })
   );
   const server = http.createServer(app);
 
@@ -383,4 +386,38 @@ test("entities route rejects invalid filters, limits, and credential overrides",
     }),
     stateCache: { getSnapshot: async () => emptySnapshot("unavailable") }
   });
+});
+
+test("entities route joins sanitized registry discovery and explicitly refreshes caches", async () => {
+  const calls = [];
+  const stateCache = { getSnapshot: async (config, options) => {
+    calls.push(["state", options]);
+    return {
+      schemaVersion: 1, status: "available", updatedAt: "2026-09-07T18:00:00.000Z",
+      stale: false, total: 1, truncated: false,
+      entities: [{ entityId: "sensor.temperature", domain: "sensor", displayName: "Old", state: "72", unit: "°F", deviceClass: "temperature", stateClass: "measurement", icon: null, availability: "available", lastChanged: null, updatedAt: null }]
+    };
+  }};
+  const registryCache = { getSnapshot: async (config, options) => {
+    calls.push(["registry", options]);
+    return { status: "available", stale: true, registries: {
+      entities: [{ entityId: "sensor.temperature", deviceId: "dev", areaId: null, name: "Temperature", originalName: null, platform: "demo", entityCategory: null, hidden: false, disabled: false }],
+      devices: [{ id: "dev", areaId: "living", name: "HomePod", manufacturer: "Apple", model: "HomePod" }],
+      areas: [{ id: "living", name: "Living Room" }]
+    }};
+  }};
+
+  await withTestServer(null, async baseUrl => {
+    const response = await entityRequest(baseUrl, "?refresh=true");
+    assert.equal(response.body.schemaVersion, 2);
+    assert.equal(response.body.enriched, true);
+    assert.equal(response.body.registryStale, true);
+    assert.deepEqual(response.body.entities[0].device, { groupKey: "device-1", name: "HomePod", manufacturer: "Apple", model: "HomePod" });
+    assert.deepEqual(response.body.entities[0].area, { name: "Living Room" });
+    assert.doesNotMatch(JSON.stringify(response.body), /deviceId|areaId|accessToken/);
+  }, {
+    getStoredConfig: () => ({ enabled: true, baseUrl: "https://ha.example.test", accessToken: TOKEN }),
+    stateCache, registryCache
+  });
+  assert.deepEqual(calls.map(([, options]) => options), [{ forceRefresh: true }, { forceRefresh: true }]);
 });

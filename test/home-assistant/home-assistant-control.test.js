@@ -133,7 +133,7 @@ test("saving an entity draft preserves the stored token and ordered IDs", () => 
 test("Home Assistant entity discovery lives in Settings and remains a draft", () => {
   assert.match(serverSource, /data-settings-panel="home-assistant"[^]*?data-home-assistant-selected-list/);
   assert.match(serverSource, /name="homeAssistantEntitiesDraft" type="hidden"/);
-  assert.match(serverSource, /fetch\("\/api\/home-assistant\/entities"\)/);
+  assert.match(serverSource, /"\/api\/home-assistant\/entities"/);
   assert.match(serverSource, /draftField\.dispatchEvent\(new Event\("input"/);
   assert.doesNotMatch(serverSource, /fetch\("\/control\/home-assistant/);
 
@@ -146,11 +146,25 @@ test("Home Assistant entity discovery lives in Settings and remains a draft", ()
 test("entity discovery searches normalized names and IDs with dynamic filters", () => {
   assert.match(serverSource, /entity\.displayName\.toLowerCase\(\)\.includes\(query\)/);
   assert.match(serverSource, /entity\.entityId\.toLowerCase\(\)\.includes\(query\)/);
+  assert.match(serverSource, /entity\.device\?\.name/);
+  assert.match(serverSource, /entity\.area\?\.name/);
   assert.match(serverSource, /result\.set\(entity\.domain/);
   assert.match(serverSource, /entity\.availability === "unavailable"/);
   assert.match(serverSource, /entity\.availability === "unknown"/);
   assert.match(serverSource, /search\.addEventListener\("input", renderResults\)/);
   assert.doesNotMatch(selectionSource, /search\.addEventListener\("input", fetch/);
+});
+
+test("discovery groups by authoritative area and device with Standard and Advanced modes", () => {
+  assert.match(serverSource, /data-home-assistant-discovery-mode/);
+  assert.match(selectionSource, /entity\.entityCategory === "diagnostic"/);
+  assert.match(selectionSource, /entity\.entityCategory === "config"/);
+  assert.match(selectionSource, /entity\.hidden === true/);
+  assert.match(selectionSource, /"No Area"/);
+  assert.match(selectionSource, /"Other \/ Ungrouped"/);
+  assert.match(selectionSource, /group\.device\.manufacturer/);
+  assert.match(selectionSource, /group\.device\.model/);
+  assert.match(selectionSource, /badge\.textContent = "Advanced"/);
 });
 
 test("selection supports add, remove, missing metadata, and accessible ordering", () => {
@@ -174,7 +188,7 @@ test("discovery covers loading, unavailable, stale, empty, and refresh states", 
   assert.match(serverSource, /Home Assistant reported no entities/);
   assert.match(serverSource, /Home Assistant entities could not be loaded/);
   assert.match(serverSource, /data-home-assistant-refresh-entities/);
-  assert.match(serverSource, /refreshButton\.addEventListener\("click", loadEntities\)/);
+  assert.match(serverSource, /refreshButton\.addEventListener\("click", \(\) => loadEntities\(true\)\)/);
   assert.doesNotMatch(selectionSource, /setInterval|setTimeout/);
 });
 

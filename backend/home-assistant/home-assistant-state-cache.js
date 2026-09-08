@@ -27,7 +27,7 @@ class HomeAssistantStateCache {
     this.requestInFlight = null;
   }
 
-  async getSnapshot(config) {
+  async getSnapshot(config, { forceRefresh = false } = {}) {
     const configKey = createConfigKey(config);
 
     if (configKey !== this.configKey) {
@@ -39,7 +39,7 @@ class HomeAssistantStateCache {
     const cached = this.lastKnownGood;
     const age = cached ? this.now() - cached.timestamp : Infinity;
 
-    if (cached && age < this.ttlMs) {
+    if (!forceRefresh && cached && age < this.ttlMs) {
       return createPublicSnapshot(cached, false);
     }
 
