@@ -382,9 +382,11 @@ class MosaicHero {
                         <span class="hero-daily-calendar-title">
                             ${this.escape(item.title)}
                         </span>
-                        <span class="hero-daily-calendar-time">
-                            ${this.escape(this.formatDailyCalendarTime(item))}
-                        </span>
+                        ${item.allDay ? "" : `
+                            <span class="hero-daily-calendar-time">
+                                ${this.escape(this.formatDailyCalendarTime(item))}
+                            </span>
+                        `}
                     </span>
                 </div>
             `).join("")}
@@ -396,8 +398,6 @@ class MosaicHero {
 
 
     formatDailyCalendarTime(item){
-        if (item.allDay) return "All day";
-
         if (!item.startsAt) return "";
 
         const start = new Date(item.startsAt);

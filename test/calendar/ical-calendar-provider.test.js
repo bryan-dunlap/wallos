@@ -78,6 +78,35 @@ test("normalizes all-day events", async () => {
   assert.equal(events[0].calendar.id, "birthdays");
 });
 
+test("preserves a parameterized title on a holiday-style all-day event", async () => {
+  const provider = new IcalCalendarProvider({
+    fetchImpl: createFetch(readFixture("holiday-events.ics"))
+  });
+  const events = await provider.getEvents({
+    start: new Date("2026-09-07T00:00:00-07:00"),
+    end: new Date("2026-09-08T00:00:00-07:00"),
+    sources: [createSource({ id: "holidays", name: "US Holidays" })]
+  });
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0].title, "Labor Day");
+  assert.equal(events[0].allDay, true);
+  assert.equal(events[0].calendar.id, "holidays");
+});
+
+test("uses the untitled fallback only when the source has no usable title", async () => {
+  const provider = new IcalCalendarProvider({
+    fetchImpl: createFetch(readFixture("missing-title-events.ics"))
+  });
+  const events = await provider.getEvents({
+    ...range,
+    sources: [createSource()]
+  });
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0].title, "Untitled event");
+});
+
 test("expands recurring events within the requested range", async () => {
   const provider = new IcalCalendarProvider({
     fetchImpl: createFetch(readFixture("recurring-events.ics"))

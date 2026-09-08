@@ -334,8 +334,12 @@ class IcalCalendarProvider {
   }
 
   normalizeText(value) {
-    return typeof value === "string" && value.trim()
-      ? value.trim()
+    const text = value && typeof value === "object"
+      ? value.val
+      : value;
+
+    return typeof text === "string" && text.trim()
+      ? text.trim()
       : null;
   }
 

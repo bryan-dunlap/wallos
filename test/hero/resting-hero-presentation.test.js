@@ -357,19 +357,28 @@ test("Resting Hero maps known and unknown sports to generic glyphs", () => {
   });
 });
 
-test("empty sections render no headings or placeholders", () => {
+test("all-day calendar rows omit time while timed rows retain it", () => {
   const withCalendar = renderDailyContext(dailyContext({
     weather: {
       current: { temperature: 62, condition: { label: "Clear" } },
       today: { high: 70, low: 52 }
     },
-    calendar: [{
-      id: "conference",
-      title: "Conference",
-      startsAt: "2026-08-27",
-      allDay: true,
-      state: "active"
-    }]
+    calendar: [
+      {
+        id: "conference",
+        title: "Conference",
+        startsAt: "2026-08-27",
+        allDay: true,
+        state: "active"
+      },
+      {
+        id: "dentist",
+        title: "Dentist",
+        startsAt: "2026-08-27T14:30:00-07:00",
+        allDay: false,
+        state: "upcoming"
+      }
+    ]
   })).markup;
   const noCalendar = renderDailyContext(dailyContext({
     weather: {
@@ -379,7 +388,13 @@ test("empty sections render no headings or placeholders", () => {
   })).markup;
 
   assert.match(withCalendar, /Conference/);
-  assert.match(withCalendar, /All day/);
+  assert.doesNotMatch(withCalendar, /All day/);
+  assert.match(withCalendar, /Dentist/);
+  assert.match(withCalendar, /2:30 PM/);
+  assert.equal(
+    (withCalendar.match(/hero-daily-calendar-time/g) || []).length,
+    1
+  );
   assert.doesNotMatch(noCalendar, /hero-daily-calendar/);
   assert.doesNotMatch(withCalendar, />\s*(WEATHER|SPORTS|CALENDAR)\s*</i);
 });
