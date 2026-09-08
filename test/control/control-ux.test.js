@@ -19,8 +19,8 @@ test("Control buttons preserve accessible minimum hit targets", () => {
   );
 });
 
-test("Sports Simulator is session-only and always visible", () => {
-  assert.match(serverSource, /<h3>Sports Simulator<\/h3>/);
+test("Sports Simulation is session-only and always visible", () => {
+  assert.match(serverSource, /<h3>Sports Simulation<\/h3>/);
   assert.match(serverSource, /<span class="status-pill">Session only<\/span>/);
   assert.match(serverSource, /<select id="sports-simulation-profile">/);
   assert.match(serverSource, /<select id="sports-simulation-scenario">/);
@@ -28,10 +28,18 @@ test("Sports Simulator is session-only and always visible", () => {
   assert.doesNotMatch(serverSource, /id="sports-simulator-settings"/);
 });
 
-test("Sports Simulator command navigation targets the profile selector", () => {
+test("Developer Tools groups controls by sports and Gamecast tasks", () => {
+  assert.match(serverSource, /data-developer-group="sports-simulation"/);
+  assert.match(serverSource, /data-developer-group="gamecast-testing"/);
+  assert.match(serverSource, /data-sports-simulation-run>Preview Game State<\/button>/);
+  assert.match(serverSource, /data-sports-simulation-clear>Clear Sports Simulation<\/button>/);
+  assert.doesNotMatch(serverSource, /<details class="advanced-section"><summary>Advanced<\/summary>/);
+});
+
+test("Sports Simulation command navigation targets the profile selector", () => {
   assert.match(
     serverSource,
-    /data-command-section="developer" data-command-focus="sports-simulation-profile"><span>Open Sports Simulator<\/span>/
+    /data-command-section="developer" data-command-focus="sports-simulation-profile"><span>Open Sports Simulation<\/span>/
   );
   assert.doesNotMatch(
     serverSource,
@@ -40,7 +48,7 @@ test("Sports Simulator command navigation targets the profile selector", () => {
 });
 
 test("Developer Tools exposes session-only scoring celebration controls", () => {
-  assert.match(serverSource, /<h4 class="subsection-title">Scoring Celebration<\/h4>/);
+  assert.match(serverSource, /id="scoring-celebration-title">Scoring Celebration<\/h4>/);
   assert.match(serverSource, /data-scoring-celebration="run">MLB Run<\/button>/);
   assert.match(serverSource, /data-scoring-celebration="home-run">MLB Home Run<\/button>/);
   assert.match(serverSource, /data-scoring-celebration="touchdown">NFL Touchdown<\/button>/);
@@ -55,7 +63,7 @@ test("Developer Tools exposes session-only scoring celebration controls", () => 
 });
 
 test("Developer Tools exposes a compact session-only Team Palette Preview", () => {
-  assert.match(serverSource, /<h4 class="subsection-title">Team Palette Preview<\/h4>/);
+  assert.match(serverSource, /id="team-palette-preview-title">Team Palette Preview<\/h4>/);
   assert.match(serverSource, /<select id="team-palette-preview-team">/);
   assert.match(serverSource, /data-team-palette-preview>Preview Score<\/button>/);
   assert.match(serverSource, /data-team-palette-preview-status/);
@@ -65,13 +73,13 @@ test("Developer Tools exposes a compact session-only Team Palette Preview", () =
 });
 
 test("Developer Tools exposes the compact Gamecast Ownership simulator", () => {
-  assert.match(serverSource, /<h4 class="subsection-title">Gamecast Ownership<\/h4>/);
+  assert.match(serverSource, /id="gamecast-ownership-title">Gamecast Ownership<\/h4>/);
   for (const [command, label] of [
     ["rotation", "Test Rotation"],
     ["mariners-priority", "Mariners Takes Priority"],
     ["seahawks-priority", "Seahawks Takes Priority"],
     ["single-game", "Test Single Game"],
-    ["reset", "Reset"]
+    ["reset", "Reset Gamecast Test"]
   ]) {
     assert.match(
       serverSource,
@@ -88,9 +96,9 @@ test("Developer Tools exposes the compact Gamecast Ownership simulator", () => {
     assert.doesNotMatch(serverSource, new RegExp(`>${removed}<`));
   }
   assert.match(serverSource, /data-gamecast-ownership-status/);
-  assert.match(serverSource, /Testing: <span data-gamecast-ownership-testing>/);
-  assert.match(serverSource, /Showing: <span data-gamecast-ownership-showing>/);
-  assert.match(serverSource, /Next: <span data-gamecast-ownership-next>/);
+  assert.match(serverSource, /<dt>Testing<\/dt><dd data-gamecast-ownership-testing>/);
+  assert.match(serverSource, /<dt>Showing<\/dt><dd data-gamecast-ownership-showing>/);
+  assert.match(serverSource, /<dt>Next<\/dt><dd data-gamecast-ownership-next>/);
   assert.doesNotMatch(serverSource, /MLB Critical:/);
   assert.doesNotMatch(serverSource, /NFL Critical:/);
   assert.doesNotMatch(serverSource, /name="gamecastOwnership/);

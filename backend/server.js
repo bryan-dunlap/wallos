@@ -1126,6 +1126,17 @@ app.get("/control", (req, res) => {
     .inline-confirmation { grid-column: 1 / -1; padding: 14px; border-left: 3px solid #b42318; border-radius: 8px; background: #fff1f0; }
     .inline-confirmation p { margin: 5px 0 12px; color: #7f1d1d; font-size: .88rem; }
     .developer-card { background: linear-gradient(150deg, rgba(193, 208, 220, .82), rgba(173, 193, 209, .72)); }
+    .developer-tools-grid { gap: 16px; }
+    .developer-tool { padding-top: 18px; border-top: 1px solid rgba(100, 116, 139, .16); }
+    .developer-tool:first-child { padding-top: 0; border-top: 0; }
+    .developer-tool + .developer-tool { margin-top: 20px; }
+    .developer-tool .subsection-title { margin: 0 0 5px; }
+    .developer-tool > .card-description { margin-bottom: 12px; }
+    .developer-card .settings-content > .button-row, .developer-tool .button-row { margin-top: 12px; }
+    .developer-status-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+    .developer-status-item { display: grid; gap: 3px; min-width: 0; padding: 10px 12px; border-radius: 10px; background: rgba(203, 218, 230, .5); }
+    .developer-status-item dt { color: #64748b; font-size: .72rem; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+    .developer-status-item dd { margin: 0; color: #334155; font-size: .9rem; font-weight: 650; overflow-wrap: anywhere; }
     .save-bar { position: sticky; bottom: 16px; z-index: 5; display: flex; justify-content: flex-end; padding: 12px; border: 1px solid rgba(236, 244, 249, .52); border-radius: 14px; background: rgba(219, 230, 238, .9); box-shadow: 0 10px 30px rgba(15, 23, 42, .12), inset 0 1px 0 rgba(246, 250, 253, .58); backdrop-filter: blur(14px); }
     .save-status { align-self: center; margin-right: auto; padding: 0 10px; color: #64748b; font-size: .86rem; font-weight: 650; }
     .control-header-copy { min-width: 0; }
@@ -1211,6 +1222,7 @@ app.get("/control", (req, res) => {
       .card-grid { grid-template-columns: 1fr; }
       .settings-card-wide, .field-full { grid-column: auto; }
       .inline-form { grid-template-columns: 1fr; }
+      .developer-status-grid { grid-template-columns: 1fr; }
       .item-row { align-items: start; }
       .schedule-builder { grid-template-columns: 1fr 1fr; }
       .schedule-builder .field:first-child, .schedule-builder .button { grid-column: 1 / -1; }
@@ -1439,10 +1451,11 @@ app.get("/control", (req, res) => {
           </section>
 
           <section class="control-panel" data-control-panel="developer" hidden>
-            <header class="panel-header"><div><p class="panel-kicker">Developer Tools</p><h2>Simulation and diagnostics</h2><p class="panel-description">Temporary tools for exercising Mosaic experiences.</p></div><div class="panel-status"><span class="status-pill">Development only</span></div></header>
-            <div class="card-grid"><section class="settings-card settings-card-wide developer-card">
+            <header class="panel-header"><div><p class="panel-kicker">Developer Tools</p><h2>Test Mosaic experiences</h2><p class="panel-description">Session-only controls for validating sports and Gamecast behavior.</p></div><div class="panel-status"><span class="status-pill">Development only</span></div></header>
+            <div class="card-grid developer-tools-grid">
+        <section class="settings-card settings-card-wide developer-card" data-developer-group="sports-simulation">
           <div class="card-header">
-            <div><h3>Sports Simulator</h3><p class="card-description">Preview normalized game states on the running dashboard. Simulation state is never saved.</p></div>
+            <div><h3>Sports Simulation</h3><p class="card-description">Choose a league and game state to preview on the running dashboard.</p></div>
             <span class="status-pill">Session only</span>
           </div>
           <div class="settings-content">
@@ -1455,17 +1468,30 @@ app.get("/control", (req, res) => {
               <select id="sports-simulation-scenario">${sportsSimulationScenarioOptions}</select>
             </div>
             <div class="button-row">
-              <button class="button button-secondary" type="button" data-sports-simulation-run>Run Simulation</button>
-              <button class="button button-quiet" type="button" data-sports-simulation-clear>Clear</button>
+              <button class="button button-secondary" type="button" data-sports-simulation-run>Preview Game State</button>
+              <button class="button button-quiet" type="button" data-sports-simulation-clear>Clear Sports Simulation</button>
             </div>
-            <h4 class="subsection-title">Scoring Celebration</h4>
+          </div>
+        </section>
+        <section class="settings-card settings-card-wide developer-card" data-developer-group="gamecast-testing">
+          <div class="card-header">
+            <div><h3>Gamecast Testing</h3><p class="card-description">Trigger presentation details and validate which simulated game Mosaic displays.</p></div>
+            <span class="status-pill">Session only</span>
+          </div>
+          <div class="settings-content">
+            <section class="developer-tool" aria-labelledby="scoring-celebration-title">
+            <h4 class="subsection-title" id="scoring-celebration-title">Scoring Celebration</h4>
+            <p class="card-description">Trigger a scoring moment for the game currently on screen.</p>
             <div class="button-row" data-scoring-celebration-controls>
               <button class="button button-secondary" type="button" data-scoring-celebration="run">MLB Run</button>
               <button class="button button-secondary" type="button" data-scoring-celebration="home-run">MLB Home Run</button>
               <button class="button button-secondary" type="button" data-scoring-celebration="touchdown">NFL Touchdown</button>
               <button class="button button-secondary" type="button" data-scoring-celebration="field-goal">NFL Field Goal</button>
             </div>
-            <h4 class="subsection-title">Team Palette Preview</h4>
+            </section>
+            <section class="developer-tool" aria-labelledby="team-palette-preview-title">
+            <h4 class="subsection-title" id="team-palette-preview-title">Team Palette Preview</h4>
+            <p class="card-description">Preview scoring colors resolved from a specific team.</p>
             <div class="field control-selection-row">
               <label for="team-palette-preview-team">Team</label>
               <select id="team-palette-preview-team">${teamPalettePreviewOptions}</select>
@@ -1474,24 +1500,28 @@ app.get("/control", (req, res) => {
               <button class="button button-secondary" type="button" data-team-palette-preview>Preview Score</button>
               <span class="card-description" data-team-palette-preview-status role="status" aria-live="polite">Palette: Idle</span>
             </div>
-            <h4 class="subsection-title">Gamecast Ownership</h4>
+            </section>
+            <section class="developer-tool" aria-labelledby="gamecast-ownership-title">
+            <h4 class="subsection-title" id="gamecast-ownership-title">Gamecast Ownership</h4>
+            <p class="card-description">Test how Mosaic chooses and rotates between competing games.</p>
             <div class="button-row" data-gamecast-ownership-controls>
               <button class="button button-secondary" type="button" data-gamecast-ownership="rotation">Test Rotation</button>
               <button class="button button-secondary" type="button" data-gamecast-ownership="mariners-priority">Mariners Takes Priority</button>
               <button class="button button-secondary" type="button" data-gamecast-ownership="seahawks-priority">Seahawks Takes Priority</button>
               <button class="button button-secondary" type="button" data-gamecast-ownership="single-game">Test Single Game</button>
             </div>
-            <div class="card-description" data-gamecast-ownership-status role="status" aria-live="polite">
-              <div>Testing: <span data-gamecast-ownership-testing>—</span></div>
-              <div>Showing: <span data-gamecast-ownership-showing>—</span></div>
-              <div>Next: <span data-gamecast-ownership-next>—</span></div>
-            </div>
+            <dl class="developer-status-grid" data-gamecast-ownership-status aria-label="Gamecast ownership status" aria-live="polite">
+              <div class="developer-status-item"><dt>Testing</dt><dd data-gamecast-ownership-testing>—</dd></div>
+              <div class="developer-status-item"><dt>Showing</dt><dd data-gamecast-ownership-showing>—</dd></div>
+              <div class="developer-status-item"><dt>Next</dt><dd data-gamecast-ownership-next>—</dd></div>
+            </dl>
             <div class="button-row">
-              <button class="button button-quiet" type="button" data-gamecast-ownership="reset">Reset</button>
+              <button class="button button-quiet" type="button" data-gamecast-ownership="reset">Reset Gamecast Test</button>
             </div>
-            <details class="advanced-section"><summary>Advanced</summary><p>Simulator state is temporary and is never written to Mosaic configuration.</p></details>
+            </section>
           </div>
-        </section></div>
+        </section>
+            </div>
           </section>
         </div>
 
@@ -1515,7 +1545,7 @@ app.get("/control", (req, res) => {
         <button class="command-item" type="button" data-command-section="settings" data-command-focus="favorite-team"><span>Add Favorite Team</span><small>Sports</small></button>
         <button class="command-item" type="button" data-command-section="settings" data-command-focus="calendar-source-name"><span>Add Calendar Source</span><small>Calendar</small></button>
         <button class="command-item" type="button" data-command-section="settings" data-command-focus="discovery-source-name"><span>Add Discovery Source</span><small>Discovery</small></button>
-        <button class="command-item" type="button" data-command-section="developer" data-command-focus="sports-simulation-profile"><span>Open Sports Simulator</span><small>Developer Tools</small></button>
+        <button class="command-item" type="button" data-command-section="developer" data-command-focus="sports-simulation-profile"><span>Open Sports Simulation</span><small>Developer Tools</small></button>
       </div>
     </div>
   </div>
