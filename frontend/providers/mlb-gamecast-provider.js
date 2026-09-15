@@ -13,6 +13,8 @@ class MlbGamecastProvider {
         this.favoriteRank = null;
         this.liveCandidateId = null;
         this.liveEventId = null;
+        this.liveMatchupKey = null;
+        this.liveStartTime = null;
         this.displayedCandidateId = null;
         this.refreshTimer = null;
         this.refreshInFlight = null;
@@ -48,6 +50,8 @@ class MlbGamecastProvider {
         this.favoriteRank = null;
         this.liveCandidateId = null;
         this.liveEventId = null;
+        this.liveMatchupKey = null;
+        this.liveStartTime = null;
         this.displayedCandidateId = null;
         window.removeEventListener("pagehide", this.handlePageHide);
     }
@@ -75,6 +79,8 @@ class MlbGamecastProvider {
             this.favoriteRank = null;
             this.liveCandidateId = null;
             this.liveEventId = null;
+            this.liveMatchupKey = null;
+            this.liveStartTime = null;
             this.stopRefreshLoop();
             return;
         }
@@ -91,6 +97,8 @@ class MlbGamecastProvider {
             : null;
         this.liveCandidateId = `sports:live:${favoriteTeam.id}`;
         this.liveEventId = nextEventId;
+        this.liveMatchupKey = this.getMatchupKey(facts.game);
+        this.liveStartTime = facts.game.startTime || null;
         this.reconcileRefreshLoop();
     }
 
@@ -155,10 +163,14 @@ class MlbGamecastProvider {
             if (
                 lifecycleVersion === this.lifecycleVersion &&
                 this.shouldRefresh() &&
-                String(facts?.game?.eventId || "") === this.liveEventId
+                this.matchesLiveGame(facts?.game)
             ) {
                 const rankedFacts = {
                     ...facts,
+                    game: {
+                        ...facts.game,
+                        eventId: this.liveEventId
+                    },
                     ...(Number.isInteger(this.favoriteRank)
                         ? { favoriteRank: this.favoriteRank }
                         : {})
@@ -177,6 +189,33 @@ class MlbGamecastProvider {
         }
 
         if (this.shouldRefresh()) this.scheduleRefresh();
+    }
+
+    getMatchupKey(game) {
+        const away = String(game?.teams?.away?.id || "").toUpperCase();
+        const home = String(game?.teams?.home?.id || "").toUpperCase();
+
+        return away && home ? `${away}@${home}` : null;
+    }
+
+    matchesLiveGame(game) {
+        if (!game) return false;
+
+        if (String(game.eventId || "") === this.liveEventId) {
+            return true;
+        }
+
+        const matchupMatches =
+            this.liveMatchupKey &&
+            this.getMatchupKey(game) === this.liveMatchupKey;
+        const expectedStart = Date.parse(this.liveStartTime);
+        const detailedStart = Date.parse(game.startTime);
+        const startMatches =
+            !Number.isFinite(expectedStart) ||
+            !Number.isFinite(detailedStart) ||
+            detailedStart === expectedStart;
+
+        return Boolean(matchupMatches && startMatches);
     }
 
     stopRefreshLoop() {

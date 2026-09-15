@@ -1,0 +1,66 @@
+{
+  "liveData": {
+    "linescore": {
+      "currentInning": 7,
+      "inningHalf": "Bottom",
+      "outs": 0,
+      "balls": 0,
+      "strikes": 0,
+      "teams": {
+        "away": { "runs": 3, "hits": 8, "errors": 0 },
+        "home": { "runs": 2, "hits": 6, "errors": 1 }
+      },
+      "offense": {
+        "first": { "id": 10, "fullName": "Runner One" },
+        "second": { "id": 11, "fullName": "Runner Two" },
+        "third": { "id": 12, "fullName": "Runner Three" },
+        "batter": { "id": 1, "fullName": "Current Batter" }
+      },
+      "defense": {
+        "pitcher": { "id": 2, "fullName": "Current Pitcher" }
+      },
+      "innings": []
+    },
+    "plays": {
+      "currentPlay": {
+        "matchup": {
+          "batter": { "id": 1, "fullName": "Current Batter" },
+          "pitcher": { "id": 2, "fullName": "Current Pitcher" }
+        },
+        "count": { "balls": 0, "strikes": 0, "outs": 0 },
+        "runners": [],
+        "about": {
+          "atBatIndex": 48,
+          "halfInning": "bottom",
+          "inning": 7,
+          "isComplete": false
+        },
+        "result": {
+          "type": "atBat",
+          "event": "Pitch",
+          "eventType": "pitch"
+        }
+      }
+    },
+    "boxscore": {
+      "teams": {
+        "away": {
+          "players": {
+            "ID2": {
+              "stats": { "pitching": { "numberOfPitches": 84, "strikes": 55 } },
+              "seasonStats": { "pitching": { "era": "3.42" } }
+            }
+          }
+        },
+        "home": {
+          "players": {
+            "ID1": {
+              "stats": { "batting": { "hits": 1, "atBats": 3 } },
+              "seasonStats": { "batting": { "avg": ".275" } }
+            }
+          }
+        }
+      }
+    }
+  }
+}

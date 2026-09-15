@@ -4524,6 +4524,18 @@ function getMlbBoxscorePlayer(boxscore, playerId) {
   );
 }
 
+function normalizeMlbCountValue(value, maximum) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const number = Number(value);
+
+  if (!Number.isInteger(number)) return null;
+
+  return Math.min(Math.max(number, 0), maximum);
+}
+
 function getCachedMlbSeasonStat(playerId, statType, value) {
   const cacheKey = `${playerId}:${statType}`;
   const cachedStat = mlbPlayerSeasonStatsCache.get(cacheKey);
@@ -4546,15 +4558,10 @@ function getCachedMlbSeasonStat(playerId, statType, value) {
   return normalizedValue;
 }
 
-async function getMlbLivePlayerStats(game) {
+async function getMlbLiveDetails(game) {
   if (game.status?.abstractGameState !== "Live") {
     return null;
   }
-
-  const batterId = game.linescore?.offense?.batter?.id;
-  const pitcherId = game.linescore?.defense?.pitcher?.id;
-
-  if (!batterId && !pitcherId) return null;
 
   try {
     const response = await fetch(
@@ -4567,35 +4574,54 @@ async function getMlbLivePlayerStats(game) {
       );
     }
 
-    const liveData = await response.json();
-    const boxscore = liveData.liveData?.boxscore;
-    const batter = getMlbBoxscorePlayer(boxscore, batterId);
-    const pitcher = getMlbBoxscorePlayer(boxscore, pitcherId);
+    const feed = await response.json();
+    const liveData = feed.liveData || {};
+    const detailedLinescore = liveData.linescore || null;
+    const currentPlay = liveData.plays?.currentPlay || null;
+    const batter =
+      currentPlay?.matchup?.batter ||
+      detailedLinescore?.offense?.batter ||
+      game.linescore?.offense?.batter ||
+      null;
+    const pitcher =
+      currentPlay?.matchup?.pitcher ||
+      detailedLinescore?.defense?.pitcher ||
+      game.linescore?.defense?.pitcher ||
+      null;
+    const batterId = batter?.id;
+    const pitcherId = pitcher?.id;
+    const boxscore = liveData.boxscore;
+    const batterBoxscore = getMlbBoxscorePlayer(boxscore, batterId);
+    const pitcherBoxscore = getMlbBoxscorePlayer(boxscore, pitcherId);
 
     return {
-      batter: batter
+      linescore: detailedLinescore,
+      currentPlay,
+      batter,
+      pitcher,
+      batterStats: batterBoxscore
         ? {
-            hits: batter.stats?.batting?.hits ?? null,
-            atBats: batter.stats?.batting?.atBats ?? null,
+            hits: batterBoxscore.stats?.batting?.hits ?? null,
+            atBats: batterBoxscore.stats?.batting?.atBats ?? null,
             seasonAVG: getCachedMlbSeasonStat(
               batterId,
               "batting-average",
-              batter.seasonStats?.batting?.avg
+              batterBoxscore.seasonStats?.batting?.avg
             )
           }
         : null,
-      pitcher: pitcher
+      pitcherStats: pitcherBoxscore
         ? {
             pitches:
-              pitcher.stats?.pitching?.numberOfPitches ??
-              pitcher.stats?.pitching?.pitchesThrown ??
+              pitcherBoxscore.stats?.pitching?.numberOfPitches ??
+              pitcherBoxscore.stats?.pitching?.pitchesThrown ??
               null,
             strikes:
-              pitcher.stats?.pitching?.strikes ?? null,
+              pitcherBoxscore.stats?.pitching?.strikes ?? null,
             seasonERA: getCachedMlbSeasonStat(
               pitcherId,
               "pitching-era",
-              pitcher.seasonStats?.pitching?.era
+              pitcherBoxscore.seasonStats?.pitching?.era
             )
           }
         : null
@@ -4609,8 +4635,44 @@ async function getMlbLivePlayerStats(game) {
   }
 }
 
-function normalizeMlbEvent(game, playerStats = {}) {
-  const linescore = game.linescore;
+function normalizeMlbEvent(game, liveDetails = {}) {
+  const scheduleLinescore = game.linescore || {};
+  const detailedLinescore = liveDetails?.linescore || {};
+  const hasLinescore = Boolean(
+    game.linescore || liveDetails?.linescore
+  );
+  const linescore = {
+    ...scheduleLinescore,
+    ...detailedLinescore,
+    offense: {
+      ...(scheduleLinescore.offense || {}),
+      ...(detailedLinescore.offense || {})
+    },
+    defense: {
+      ...(scheduleLinescore.defense || {}),
+      ...(detailedLinescore.defense || {})
+    },
+    teams: {
+      ...(scheduleLinescore.teams || {}),
+      ...(detailedLinescore.teams || {})
+    }
+  };
+  const currentPlay = liveDetails?.currentPlay;
+  const batter =
+    currentPlay?.matchup?.batter ||
+    linescore?.offense?.batter ||
+    liveDetails?.batter ||
+    null;
+  const pitcher =
+    currentPlay?.matchup?.pitcher ||
+    linescore?.defense?.pitcher ||
+    liveDetails?.pitcher ||
+    null;
+  const count = {
+    balls: linescore.balls ?? currentPlay?.count?.balls,
+    strikes: linescore.strikes ?? currentPlay?.count?.strikes,
+    outs: linescore.outs ?? currentPlay?.count?.outs
+  };
   const currentInning =
     linescore?.currentInning ??
     linescore?.innings?.at(-1)?.num ??
@@ -4652,7 +4714,7 @@ function normalizeMlbEvent(game, playerStats = {}) {
       linescore?.teams?.home
     ),
 
-    linescore: linescore
+    linescore: hasLinescore
       ? {
           innings: (linescore.innings || []).map(
             (inning) => ({
@@ -4665,10 +4727,19 @@ function normalizeMlbEvent(game, playerStats = {}) {
             number: currentInning,
             half: inningHalf
           },
-          outs: linescore.outs ?? null,
+          outs: normalizeMlbCountValue(
+            count?.outs ?? linescore.outs,
+            3
+          ),
           count: {
-            balls: linescore.balls ?? null,
-            strikes: linescore.strikes ?? null
+            balls: normalizeMlbCountValue(
+              count?.balls ?? linescore.balls,
+              4
+            ),
+            strikes: normalizeMlbCountValue(
+              count?.strikes ?? linescore.strikes,
+              3
+            )
           },
           bases: {
             first: normalizeMlbRunner(
@@ -4682,16 +4753,16 @@ function normalizeMlbEvent(game, playerStats = {}) {
             )
           },
           batter: normalizeMlbPlayer(
-            linescore.offense?.batter,
-            playerStats?.batter || {
+            batter,
+            liveDetails?.batterStats || {
               hits: null,
               atBats: null,
               seasonAVG: null
             }
           ),
           pitcher: normalizeMlbPlayer(
-            linescore.defense?.pitcher,
-            playerStats?.pitcher || {
+            pitcher,
+            liveDetails?.pitcherStats || {
               pitches: null,
               strikes: null,
               seasonERA: null
@@ -4941,10 +5012,10 @@ async function acquireMlbGamecastSchedule(requestedDate) {
 
     for (const dateGroup of scheduleData.dates || []) {
       for (const game of dateGroup.games || []) {
-        const playerStats = await getMlbLivePlayerStats(game);
+        const liveDetails = await getMlbLiveDetails(game);
 
         sportsEvents.push(
-          normalizeMlbEvent(game, playerStats)
+          normalizeMlbEvent(game, liveDetails)
         );
       }
     }
@@ -5475,6 +5546,7 @@ module.exports = {
   createNflGamecastHandler,
   mlbDailyScheduleCache,
   mlbGamecastScheduleCache,
+  normalizeMlbEvent,
   normalizeFavoriteTeams,
   readConfig,
   displayPowerRuntime,

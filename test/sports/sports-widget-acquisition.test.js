@@ -3,6 +3,9 @@ const assert = require("node:assert/strict");
 const espnMlbScoreboardFixture = require(
   "../fixtures/sports/espn-mlb-scoreboard.json"
 );
+const mlbStatsApiLiveDetailFixture = require(
+  "../fixtures/sports/mlb-statsapi-live-detail.json"
+);
 const {
   acquireMlbDailySchedule,
   acquireMlbGamecastSchedule,
@@ -10,6 +13,7 @@ const {
   buildSportsWidgetAcquisitionResponse,
   mlbDailyScheduleCache,
   mlbGamecastScheduleCache,
+  normalizeMlbEvent,
   sportsWidgetAcquisitionRegistry
 } = require("../../backend/server");
 const {
@@ -354,15 +358,10 @@ test("MLB Gamecast acquisition remains on StatsAPI live detail", async (t) => {
             linescore: {
               currentInning: 7,
               inningHalf: "Bottom",
-              outs: 1,
-              balls: 2,
-              strikes: 1,
               teams: {
                 away: { runs: 3, hits: 8, errors: 0 },
                 home: { runs: 2, hits: 6, errors: 1 }
               },
-              offense: { batter: { id: 1, fullName: "Current Batter" } },
-              defense: { pitcher: { id: 2, fullName: "Current Pitcher" } },
               innings: []
             },
             venue: { id: 12, name: "Angel Stadium" }
@@ -372,30 +371,10 @@ test("MLB Gamecast acquisition remains on StatsAPI live detail", async (t) => {
     }
 
     if (url.includes("/api/v1.1/game/9001/feed/live")) {
-      return new Response(JSON.stringify({
-        liveData: {
-          boxscore: {
-            teams: {
-              away: {
-                players: {
-                  ID1: {
-                    stats: { batting: { hits: 1, atBats: 3 } },
-                    seasonStats: { batting: { avg: ".275" } }
-                  }
-                }
-              },
-              home: {
-                players: {
-                  ID2: {
-                    stats: { pitching: { numberOfPitches: 84, strikes: 55 } },
-                    seasonStats: { pitching: { era: "3.42" } }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }), { status: 200 });
+      return new Response(
+        JSON.stringify(mlbStatsApiLiveDetailFixture),
+        { status: 200 }
+      );
     }
 
     throw new Error(`Unexpected Gamecast URL: ${url}`);
@@ -405,11 +384,108 @@ test("MLB Gamecast acquisition remains on StatsAPI live detail", async (t) => {
   const result = await acquireMlbGamecastSchedule(requestedDate);
   const [game] = result.sportsEvents;
 
-  assert.equal(game.linescore.count.balls, 2);
+  assert.deepEqual(game.linescore.count, { balls: 0, strikes: 0 });
+  assert.equal(game.linescore.outs, 0);
+  assert.equal(game.linescore.batter.name, "Current Batter");
+  assert.equal(game.linescore.pitcher.name, "Current Pitcher");
   assert.equal(game.linescore.batter.hits, 1);
   assert.equal(game.linescore.pitcher.pitches, 84);
+  assert.deepEqual(
+    Object.fromEntries(
+      Object.entries(game.linescore.bases).map(([base, value]) => [
+        base,
+        value.occupied
+      ])
+    ),
+    { first: true, second: true, third: true }
+  );
+  assert.deepEqual(Object.keys(game.linescore).sort(), [
+    "bases", "batter", "count", "inning", "innings", "outs", "pitcher"
+  ]);
   assert.equal(requests.length, 2);
   assert.match(requests[0], /statsapi\.mlb\.com\/api\/v1\/schedule/);
   assert.match(requests[1], /statsapi\.mlb\.com\/api\/v1\.1\/game\/9001\/feed\/live/);
   assert.doesNotMatch(requests.join(" "), /site\.api\.espn\.com/);
+});
+
+test("MLB live detail normalizes counts, bases, and transitional feeds safely", () => {
+  const game = {
+    gamePk: 9002,
+    officialDate: "2098-08-23",
+    gameDate: "2098-08-23T20:10:00.000Z",
+    status: { abstractGameState: "Live", detailedState: "In Progress" },
+    teams: {
+      away: { team: { id: 136, abbreviation: "SEA", name: "Seattle Mariners" } },
+      home: { team: { id: 133, abbreviation: "OAK", name: "Athletics" } }
+    },
+    linescore: {
+      currentInning: 5,
+      inningHalf: "Top",
+      innings: [],
+      teams: { away: { runs: 1 }, home: { runs: 1 } }
+    },
+    venue: {}
+  };
+  const makeDetails = (offense, count = { balls: 3, strikes: 2, outs: 1 }) => ({
+    linescore: { offense, defense: {} },
+    currentPlay: { count }
+  });
+  const occupancy = (event) => Object.fromEntries(
+    Object.entries(event.linescore.bases).map(([base, value]) => [
+      base,
+      value.occupied
+    ])
+  );
+
+  assert.deepEqual(
+    occupancy(normalizeMlbEvent(game, makeDetails({ first: { id: 1 } }))),
+    { first: true, second: false, third: false }
+  );
+  assert.deepEqual(
+    occupancy(normalizeMlbEvent(game, makeDetails({ second: { id: 2 } }))),
+    { first: false, second: true, third: false }
+  );
+  assert.deepEqual(
+    occupancy(normalizeMlbEvent(game, makeDetails({ third: { id: 3 } }))),
+    { first: false, second: false, third: true }
+  );
+  assert.deepEqual(
+    occupancy(normalizeMlbEvent(game, makeDetails({}))),
+    { first: false, second: false, third: false }
+  );
+
+  const nonzero = normalizeMlbEvent(game, makeDetails({
+    first: { id: 1 },
+    third: { id: 3 }
+  }));
+  assert.deepEqual(nonzero.linescore.count, { balls: 3, strikes: 2 });
+  assert.equal(nonzero.linescore.outs, 1);
+  assert.deepEqual(occupancy(nonzero), {
+    first: true,
+    second: false,
+    third: true
+  });
+
+  const bounded = normalizeMlbEvent(game, makeDetails({}, {
+    balls: 99,
+    strikes: -2,
+    outs: "not-a-count"
+  }));
+  assert.deepEqual(bounded.linescore.count, { balls: 4, strikes: 0 });
+  assert.equal(bounded.linescore.outs, null);
+
+  const transition = normalizeMlbEvent(game, { linescore: {} });
+  assert.equal(transition.linescore.inning.number, 5);
+  assert.equal(transition.linescore.batter, null);
+  assert.equal(transition.linescore.pitcher, null);
+  assert.deepEqual(transition.linescore.count, {
+    balls: null,
+    strikes: null
+  });
+  assert.equal(transition.linescore.outs, null);
+  assert.deepEqual(occupancy(transition), {
+    first: false,
+    second: false,
+    third: false
+  });
 });

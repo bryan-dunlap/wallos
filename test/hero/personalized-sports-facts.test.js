@@ -197,7 +197,17 @@ test("MLB facts retain short-name metadata and live game behavior", () => {
     status: { state: "live" },
     awayTeam: { abbreviation: "BOS", name: "Boston Red Sox", runs: 3 },
     homeTeam: { abbreviation: "NYY", name: "New York Yankees", runs: 2 },
-    linescore: {}
+    linescore: {
+      outs: 0,
+      count: { balls: 0, strikes: 0 },
+      bases: {
+        first: { occupied: true },
+        second: { occupied: false },
+        third: { occupied: false }
+      },
+      batter: { id: 1, name: "Current Batter" },
+      pitcher: { id: 2, name: "Current Pitcher" }
+    }
   }, favoriteTeam);
 
   assert.equal(factsTeam.shortName, "Red Sox");
@@ -208,6 +218,17 @@ test("MLB facts retain short-name metadata and live game behavior", () => {
     JSON.parse(JSON.stringify(liveGame.score)),
     { away: 3, home: 2, favoriteTeam: 3, opponent: 2 }
   );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(liveGame.count)),
+    { balls: 0, strikes: 0 }
+  );
+  assert.equal(liveGame.outs, 0);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(liveGame.bases)),
+    { first: true, second: false, third: false }
+  );
+  assert.equal(liveGame.batter.name, "Current Batter");
+  assert.equal(liveGame.pitcher.name, "Current Pitcher");
 });
 
 test("normal MLB facts and active Gamecast use separate source routes", async () => {
