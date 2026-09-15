@@ -47,7 +47,7 @@
         "away": {
           "players": {
             "ID2": {
-              "stats": { "pitching": { "numberOfPitches": 84, "strikes": 55 } },
+              "stats": { "pitching": { "numberOfPitches": 84, "strikes": 55, "baseOnBalls": 2, "strikeOuts": 6 } },
               "seasonStats": { "pitching": { "era": "3.42" } }
             }
           }
@@ -55,7 +55,7 @@
         "home": {
           "players": {
             "ID1": {
-              "stats": { "batting": { "hits": 1, "atBats": 3 } },
+              "stats": { "batting": { "hits": 2, "atBats": 3, "runs": 1, "doubles": 1, "triples": 0, "homeRuns": 0, "rbi": 2, "baseOnBalls": 1, "strikeOuts": 0 } },
               "seasonStats": { "batting": { "avg": ".275" } }
             }
           }

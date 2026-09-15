@@ -264,15 +264,37 @@ class BaseballGameRenderer {
         if (!this.hasPlayer(batter)) return "";
 
         const stats = [];
+        const gameStats = [];
 
         if (
-            this.hasValue(batter.hits) &&
-            this.hasValue(batter.atBats)
+            this.hasFiniteValue(batter.hits) &&
+            this.hasFiniteValue(batter.atBats)
         ) {
-            stats.push(
+            gameStats.push(
                 `${this.escape(batter.hits)}-` +
                 `${this.escape(batter.atBats)}`
             );
+        }
+
+        [
+            ["HR", batter.homeRuns],
+            ["2B", batter.doubles],
+            ["3B", batter.triples],
+            ["RBI", batter.rbi, true],
+            ["BB", batter.walks],
+            ["K", batter.strikeouts]
+        ].forEach(([label, value, alwaysShowCount = false]) => {
+            const stat = this.formatPositiveCountStat(
+                label,
+                value,
+                alwaysShowCount
+            );
+
+            if (stat) gameStats.push(stat);
+        });
+
+        if (gameStats.length > 0) {
+            stats.push(gameStats.join(" · "));
         }
 
         if (this.hasValue(batter.seasonAVG)) {
@@ -290,15 +312,28 @@ class BaseballGameRenderer {
         if (!this.hasPlayer(pitcher)) return "";
 
         const stats = [];
+        const gameStats = [];
 
         if (
             this.hasValue(pitcher.strikes) &&
             this.hasValue(pitcher.pitches)
         ) {
-            stats.push(
+            gameStats.push(
                 `${this.escape(pitcher.strikes)}-` +
                 `${this.escape(pitcher.pitches)}`
             );
+        }
+
+        if (this.hasFiniteValue(pitcher.walks)) {
+            gameStats.push(`BB ${this.escape(pitcher.walks)}`);
+        }
+
+        if (this.hasFiniteValue(pitcher.strikeouts)) {
+            gameStats.push(`K ${this.escape(pitcher.strikeouts)}`);
+        }
+
+        if (gameStats.length > 0) {
+            stats.push(gameStats.join(" · "));
         }
 
         if (this.hasValue(pitcher.seasonERA)) {
@@ -336,6 +371,18 @@ class BaseballGameRenderer {
 
     hasValue(value) {
         return value !== null && value !== undefined && value !== "";
+    }
+
+    hasFiniteValue(value) {
+        return this.hasValue(value) && Number.isFinite(Number(value));
+    }
+
+    formatPositiveCountStat(label, value, alwaysShowCount = false) {
+        if (!this.hasFiniteValue(value) || Number(value) <= 0) return "";
+
+        return alwaysShowCount || Number(value) !== 1
+            ? `${label} ${this.escape(value)}`
+            : label;
     }
 
     renderBases(bases = {}) {

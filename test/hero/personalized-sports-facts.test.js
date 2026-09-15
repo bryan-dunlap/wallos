@@ -309,6 +309,177 @@ test("Hero MLB Gamecast renders both Toronto and Seattle line-score rows", () =>
   assert.match(rows[2], /<td>3<\/td>\s*<td>7<\/td>\s*<td>1<\/td>/);
 });
 
+test("Hero MLB Gamecast renders current-game pitcher BB and K on the pitch line", () => {
+  const { Class: MlbDataProvider } = loadClass(
+    "frontend/providers/mlb-data-provider.js",
+    "MlbDataProvider",
+    { Map }
+  );
+  const { Class: BaseballGameRenderer } = loadClass(
+    "frontend/widgets/baseball-game-renderer.js",
+    "BaseballGameRenderer",
+    {
+      window: {
+        mosaicActiveRendererRegistry: { register() {} }
+      }
+    }
+  );
+  const provider = new MlbDataProvider();
+  const pitcher = provider.normalizePitcher({
+    id: 2,
+    name: "Current Pitcher",
+    strikes: 42,
+    pitches: 63,
+    walks: 2,
+    strikeouts: 6
+  });
+  const markup = new BaseballGameRenderer().renderPitcher(pitcher);
+
+  assert.match(markup, /<span>42-63 · BB 2 · K 6<\/span>/);
+  assert.ok(markup.indexOf("42-63") < markup.indexOf("BB 2"));
+  assert.ok(markup.indexOf("BB 2") < markup.indexOf("K 6"));
+});
+
+test("Hero MLB pitcher line retains zeroes and omits unavailable BB and K", () => {
+  const { Class: BaseballGameRenderer } = loadClass(
+    "frontend/widgets/baseball-game-renderer.js",
+    "BaseballGameRenderer",
+    {
+      window: {
+        mosaicActiveRendererRegistry: { register() {} }
+      }
+    }
+  );
+  const renderer = new BaseballGameRenderer();
+  const zeroes = renderer.renderPitcher({
+    name: "Zero Pitcher",
+    strikes: 0,
+    pitches: 0,
+    walks: 0,
+    strikeouts: 0
+  });
+  const missing = renderer.renderPitcher({
+    name: "Missing Pitcher",
+    strikes: 42,
+    pitches: 63,
+    walks: undefined,
+    strikeouts: null
+  });
+  const malformed = renderer.renderPitcher({
+    name: "Malformed Pitcher",
+    strikes: 42,
+    pitches: 63,
+    walks: Number.NaN,
+    strikeouts: Number.NaN
+  });
+
+  assert.match(zeroes, /<span>0-0 · BB 0 · K 0<\/span>/);
+  assert.match(missing, /<span>42-63<\/span>/);
+  assert.doesNotMatch(missing, /BB|K |undefined|null|NaN/);
+  assert.doesNotMatch(malformed, /BB|K |undefined|null|NaN/);
+});
+
+test("Hero MLB batter line formats current-game counting events deterministically", () => {
+  const { Class: BaseballGameRenderer } = loadClass(
+    "frontend/widgets/baseball-game-renderer.js",
+    "BaseballGameRenderer",
+    {
+      window: {
+        mosaicActiveRendererRegistry: { register() {} }
+      }
+    }
+  );
+  const renderer = new BaseballGameRenderer();
+  const render = (overrides) => renderer.renderBatter({
+    name: "Current Batter",
+    hits: 2,
+    atBats: 3,
+    homeRuns: 0,
+    doubles: 0,
+    triples: 0,
+    rbi: 0,
+    walks: 0,
+    strikeouts: 0,
+    ...overrides
+  });
+
+  assert.match(render({ hits: 0 }), /<span>0-3<\/span>/);
+  assert.match(render({ doubles: 1 }), /<span>2-3 · 2B<\/span>/);
+  assert.match(render({ doubles: 2 }), /<span>2-3 · 2B 2<\/span>/);
+  assert.match(render({ homeRuns: 1 }), /<span>2-3 · HR<\/span>/);
+  assert.match(render({ homeRuns: 2 }), /<span>2-3 · HR 2<\/span>/);
+  assert.match(render({ rbi: 1 }), /<span>2-3 · RBI 1<\/span>/);
+  assert.match(render({ rbi: 2 }), /<span>2-3 · RBI 2<\/span>/);
+  assert.match(render({ walks: 1 }), /<span>2-3 · BB<\/span>/);
+  assert.match(render({ walks: 2 }), /<span>2-3 · BB 2<\/span>/);
+  assert.match(render({ strikeouts: 1 }), /<span>2-3 · K<\/span>/);
+  assert.match(render({ strikeouts: 2 }), /<span>2-3 · K 2<\/span>/);
+  assert.match(
+    render({ homeRuns: 1, doubles: 1, triples: 1, rbi: 2, walks: 1, strikeouts: 2 }),
+    /<span>2-3 · HR · 2B · 3B · RBI 2 · BB · K 2<\/span>/
+  );
+});
+
+test("Hero MLB batter line omits zero, missing, and non-finite optional counts", () => {
+  const { Class: BaseballGameRenderer } = loadClass(
+    "frontend/widgets/baseball-game-renderer.js",
+    "BaseballGameRenderer",
+    {
+      window: {
+        mosaicActiveRendererRegistry: { register() {} }
+      }
+    }
+  );
+  const markup = new BaseballGameRenderer().renderBatter({
+    name: "Current Batter",
+    hits: 2,
+    atBats: 3,
+    homeRuns: 0,
+    doubles: null,
+    triples: undefined,
+    rbi: Number.NaN,
+    walks: Number.POSITIVE_INFINITY,
+    strikeouts: ""
+  });
+
+  assert.match(markup, /<span>2-3<\/span>/);
+  assert.doesNotMatch(markup, /HR|2B|3B|RBI|BB|K |undefined|null|NaN|Infinity/);
+});
+
+test("running MLB Gamecast simulation includes BB and K on its visible pitch line", () => {
+  const { sportsSimulationProfileRegistry } = require(
+    "../../frontend/providers/sports-simulation-profile-registry"
+  );
+  const { Class: SportsActiveContextGenerator } = loadClass(
+    "frontend/providers/sports-active-context-generator.js",
+    "SportsActiveContextGenerator"
+  );
+  const { Class: BaseballGameRenderer } = loadClass(
+    "frontend/widgets/baseball-game-renderer.js",
+    "BaseballGameRenderer",
+    {
+      window: {
+        mosaicActiveRendererRegistry: { register() {} }
+      }
+    }
+  );
+  const facts = sportsSimulationProfileRegistry.createFacts(
+    "MLB",
+    "live-bottom"
+  );
+  const candidate = new SportsActiveContextGenerator()
+    .createLiveGameCandidate(facts);
+  const markup = new BaseballGameRenderer().render(candidate.payload);
+
+  assert.equal(candidate.payload.pitcher.walks, 2);
+  assert.equal(candidate.payload.pitcher.strikeouts, 6);
+  assert.equal(candidate.payload.batter.doubles, 1);
+  assert.equal(candidate.payload.batter.rbi, 2);
+  assert.equal(candidate.payload.batter.walks, 1);
+  assert.match(markup, /<span>2-3 · 2B · RBI 2 · BB<\/span>/);
+  assert.match(markup, /<span>25-50 · BB 2 · K 6<\/span>/);
+});
+
 test("Hero MLB Gamecast retains both line-score sides for live and final", () => {
   const { Class: MlbDataProvider } = loadClass(
     "frontend/providers/mlb-data-provider.js",

@@ -4714,6 +4714,13 @@ async function getMlbLiveDetails(game) {
         ? {
             hits: batterBoxscore.stats?.batting?.hits ?? null,
             atBats: batterBoxscore.stats?.batting?.atBats ?? null,
+            runs: batterBoxscore.stats?.batting?.runs ?? null,
+            doubles: batterBoxscore.stats?.batting?.doubles ?? null,
+            triples: batterBoxscore.stats?.batting?.triples ?? null,
+            homeRuns: batterBoxscore.stats?.batting?.homeRuns ?? null,
+            rbi: batterBoxscore.stats?.batting?.rbi ?? null,
+            walks: batterBoxscore.stats?.batting?.baseOnBalls ?? null,
+            strikeouts: batterBoxscore.stats?.batting?.strikeOuts ?? null,
             seasonAVG: getCachedMlbSeasonStat(
               batterId,
               "batting-average",
@@ -4729,6 +4736,10 @@ async function getMlbLiveDetails(game) {
               null,
             strikes:
               pitcherBoxscore.stats?.pitching?.strikes ?? null,
+            walks:
+              pitcherBoxscore.stats?.pitching?.baseOnBalls ?? null,
+            strikeouts:
+              pitcherBoxscore.stats?.pitching?.strikeOuts ?? null,
             seasonERA: getCachedMlbSeasonStat(
               pitcherId,
               "pitching-era",
@@ -4868,6 +4879,13 @@ function normalizeMlbEvent(game, liveDetails = {}) {
             liveDetails?.batterStats || {
               hits: null,
               atBats: null,
+              runs: null,
+              doubles: null,
+              triples: null,
+              homeRuns: null,
+              rbi: null,
+              walks: null,
+              strikeouts: null,
               seasonAVG: null
             }
           ),
@@ -4876,6 +4894,8 @@ function normalizeMlbEvent(game, liveDetails = {}) {
             liveDetails?.pitcherStats || {
               pitches: null,
               strikes: null,
+              walks: null,
+              strikeouts: null,
               seasonERA: null
             }
           )

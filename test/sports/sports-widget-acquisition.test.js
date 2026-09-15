@@ -1,5 +1,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const vm = require("node:vm");
 const espnMlbScoreboardFixture = require(
   "../fixtures/sports/espn-mlb-scoreboard.json"
 );
@@ -19,6 +22,23 @@ const {
 const {
   nflDailyScheduleCache
 } = require("../../backend/sports/nfl-sports-acquirer");
+
+const PROJECT_ROOT = path.join(__dirname, "..", "..");
+
+function loadClass(relativePath, className, globals = {}) {
+  const source = fs.readFileSync(
+    path.join(PROJECT_ROOT, relativePath),
+    "utf8"
+  );
+  const context = vm.createContext({ ...globals });
+
+  vm.runInContext(
+    source + `; this.LoadedClass = ${className};`,
+    context
+  );
+
+  return context.LoadedClass;
+}
 
 function createRegistry(acquirers = {}) {
   return new Map(
@@ -388,8 +408,69 @@ test("MLB Gamecast acquisition remains on StatsAPI live detail", async (t) => {
   assert.equal(game.linescore.outs, 0);
   assert.equal(game.linescore.batter.name, "Current Batter");
   assert.equal(game.linescore.pitcher.name, "Current Pitcher");
-  assert.equal(game.linescore.batter.hits, 1);
+  assert.deepEqual(
+    {
+      hits: game.linescore.batter.hits,
+      atBats: game.linescore.batter.atBats,
+      runs: game.linescore.batter.runs,
+      doubles: game.linescore.batter.doubles,
+      triples: game.linescore.batter.triples,
+      homeRuns: game.linescore.batter.homeRuns,
+      rbi: game.linescore.batter.rbi,
+      walks: game.linescore.batter.walks,
+      strikeouts: game.linescore.batter.strikeouts
+    },
+    {
+      hits: 2,
+      atBats: 3,
+      runs: 1,
+      doubles: 1,
+      triples: 0,
+      homeRuns: 0,
+      rbi: 2,
+      walks: 1,
+      strikeouts: 0
+    }
+  );
   assert.equal(game.linescore.pitcher.pitches, 84);
+  assert.equal(game.linescore.pitcher.strikes, 55);
+  assert.equal(game.linescore.pitcher.walks, 2);
+  assert.equal(game.linescore.pitcher.strikeouts, 6);
+  const MlbDataProvider = loadClass(
+    "frontend/providers/mlb-data-provider.js",
+    "MlbDataProvider",
+    { Map }
+  );
+  const SportsActiveContextGenerator = loadClass(
+    "frontend/providers/sports-active-context-generator.js",
+    "SportsActiveContextGenerator"
+  );
+  const BaseballGameRenderer = loadClass(
+    "frontend/widgets/baseball-game-renderer.js",
+    "BaseballGameRenderer",
+    {
+      window: {
+        mosaicActiveRendererRegistry: { register() {} }
+      }
+    }
+  );
+  const favoriteTeam = {
+    id: "SEA",
+    name: "Seattle Mariners",
+    league: "MLB",
+    sport: "baseball"
+  };
+  const facts = {
+    status: "available",
+    favoriteTeam,
+    game: new MlbDataProvider().normalizeGame(game, favoriteTeam)
+  };
+  const candidate = new SportsActiveContextGenerator()
+    .createLiveGameCandidate(facts);
+  const markup = new BaseballGameRenderer().render(candidate.payload);
+
+  assert.match(markup, /<span>2-3 · 2B · RBI 2 · BB<\/span>/);
+  assert.match(markup, /<span>55-84 · BB 2 · K 6<\/span>/);
   assert.deepEqual(
     Object.fromEntries(
       Object.entries(game.linescore.bases).map(([base, value]) => [

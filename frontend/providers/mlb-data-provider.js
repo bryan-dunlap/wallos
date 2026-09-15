@@ -267,6 +267,13 @@ class MlbDataProvider {
             name: batter.name,
             hits: batter.hits ?? null,
             atBats: batter.atBats ?? null,
+            runs: batter.runs ?? null,
+            doubles: batter.doubles ?? null,
+            triples: batter.triples ?? null,
+            homeRuns: batter.homeRuns ?? null,
+            rbi: batter.rbi ?? null,
+            walks: batter.walks ?? null,
+            strikeouts: batter.strikeouts ?? null,
             seasonAVG: batter.seasonAVG ?? null
         };
     }
@@ -279,6 +286,8 @@ class MlbDataProvider {
             name: pitcher.name,
             strikes: pitcher.strikes ?? null,
             pitches: pitcher.pitches ?? null,
+            walks: pitcher.walks ?? null,
+            strikeouts: pitcher.strikeouts ?? null,
             seasonERA: pitcher.seasonERA ?? null
         };
     }

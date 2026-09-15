@@ -219,14 +219,23 @@ function createMlbLiveScenario(id, label, overrides = {}) {
             },
             batter: {
                 name: "Julio Rodríguez",
-                hits: 1,
-                atBats: 4,
+                hits: 2,
+                atBats: 3,
+                runs: 1,
+                doubles: 1,
+                triples: 0,
+                homeRuns: 0,
+                rbi: 2,
+                walks: 1,
+                strikeouts: 0,
                 seasonAVG: ".298"
             },
             pitcher: {
                 name: "Logan Gilbert",
                 strikes: 25,
                 pitches: 50,
+                walks: 2,
+                strikeouts: 6,
                 seasonERA: "3.42"
             },
             lineScore: {

@@ -493,7 +493,7 @@ test("legacy resting candidate keeps headline, subtitle, rows, and safe escaping
   assert.doesNotMatch(markup, /hero-resting-daily/);
 });
 
-test("MosaicHero preserves Active Hero renderer delegation and summary hiding", () => {
+test("MosaicHero inserts the complete MLB pitcher line at the final DOM boundary", () => {
   const contentRegion = { innerHTML: "", hidden: true, payload: null };
   const summaryRegion = { hidden: false };
   const element = {
@@ -504,7 +504,16 @@ test("MosaicHero preserves Active Hero renderer delegation and summary hiding", 
       return null;
     }
   };
-  const renderer = { render: () => "<div>Gamecast</div>" };
+  const BaseballGameRenderer = loadClass(
+    "frontend/widgets/baseball-game-renderer.js",
+    "BaseballGameRenderer",
+    {
+      window: {
+        mosaicActiveRendererRegistry: { register() {} }
+      }
+    }
+  );
+  const renderer = new BaseballGameRenderer();
   const MosaicHero = loadClass(
     "frontend/widgets/hero.js",
     "MosaicHero",
@@ -517,7 +526,24 @@ test("MosaicHero preserves Active Hero renderer delegation and summary hiding", 
     }
   );
   const hero = new MosaicHero(element);
-  const payload = { type: "baseball-game" };
+  const payload = {
+    type: "baseball-game",
+    batter: {
+      name: "Current Batter",
+      hits: 2,
+      atBats: 3,
+      doubles: 1,
+      rbi: 2,
+      walks: 1
+    },
+    pitcher: {
+      name: "Current Pitcher",
+      strikes: 42,
+      pitches: 63,
+      walks: 2,
+      strikeouts: 6
+    }
+  };
 
   hero.renderActiveHero({
     headline: "Live baseball",
@@ -526,7 +552,14 @@ test("MosaicHero preserves Active Hero renderer delegation and summary hiding", 
   });
 
   assert.equal(contentRegion.payload, payload);
-  assert.equal(contentRegion.innerHTML, "<div>Gamecast</div>");
+  assert.match(
+    contentRegion.innerHTML,
+    /baseball-player-pitcher[\s\S]*<span>42-63 · BB 2 · K 6<\/span>/
+  );
+  assert.match(
+    contentRegion.innerHTML,
+    /baseball-player-batter[\s\S]*<span>2-3 · 2B · RBI 2 · BB<\/span>/
+  );
   assert.equal(contentRegion.hidden, false);
   assert.equal(summaryRegion.hidden, true);
   assert.doesNotMatch(element.innerHTML, /hero-resting-daily|hero-daily-rule|hero-context-glyph/);
