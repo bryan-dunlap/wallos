@@ -2,6 +2,15 @@
   "location": {
     "query": ""
   },
+  "weather": {
+    "enabled": true,
+    "widget": {
+      "enabled": true
+    },
+    "hero": {
+      "enabled": true
+    }
+  },
   "sports": {
     "primaryLeague": "MLB",
     "enabled": true,
@@ -11,7 +20,18 @@
         "MLB"
       ]
     },
+    "hero": {
+      "enabled": true
+    },
     "favoriteTeams": []
+  },
+  "normalWidgets": {
+    "mode": "pair",
+    "order": [
+      "weather",
+      "sports"
+    ],
+    "rotationSeconds": 15
   },
   "display": {
     "theme": "mosaic",

@@ -21,6 +21,14 @@ class WeatherProvider {
     }
 
     async refresh() {
+        const config = await this.loadConfig();
+
+        if (!config.enabled || (!config.widgetEnabled && !config.heroEnabled)) {
+            this.publishUnavailableEvent();
+            this.publishUnavailableFacts();
+            return;
+        }
+
         try {
             const response = await fetch("/api/weather");
 
@@ -50,14 +58,17 @@ class WeatherProvider {
                 );
             }
 
-            this.publishWeatherEvent(
-                weatherData,
-                today
-            );
-            this.publishWeatherFacts(
-                weatherData,
-                today
-            );
+            if (config.widgetEnabled) {
+                this.publishWeatherEvent(weatherData, today);
+            } else {
+                this.publishUnavailableEvent();
+            }
+
+            if (config.heroEnabled) {
+                this.publishWeatherFacts(weatherData, today);
+            } else {
+                this.publishUnavailableFacts();
+            }
         } catch (error) {
             console.error(
                 "Unable to load weather:",
@@ -66,6 +77,20 @@ class WeatherProvider {
 
             this.publishUnavailableEvent();
             this.publishUnavailableFacts();
+        }
+    }
+
+    async loadConfig() {
+        try {
+            const response = await fetch("/api/config");
+
+            if (!response.ok) throw new Error("Config unavailable");
+
+            const config = await response.json();
+
+            return normalizeWeatherDisplayConfig(config.weather);
+        } catch (error) {
+            return normalizeWeatherDisplayConfig();
         }
     }
 
@@ -244,4 +269,16 @@ class WeatherProvider {
         return "";
     }
 
+}
+
+function normalizeWeatherDisplayConfig(config) {
+    return {
+        enabled: config?.enabled !== false,
+        widgetEnabled: config?.widget?.enabled !== false,
+        heroEnabled: config?.hero?.enabled !== false
+    };
+}
+
+if (typeof module !== "undefined" && module.exports) {
+    module.exports = { normalizeWeatherDisplayConfig };
 }

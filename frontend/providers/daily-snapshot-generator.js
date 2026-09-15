@@ -92,6 +92,8 @@ class DailySnapshotGenerator {
                 this.removeFavoriteSports(favoriteId);
                 this.sportsFactsById.set(item.id, item);
             }
+        } else if (facts?.status === "unavailable") {
+            this.sportsFactsById.clear();
         }
 
         this.publishSnapshot();

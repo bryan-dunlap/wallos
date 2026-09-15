@@ -35,7 +35,7 @@ test("SportsProvider configuration failure has no Mariners fallback", async () =
 
   assert.deepEqual(
     JSON.parse(JSON.stringify(await provider.loadConfig())),
-    { enabled: false, favoriteTeams: [] }
+    { enabled: false, heroEnabled: false, favoriteTeams: [] }
   );
 });
 
@@ -70,6 +70,7 @@ test("SportsProvider retains all configured favorite teams", async () => {
   const config = await provider.loadConfig();
 
   assert.equal(config.favoriteTeams.length, 2);
+  assert.equal(config.heroEnabled, true);
   assert.equal(config.favoriteTeams[0].id, "NFL:SEA");
   assert.equal(config.favoriteTeams[1].id, "BOS");
   assert.equal(config.favoriteTeams[1].shortName, "Red Sox");

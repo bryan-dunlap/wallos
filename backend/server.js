@@ -116,10 +116,23 @@ const sportsSimulationProfiles =
 ========================== */
 
 const WEATHER_CACHE_MS = 30 * 60 * 1000;
+const NORMAL_WIDGET_IDS = ["weather", "sports"];
+const NORMAL_WIDGET_ROTATION_SECONDS_DEFAULT = 15;
+const NORMAL_WIDGET_ROTATION_SECONDS_MIN = 5;
+const NORMAL_WIDGET_ROTATION_SECONDS_MAX = 300;
 
 const DEFAULT_CONFIG = {
   location: {
     query: "98402"
+  },
+  weather: {
+    enabled: true,
+    widget: {
+      enabled: true
+    },
+    hero: {
+      enabled: true
+    }
   },
   sports: {
     primaryLeague: "MLB",
@@ -127,6 +140,9 @@ const DEFAULT_CONFIG = {
     widget: {
       enabled: true,
       leagues: ["MLB"]
+    },
+    hero: {
+      enabled: true
     },
     favoriteTeams: [
       {
@@ -156,7 +172,12 @@ const DEFAULT_CONFIG = {
     enabled: true,
     sources: []
   },
-  homeAssistant: DEFAULT_HOME_ASSISTANT_CONFIG
+  homeAssistant: DEFAULT_HOME_ASSISTANT_CONFIG,
+  normalWidgets: {
+    mode: "pair",
+    order: [...NORMAL_WIDGET_IDS],
+    rotationSeconds: NORMAL_WIDGET_ROTATION_SECONDS_DEFAULT
+  }
 };
 const SUPPORTED_LEAGUES = ["MLB", "NFL", "NBA", "NHL"];
 const SUPPORTED_THEMES = [
@@ -240,10 +261,18 @@ function readConfig() {
       fs.readFileSync(configPath, "utf8")
     );
     const locationQuery = savedConfig?.location?.query;
+    const weather = normalizeIntegrationDisplayConfig(
+      savedConfig?.weather,
+      DEFAULT_CONFIG.weather
+    );
     const primaryLeague = savedConfig?.sports?.primaryLeague;
     const sportsEnabled = savedConfig?.sports?.enabled;
     const sportsWidget = normalizeSportsWidget(
       savedConfig?.sports?.widget
+    );
+    const sportsHero = normalizeDisplayToggle(
+      savedConfig?.sports?.hero,
+      DEFAULT_CONFIG.sports.hero
     );
     const favoriteTeams = normalizeFavoriteTeams(
       savedConfig?.sports
@@ -275,6 +304,9 @@ function readConfig() {
     const homeAssistant = normalizeHomeAssistantConfig(
       savedConfig?.homeAssistant
     );
+    const normalWidgets = normalizeNormalWidgetsConfig(
+      savedConfig?.normalWidgets
+    );
 
     return {
       location: {
@@ -284,6 +316,7 @@ function readConfig() {
             ? locationQuery
             : DEFAULT_CONFIG.location.query
       },
+      weather,
       sports: {
         primaryLeague: SUPPORTED_LEAGUES.includes(primaryLeague)
           ? primaryLeague
@@ -292,6 +325,7 @@ function readConfig() {
           ? sportsEnabled
           : DEFAULT_CONFIG.sports.enabled,
         widget: sportsWidget,
+        hero: sportsHero,
         favoriteTeams
       },
       display: {
@@ -318,7 +352,8 @@ function readConfig() {
           : DEFAULT_CONFIG.discovery.enabled,
         sources: discoverySources
       },
-      homeAssistant
+      homeAssistant,
+      normalWidgets
     };
   } catch (error) {
     console.error("Unable to read config.json; using defaults:", error);
@@ -378,6 +413,63 @@ function normalizeSportsWidget(widgetConfig) {
       )
     ]
   };
+}
+
+function normalizeDisplayToggle(config, defaults = { enabled: true }) {
+  return {
+    enabled: typeof config?.enabled === "boolean"
+      ? config.enabled
+      : defaults.enabled !== false
+  };
+}
+
+function normalizeIntegrationDisplayConfig(
+  config,
+  defaults = {
+    enabled: true,
+    widget: { enabled: true },
+    hero: { enabled: true }
+  }
+) {
+  return {
+    enabled: typeof config?.enabled === "boolean"
+      ? config.enabled
+      : defaults.enabled !== false,
+    widget: normalizeDisplayToggle(config?.widget, defaults.widget),
+    hero: normalizeDisplayToggle(config?.hero, defaults.hero)
+  };
+}
+
+function normalizeNormalWidgetsConfig(config) {
+  const mode = ["pair", "expanded"].includes(config?.mode)
+    ? config.mode
+    : "pair";
+  const configuredOrder = Array.isArray(config?.order)
+    ? config.order
+    : NORMAL_WIDGET_IDS;
+  const order = [];
+
+  configuredOrder.forEach((id) => {
+    if (NORMAL_WIDGET_IDS.includes(id) && !order.includes(id)) {
+      order.push(id);
+    }
+  });
+  NORMAL_WIDGET_IDS.forEach((id) => {
+    if (!order.includes(id)) order.push(id);
+  });
+
+  const configuredRotation = config?.rotationSeconds;
+  const rotationSeconds = Number.isFinite(configuredRotation)
+    ? Math.min(
+        NORMAL_WIDGET_ROTATION_SECONDS_MAX,
+        Math.max(
+          NORMAL_WIDGET_ROTATION_SECONDS_MIN,
+          Math.round(configuredRotation)
+        )
+      )
+    : NORMAL_WIDGET_ROTATION_SECONDS_DEFAULT;
+
+  return { mode, order, rotationSeconds };
 }
 
 function resolveCalendarSourceDraft(value, configuredSources) {
@@ -530,7 +622,8 @@ function validateConfigUpdate(
   discoveryEnabled,
   discoverySources,
   homeAssistant,
-  powerSchedule
+  powerSchedule,
+  preservedDisplayConfig = {}
 ) {
   if (
     typeof locationQuery !== "string" ||
@@ -592,6 +685,10 @@ function validateConfigUpdate(
     location: {
       query: locationQuery
     },
+    weather: normalizeIntegrationDisplayConfig(
+      preservedDisplayConfig.weather,
+      DEFAULT_CONFIG.weather
+    ),
     sports: {
       primaryLeague,
       enabled: sportsEnabled,
@@ -599,6 +696,10 @@ function validateConfigUpdate(
         enabled: sportsWidgetEnabled,
         leagues: sportsWidgetLeagues
       }),
+      hero: normalizeDisplayToggle(
+        preservedDisplayConfig.sportsHero,
+        DEFAULT_CONFIG.sports.hero
+      ),
       favoriteTeams: normalizeFavoriteTeams({ favoriteTeams })
     },
     display: {
@@ -619,7 +720,10 @@ function validateConfigUpdate(
       enabled: discoveryEnabled,
       sources: normalizeDiscoverySources(discoverySources)
     },
-    homeAssistant: normalizeHomeAssistantConfig(homeAssistant)
+    homeAssistant: normalizeHomeAssistantConfig(homeAssistant),
+    normalWidgets: normalizeNormalWidgetsConfig(
+      preservedDisplayConfig.normalWidgets
+    )
   };
 }
 
@@ -4096,7 +4200,12 @@ app.post("/control", async (req, res) => {
           enabled: req.body.powerScheduleEnabled === "true",
           daysDraft: req.body.powerScheduleDraft
         }
-      )
+      ),
+      {
+        weather: currentConfig.weather,
+        sportsHero: currentConfig.sports.hero,
+        normalWidgets: currentConfig.normalWidgets
+      }
     );
     await writeConfig(config);
     await displayPowerRuntime.updateSchedule(
@@ -4347,12 +4456,14 @@ app.get("/api/config", (req, res) => {
   res.json({
     display: config.display,
     profile: config.profile,
+    weather: config.weather,
     calendar: createPublicCalendarConfig(config.calendar),
     sports: config.sports,
     discovery: createPublicDiscoveryConfig(config.discovery),
     homeAssistant: createPublicHomeAssistantConfig(
       config.homeAssistant
-    )
+    ),
+    normalWidgets: config.normalWidgets
   });
 });
 
@@ -5288,7 +5399,8 @@ async function buildSportsWidgetAcquisitionResponse(
   registry = sportsWidgetAcquisitionRegistry
 ) {
   const widgetConfig = sportsConfig?.widget || {};
-  const leagues = widgetConfig.enabled === false
+  const leagues =
+    sportsConfig?.enabled === false || widgetConfig.enabled === false
     ? []
     : await acquireSportsWidgetLeagues(
         widgetConfig.leagues,
@@ -5548,6 +5660,8 @@ module.exports = {
   mlbGamecastScheduleCache,
   normalizeMlbEvent,
   normalizeFavoriteTeams,
+  normalizeIntegrationDisplayConfig,
+  normalizeNormalWidgetsConfig,
   readConfig,
   displayPowerRuntime,
   resolveDisplayPowerScheduleUpdate,

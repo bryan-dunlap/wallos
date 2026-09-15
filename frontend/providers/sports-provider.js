@@ -78,11 +78,13 @@ class SportsProvider {
 
             return {
                 enabled: config.sports?.enabled !== false,
+                heroEnabled: config.sports?.hero?.enabled !== false,
                 favoriteTeams
             };
         } catch (error) {
             return {
                 enabled: false,
+                heroEnabled: false,
                 favoriteTeams: []
             };
         }
@@ -106,6 +108,7 @@ class SportsProvider {
 
             if (
                 !config.enabled ||
+                config.heroEnabled === false ||
                 config.favoriteTeams.length === 0
             ) {
                 this.publishSportsFacts({
