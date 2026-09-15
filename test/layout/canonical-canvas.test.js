@@ -148,7 +148,7 @@ test("major zones share the canonical 12px perimeter rhythm", () => {
   assert.doesNotMatch(mainCss, /\.live-zone\s*\{[^}]*padding:/s);
   assert.match(
     widgetsCss,
-    /\.widget-grid\s*\{[^}]*grid-template-rows:\s*minmax\(0, 1fr\) minmax\(0, 1fr\);[^}]*gap:\s*12px;/s
+    /\.normal-widget-host\s*\{[^}]*grid-template-rows:\s*minmax\(0, 1fr\) minmax\(0, 1fr\);[^}]*gap:\s*12px;/s
   );
   assert.match(
     widgetsCss,
@@ -162,8 +162,8 @@ test("major zones share the canonical 12px perimeter rhythm", () => {
     "planning-clock-surface",
     "planning-calendar-surface",
     "hero-card-surface",
-    "weather-card-surface",
-    "sports-card-surface",
+    "normal-widget-host",
+    "normal-widget-surface",
     "discovery-card-surface"
   ]) {
     assert.match(indexHtml, new RegExp(surfaceClass));
@@ -186,15 +186,7 @@ test("major zones share the canonical 12px perimeter rhythm", () => {
   );
   assert.match(
     widgetsCss,
-    /\.weather-card-surface,\s*\.sports-card-surface\s*\{[^}]*margin-right:\s*calc\(\s*0px - var\(--mosaic-zone-surface-extension\)\s*\);/s
-  );
-  assert.match(
-    widgetsCss,
-    /\.weather-widget\s*\{[^}]*margin-right:\s*calc\(\s*0px - var\(--mosaic-zone-surface-extension\)\s*\);/s
-  );
-  assert.match(
-    widgetsCss,
-    /\.sports-widget\s*\{[^}]*margin-right:\s*calc\(\s*0px - var\(--mosaic-zone-surface-extension\)\s*\);/s
+    /\.normal-widget-host\s*\{[^}]*margin-right:\s*calc\(\s*0px - var\(--mosaic-zone-surface-extension\)\s*\);/s
   );
   assert.match(
     mainCss,

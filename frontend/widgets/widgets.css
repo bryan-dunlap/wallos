@@ -119,30 +119,61 @@
     grid-row: 1 / span 2;
 }
 
-.weather-card-surface {
-    grid-column: 2;
-    grid-row: 1;
-}
-
-.sports-card-surface {
-    grid-column: 2;
-    grid-row: 2;
-}
-
 .hero-card-surface {
     margin-left: calc(
         0px - var(--mosaic-zone-surface-extension)
     );
 }
 
-.weather-card-surface,
-.sports-card-surface {
+.normal-widget-host {
+    display: grid;
+
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+
+    gap: 12px;
+
+    grid-column: 2;
+    grid-row: 1 / span 2;
+
+    min-width: 0;
+    min-height: 0;
+
     margin-right: calc(
         0px - var(--mosaic-zone-surface-extension)
     );
 }
 
+.normal-widget-slot {
+    display: grid;
+
+    min-width: 0;
+    min-height: 0;
+}
+
+.normal-widget-slot--primary {
+    grid-row: 1;
+}
+
+.normal-widget-slot--secondary {
+    grid-row: 2;
+}
+
+.normal-widget-slot--expanded {
+    grid-row: 1 / -1;
+}
+
+.normal-widget-slot > .normal-widget-surface,
+.normal-widget-slot > .normal-widget-mount {
+    grid-area: 1 / 1;
+}
+
+.normal-widget-mount {
+    width: 100%;
+    min-width: 0;
+}
+
 .widget-grid > .layer-3-card-surface,
+.normal-widget-surface,
 .discovery-zone > .discovery-card-surface {
     border-radius: 24px;
 
@@ -182,14 +213,6 @@
 
     padding-block: 8px;
 
-    grid-column: 2;
-
-    grid-row: 1;
-
-    margin-right: calc(
-        0px - var(--mosaic-zone-surface-extension)
-    );
-
 }
 
 
@@ -218,14 +241,6 @@
     align-self: stretch;
 
     padding-block: 8px;
-
-    grid-column: 2;
-
-    grid-row: 2;
-
-    margin-right: calc(
-        0px - var(--mosaic-zone-surface-extension)
-    );
 
     overflow: visible;
 

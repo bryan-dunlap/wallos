@@ -11,29 +11,23 @@ function initializeMosaicLayout(app) {
 
     hero.mount(heroSlot);
 
-    const weatherSlot = document.querySelector(
-        ".weather-widget"
-    );
+    const normalWidgetAssignments = [
+        ["weather", "1"],
+        ["sports", "2"]
+    ];
 
-    if (!weatherSlot) return;
+    for (const [widgetName, slotId] of normalWidgetAssignments) {
+        const slot = document.querySelector(
+            `[data-normal-widget-slot="${slotId}"] ` +
+            ".normal-widget-mount"
+        );
 
-    const weather = app.widgetManager.create(
-        "weather"
-    );
+        if (!slot) return;
 
-    weather.mount(weatherSlot);
+        const widget = app.widgetManager.create(widgetName);
 
-    const sportsSlot = document.querySelector(
-        ".sports-widget"
-    );
-
-    if (!sportsSlot) return;
-
-    const sports = app.widgetManager.create(
-        "sports"
-    );
-
-    sports.mount(sportsSlot);
+        widget.mount(slot);
+    }
 
     const discoverySlot = document.querySelector(
         ".discovery-card"
