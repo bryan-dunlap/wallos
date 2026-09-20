@@ -37,11 +37,12 @@ function normalizeDiscoverySource(configuredSource) {
     ) || LEGACY_REDDIT_FEED_URL;
 
     return {
+      ...configuredSource,
       id,
       name,
       type: "rss",
       enabled: configuredSource.enabled !== false,
-      config: { url }
+      config: { ...configuredSource.config, url }
     };
   }
 
@@ -50,11 +51,12 @@ function normalizeDiscoverySource(configuredSource) {
   if (!url) return null;
 
   return {
+    ...configuredSource,
     id,
     name,
     type,
     enabled: configuredSource.enabled !== false,
-    config: { url }
+    config: { ...configuredSource.config, url }
   };
 }
 

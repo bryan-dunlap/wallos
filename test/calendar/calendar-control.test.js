@@ -17,7 +17,8 @@ test("Calendar edits preserve identity and enabled state across reload", () => {
     id: "personal",
     name: "Personal",
     enabled: false,
-    url: "https://example.com/personal.ics"
+    url: "https://example.com/personal.ics",
+    color: "indigo"
   };
   const editedSource = {
     ...configuredSource,
@@ -37,6 +38,7 @@ test("Calendar edits preserve identity and enabled state across reload", () => {
   assert.deepEqual(reloaded, [editedSource]);
   assert.equal(saved[0].id, configuredSource.id);
   assert.equal(saved[0].enabled, false);
+  assert.equal(saved[0].color, "indigo");
 });
 
 test("an unchanged Calendar URL is valid but another source URL is rejected", () => {
@@ -89,13 +91,14 @@ test("legacy id-and-enabled Calendar drafts remain compatible", () => {
   );
 });
 
-test("Configured Calendar Sources exposes Edit and reuses the Add form", () => {
-  assert.match(serverSource, /data-edit-calendar-source>Edit<\/button>/);
+test("Configured Calendar Sources can be selected into the existing editor", () => {
+  assert.match(serverSource, /data-edit-calendar-source>Select<\/button>/);
   assert.match(serverSource, /data-cancel-calendar-source-edit/);
   assert.match(serverSource, /nameInput\.value = source\.name/);
   assert.match(serverSource, /urlInput\.value = source\.url/);
   assert.match(serverSource, /editorTitle\.textContent = "Edit Source"/);
-  assert.match(serverSource, /addButton\.textContent = "Update"/);
+  assert.match(serverSource, /addButton\.textContent = "Update Source"/);
+  assert.match(serverSource, /row\.classList\.toggle\("is-selected"/);
 });
 
 test("Calendar updates mutate only the local draft and refresh the row", () => {
@@ -113,26 +116,42 @@ test("Calendar updates mutate only the local draft and refresh the row", () => {
   );
 });
 
-test("Cancel and remove while editing safely reset Calendar edit mode", () => {
+test("Calendar selection remains valid after draft removal", () => {
   assert.match(
     serverSource,
     /cancelEditButton\.addEventListener\("click", resetEditor\)/
   );
   assert.match(
     serverSource,
-    /editingSourceId === draft\[sourceIndex\]\.id[\s\S]*resetEditor\(\);[\s\S]*draft\.splice/
+    /const nextSource = draft\[sourceIndex \+ 1\] \|\| draft\[sourceIndex - 1\] \|\| null/
   );
+  assert.match(serverSource, /nextSource \? beginEdit\(nextSource\) : resetEditor\(\)/);
   assert.match(serverSource, /editingSourceId = null/);
 });
 
-test("Calendar Add, toggle, and remove remain local until Save Changes", () => {
+test("Calendar Add, enable, disable, and remove remain local until Save Changes", () => {
   assert.match(serverSource, /draft\.push\(source\)/);
   assert.match(
     serverSource,
-    /draft\[sourceIndex\]\.enabled =[\s\S]*draft\[sourceIndex\]\.enabled === false/
+    /enabled: enabledInput\.checked/
   );
   assert.match(serverSource, /draft\.splice\(sourceIndex, 1\)/);
   assert.match(serverSource, /syncDraft\(\);[\s\S]*markUnsaved\(\)/);
+  assert.match(serverSource, /enabled: true,[\s\S]*url/);
+  assert.doesNotMatch(serverSource, /app\.post\("\/control\/calendar-sources\//);
+});
+
+test("Calendar draft lifecycle uses Save Changes as its persistence boundary", () => {
+  const routes = require("../../backend/server").app.router.stack
+    .filter((layer) => layer.route)
+    .flatMap((layer) => Object.keys(layer.route.methods).map(
+      (method) => `${method.toUpperCase()} ${layer.route.path}`
+    ));
+
+  assert.ok(routes.includes("POST /control"));
+  assert.doesNotMatch(routes.join("\n"), /POST \/control\/calendar-sources\//);
+  assert.match(serverSource, /name="calendarSourcesDraft"/);
+  assert.match(serverSource, /data-calendar-source-empty/);
 });
 
 test("Calendar rows immediately display edited names and addresses", () => {

@@ -38,6 +38,25 @@ test("RSS configuration is retained internally and redacted publicly", () => {
   assert.equal(JSON.stringify(publicConfig).includes("token=private"), false);
 });
 
+test("legacy Discovery sources default enabled and preserve unknown fields", () => {
+  const [source] = normalizeDiscoverySources([{
+    id: "legacy",
+    name: "Legacy",
+    type: "rss",
+    rank: 4,
+    config: {
+      url: "https://example.com/legacy.xml",
+      headers: { accept: "application/rss+xml" }
+    }
+  }]);
+
+  assert.equal(source.enabled, true);
+  assert.equal(source.rank, 4);
+  assert.deepEqual(source.config.headers, {
+    accept: "application/rss+xml"
+  });
+});
+
 test("invalid source protocols are rejected", () => {
   const sources = normalizeDiscoverySources([{
     id: "bad",

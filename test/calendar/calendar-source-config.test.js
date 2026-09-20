@@ -19,6 +19,22 @@ test("normalizes private iCalendar source configuration", () => {
   assert.match(sources[0].url, /token=secret/);
 });
 
+test("legacy Calendar sources default enabled and preserve unknown fields", () => {
+  const [source] = normalizeCalendarSources([{
+    id: "legacy",
+    name: "Legacy",
+    url: "https://calendar.test/legacy.ics",
+    color: "blue",
+    providerConfig: { timezone: "America/Los_Angeles" }
+  }]);
+
+  assert.equal(source.enabled, true);
+  assert.equal(source.color, "blue");
+  assert.deepEqual(source.providerConfig, {
+    timezone: "America/Los_Angeles"
+  });
+});
+
 test("public Calendar configuration excludes source URLs", () => {
   const publicConfig = createPublicCalendarConfig({
     enabled: true,

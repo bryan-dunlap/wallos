@@ -285,7 +285,7 @@ test("removal only re-enqueues remaining favorites and never deletes cache", () 
   ), "utf8");
   const removal = serverSource.slice(
     serverSource.indexOf('app.post("/control/favorite-teams/remove"'),
-    serverSource.indexOf('app.post("/control/calendar-sources/add"')
+    serverSource.indexOf('app.get("/api/config"')
   );
   assert.match(removal, /enqueueFavoriteTeamPalettes\(teamPaletteResolver, favoriteTeams\)/);
   assert.doesNotMatch(removal, /teamPaletteResolver\.(?:delete|remove)|palette.*cache.*(?:delete|remove)/i);

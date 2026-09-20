@@ -16,6 +16,7 @@ function normalizeCalendarSources(configuredSources) {
 
     seenIds.add(id);
     sources.push({
+      ...configuredSource,
       id,
       name,
       enabled: configuredSource.enabled !== false,

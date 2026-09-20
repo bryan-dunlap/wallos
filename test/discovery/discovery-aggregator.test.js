@@ -55,3 +55,24 @@ test("duplicate normalized items collapse into one collection entry", async () =
 
   assert.equal(items.length, 1);
 });
+
+test("disabled sources do not invoke Discovery acquisition", async () => {
+  let calls = 0;
+  const aggregator = new DiscoveryAggregator({
+    get: () => ({
+      getItems: async () => {
+        calls += 1;
+        return [];
+      }
+    })
+  });
+
+  const items = await aggregator.getItems([{
+    type: "rss",
+    enabled: false,
+    config: { url: "https://example.com/disabled.xml" }
+  }]);
+
+  assert.deepEqual(items, []);
+  assert.equal(calls, 0);
+});

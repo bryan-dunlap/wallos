@@ -48,12 +48,17 @@ test("Discovery edits preserve identity and enabled state across reload", () => 
     name: "Baseball",
     type: "rss",
     enabled: false,
-    config: { url: "https://example.com/baseball.xml" }
+    config: {
+      url: "https://example.com/baseball.xml",
+      headers: { accept: "application/rss+xml" }
+    },
+    rank: 3
   };
   const editedSource = {
     ...configuredSource,
     name: "Baseball Reddit",
     config: {
+      ...configuredSource.config,
       url: "https://www.reddit.com/r/news+nottheonion+weirdnews+baseball/.rss"
     }
   };
@@ -70,6 +75,10 @@ test("Discovery edits preserve identity and enabled state across reload", () => 
   assert.deepEqual(reloaded, [editedSource]);
   assert.equal(saved[0].id, configuredSource.id);
   assert.equal(saved[0].enabled, false);
+  assert.equal(saved[0].rank, 3);
+  assert.deepEqual(saved[0].config.headers, {
+    accept: "application/rss+xml"
+  });
 });
 
 test("an unchanged edit URL is valid but another source URL is rejected", () => {
@@ -143,21 +152,22 @@ test("new Discovery draft records always use the RSS persistence type", () => {
   assert.doesNotMatch(serverSource, /type = "reddit"/);
 });
 
-test("Configured Sources exposes Edit and reuses the existing editor", () => {
+test("Configured Sources can be selected into the existing editor", () => {
   const serverSource = fs.readFileSync(
     path.join(PROJECT_ROOT, "backend", "server.js"),
     "utf8"
   );
 
-  assert.match(serverSource, /data-edit-discovery-source>Edit<\/button>/);
+  assert.match(serverSource, /data-edit-discovery-source>Select<\/button>/);
   assert.match(serverSource, /data-cancel-discovery-source-edit/);
   assert.match(serverSource, /nameInput\.value = source\.name/);
   assert.match(serverSource, /urlInput\.value = source\.config\?\.url/);
-  assert.match(serverSource, /addButton\.textContent = "Update"/);
+  assert.match(serverSource, /addButton\.textContent = "Update Source"/);
   assert.match(serverSource, /editorTitle\.textContent = "Edit Source"/);
+  assert.match(serverSource, /row\.classList\.toggle\("is-selected"/);
 });
 
-test("local updates preserve state, refresh rows, and support safe cancellation", () => {
+test("local updates preserve state and deterministically select after removal", () => {
   const serverSource = fs.readFileSync(
     path.join(PROJECT_ROOT, "backend", "server.js"),
     "utf8"
@@ -170,11 +180,8 @@ test("local updates preserve state, refresh rows, and support safe cancellation"
     serverSource,
     /cancelEditButton\.addEventListener\("click", resetEditor\)/
   );
-  assert.match(
-    serverSource,
-    /editingSourceId === draft\[sourceIndex\]\.id/
-  );
-  assert.match(serverSource, /resetEditor\(\);[\s\S]*draft\.splice/);
+  assert.match(serverSource, /const nextSource = draft\[sourceIndex \+ 1\] \|\| draft\[sourceIndex - 1\] \|\| null/);
+  assert.match(serverSource, /nextSource \? beginEdit\(nextSource\) : resetEditor\(\)/);
 });
 
 test("Discovery source edits remain a local draft until Save Changes", () => {
@@ -195,7 +202,7 @@ test("Discovery source edits remain a local draft until Save Changes", () => {
   assert.match(serverSource, /draft\[sourceIndex\] = source/);
   assert.match(
     serverSource,
-    /draft\[sourceIndex\]\.enabled =[\s\S]*draft\[sourceIndex\]\.enabled === false/
+    /enabled: enabledInput\.checked/
   );
   assert.match(serverSource, /draft\.splice\(sourceIndex, 1\)/);
   assert.match(serverSource, /markUnsaved\(\)/);
@@ -203,6 +210,8 @@ test("Discovery source edits remain a local draft until Save Changes", () => {
     serverSource,
     /app\.post\("\/control\/discovery-sources\//
   );
+  assert.match(serverSource, /enabled: true,[\s\S]*config: \{ url \}/);
+  assert.match(serverSource, /data-discovery-source-empty/);
 });
 
 test("generic Discovery status copy contains no Reddit assumption", () => {

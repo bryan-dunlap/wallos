@@ -1,7 +1,6 @@
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
-const { randomUUID } = require("crypto");
 const {
   SPORTS_TEAM_REGISTRY,
   getSportsTeam
@@ -1361,18 +1360,8 @@ app.get("/control", (req, res) => {
         <li class="item-row" data-calendar-source-row data-source-id="${escapeHtml(source.id)}">
           <span class="item-copy"><strong><span class="status-dot${source.enabled ? " is-enabled" : ""}"></span><span data-calendar-source-name>${escapeHtml(source.name)}</span></strong><small>${source.enabled ? "Enabled" : "Disabled"}</small><span class="source-address">${escapeHtml(source.url)}</span></span>
           <span data-calendar-source-actions>
-            <button class="button button-quiet" type="button" data-toggle-calendar-source>${source.enabled ? "Disable" : "Enable"}</button>
-            <button class="button button-quiet" type="button" data-edit-calendar-source>Edit</button>
-            <button class="button button-quiet" type="button" data-remove-calendar-source>Remove</button>
+            <button class="button button-quiet" type="button" data-edit-calendar-source>Select</button>
           </span>
-          <div class="inline-confirmation" data-calendar-source-confirmation hidden>
-            <strong>Remove ${escapeHtml(source.name)}?</strong>
-            <p>This will stop Mosaic from displaying events from this calendar.</p>
-            <div class="button-row">
-              <button class="button button-quiet" type="button" data-cancel-calendar-source-removal>Cancel</button>
-              <button class="button button-danger" type="button" data-confirm-calendar-source-removal>Remove Calendar</button>
-            </div>
-          </div>
         </li>`).join("");
   const discoveryTypeLabels = new Map(
     discoverySourceTypeMetadata.map((metadata) => [
@@ -1399,19 +1388,8 @@ app.get("/control", (req, res) => {
         <li class="item-row" data-discovery-source-row data-source-id="${escapeHtml(source.id)}" data-source-removable="${canRemove}">
           <span class="item-copy"><strong><span class="status-dot${source.enabled ? " is-enabled" : ""}"></span><span data-discovery-source-name>${escapeHtml(source.name)}</span></strong><small>${sourceKind} · ${sourceStatus}${canRemove ? "" : " · Built-in"}</small><span class="source-address">${escapeHtml(sourceUrl)}</span></span>
           <span data-discovery-source-actions>
-            <button class="button button-quiet" type="button" data-toggle-discovery-source>${source.enabled ? "Disable" : "Enable"}</button>
-            <button class="button button-quiet" type="button" data-edit-discovery-source>Edit</button>
-            ${canRemove ? "<button class=\"button button-quiet\" type=\"button\" data-remove-discovery-source>Remove</button>" : ""}
+            <button class="button button-quiet" type="button" data-edit-discovery-source>Select</button>
           </span>
-          ${canRemove ? `
-          <div class="inline-confirmation" data-discovery-source-confirmation hidden>
-            <strong>Remove ${escapeHtml(source.name)}?</strong>
-            <p>This will stop Mosaic from displaying items from this source.</p>
-            <div class="button-row">
-              <button class="button button-quiet" type="button" data-cancel-discovery-source-removal>Cancel</button>
-              <button class="button button-danger" type="button" data-confirm-discovery-source-removal>Remove Source</button>
-            </div>
-          </div>` : ""}
         </li>`;
       }).join("");
   const homeAssistantEntitiesDraft = JSON.stringify(
@@ -1548,6 +1526,8 @@ app.get("/control", (req, res) => {
     .schedule-summary + .empty-state { margin-top: 10px; }
     .inline-confirmation { grid-column: 1 / -1; padding: 14px; border-left: 3px solid #b42318; border-radius: 8px; background: #fff1f0; }
     .inline-confirmation p { margin: 5px 0 12px; color: #7f1d1d; font-size: .88rem; }
+    .selected-source-controls { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 14px; padding: 12px 14px; border-radius: 10px; background: rgba(203, 218, 230, .46); }
+    .item-row.is-selected { border-color: rgba(37, 99, 235, .48); background: rgba(219, 234, 254, .5); }
     .developer-card { background: linear-gradient(150deg, rgba(193, 208, 220, .82), rgba(173, 193, 209, .72)); }
     .developer-tools-grid { gap: 16px; }
     .developer-tool { padding-top: 18px; border-top: 1px solid rgba(100, 116, 139, .16); }
@@ -1820,6 +1800,11 @@ app.get("/control", (req, res) => {
               <div class="field"><label for="calendar-source-url">iCal address</label><input id="calendar-source-url" name="calendarSourceUrl" type="url" placeholder="https://calendar.example.com/feed.ics"></div>
               <div class="button-row"><button class="button button-secondary" type="button" data-add-calendar-source>Add</button><button class="button button-quiet" type="button" data-cancel-calendar-source-edit hidden>Cancel Edit</button></div>
             </div>
+            <div class="selected-source-controls" data-calendar-selected-controls hidden>
+              <label class="switch"><input type="checkbox" value="true" data-calendar-source-enabled aria-label="Calendar source enabled"><span class="switch-track"></span><span class="switch-state"></span></label>
+              <button class="button button-quiet" type="button" data-remove-selected-calendar-source>Remove Source</button>
+            </div>
+            <div class="inline-confirmation" data-calendar-selected-confirmation hidden><strong>Remove selected Calendar source?</strong><p>This removes it from the local draft. Save Changes to persist removal.</p><div class="button-row"><button class="button button-quiet" type="button" data-cancel-selected-calendar-removal>Cancel</button><button class="button button-danger" type="button" data-confirm-selected-calendar-removal>Remove Source</button></div></div>
             <h4 class="subsection-title">Configured Sources</h4>
             <ul class="item-list" data-calendar-source-list>
               ${calendarSourceRows}
@@ -1886,6 +1871,11 @@ app.get("/control", (req, res) => {
               <div class="field"><label for="discovery-source-url">Feed Address</label><input id="discovery-source-url" name="discoverySourceUrl" type="text" inputmode="url" placeholder="Feed URL or r/subreddit"></div>
               <div class="button-row"><button class="button button-secondary" type="button" data-add-discovery-source>Add</button><button class="button button-quiet" type="button" data-cancel-discovery-source-edit hidden>Cancel Edit</button></div>
             </div>
+            <div class="selected-source-controls" data-discovery-selected-controls hidden>
+              <label class="switch"><input type="checkbox" value="true" data-discovery-source-enabled aria-label="Discovery source enabled"><span class="switch-track"></span><span class="switch-state"></span></label>
+              <button class="button button-quiet" type="button" data-remove-selected-discovery-source>Remove Source</button>
+            </div>
+            <div class="inline-confirmation" data-discovery-selected-confirmation hidden><strong>Remove selected Discovery source?</strong><p>This removes it from the local draft. Save Changes to persist removal.</p><div class="button-row"><button class="button button-quiet" type="button" data-cancel-selected-discovery-removal>Cancel</button><button class="button button-danger" type="button" data-confirm-selected-discovery-removal>Remove Source</button></div></div>
             <h4 class="subsection-title">Configured Sources</h4>
             <ul class="item-list" data-discovery-source-list>
               ${discoverySourceRows}
@@ -2928,11 +2918,13 @@ app.get("/control", (req, res) => {
       let discoveryLoaded = false;
       const metadataById = new Map();
 
-      const humanize = (value) => value
-        .split("_")
-        .filter(Boolean)
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" ");
+      const humanize = (value) => typeof value === "string"
+        ? value
+          .split("_")
+          .filter(Boolean)
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(" ")
+        : "";
 
       const fallbackName = (entityId) =>
         humanize(entityId.split(".")[1] || entityId);
@@ -3885,6 +3877,12 @@ app.get("/control", (req, res) => {
       const editorTitle = document.querySelector(
         "[data-calendar-source-editor-title]"
       );
+      const selectedControls = document.querySelector("[data-calendar-selected-controls]");
+      const enabledInput = document.querySelector("[data-calendar-source-enabled]");
+      const removeSelectedButton = document.querySelector("[data-remove-selected-calendar-source]");
+      const selectedConfirmation = document.querySelector("[data-calendar-selected-confirmation]");
+      const cancelSelectedRemoval = document.querySelector("[data-cancel-selected-calendar-removal]");
+      const confirmSelectedRemoval = document.querySelector("[data-confirm-selected-calendar-removal]");
       const saveStatus = document.querySelector(
         "[data-save-status]"
       );
@@ -3924,8 +3922,13 @@ app.get("/control", (req, res) => {
         nameInput.setCustomValidity("");
         urlInput.setCustomValidity("");
         editorTitle.textContent = "Add Source";
-        addButton.textContent = "Add";
+        addButton.textContent = "Add Source";
         cancelEditButton.hidden = true;
+        selectedControls.hidden = true;
+        selectedConfirmation.hidden = true;
+        list.querySelectorAll("[data-calendar-source-row]").forEach(
+          (row) => row.classList.remove("is-selected")
+        );
       };
 
       const beginEdit = (source) => {
@@ -3935,8 +3938,14 @@ app.get("/control", (req, res) => {
         nameInput.setCustomValidity("");
         urlInput.setCustomValidity("");
         editorTitle.textContent = "Edit Source";
-        addButton.textContent = "Update";
+        addButton.textContent = "Update Source";
         cancelEditButton.hidden = false;
+        enabledInput.checked = source.enabled !== false;
+        selectedControls.hidden = false;
+        selectedConfirmation.hidden = true;
+        list.querySelectorAll("[data-calendar-source-row]").forEach(
+          (row) => row.classList.toggle("is-selected", row.dataset.sourceId === source.id)
+        );
         nameInput.focus();
       };
 
@@ -3978,52 +3987,13 @@ app.get("/control", (req, res) => {
 
         const actions = document.createElement("span");
         actions.dataset.calendarSourceActions = "";
-        const toggle = document.createElement("button");
-        toggle.className = "button button-quiet";
-        toggle.type = "button";
-        toggle.dataset.toggleCalendarSource = "";
-        toggle.textContent = "Disable";
         const edit = document.createElement("button");
         edit.className = "button button-quiet";
         edit.type = "button";
         edit.dataset.editCalendarSource = "";
-        edit.textContent = "Edit";
-        const remove = document.createElement("button");
-        remove.className = "button button-quiet";
-        remove.type = "button";
-        remove.dataset.removeCalendarSource = "";
-        remove.textContent = "Remove";
-        actions.append(toggle, edit, remove);
-
-        const confirmation = document.createElement("div");
-        confirmation.className = "inline-confirmation";
-        confirmation.dataset.calendarSourceConfirmation = "";
-        confirmation.hidden = true;
-        const question = document.createElement("strong");
-        question.textContent = "Remove " + source.name + "?";
-        const explanation = document.createElement("p");
-        explanation.textContent =
-          "This will stop Mosaic from displaying events from this calendar.";
-        const confirmationActions = document.createElement("div");
-        confirmationActions.className = "button-row";
-        const cancel = document.createElement("button");
-        cancel.className = "button button-quiet";
-        cancel.type = "button";
-        cancel.dataset.cancelCalendarSourceRemoval = "";
-        cancel.textContent = "Cancel";
-        const confirm = document.createElement("button");
-        confirm.className = "button button-danger";
-        confirm.type = "button";
-        confirm.dataset.confirmCalendarSourceRemoval = "";
-        confirm.textContent = "Remove Calendar";
-        confirmationActions.append(cancel, confirm);
-        confirmation.append(
-          question,
-          explanation,
-          confirmationActions
-        );
-
-        row.append(copy, actions, confirmation);
+        edit.textContent = "Select";
+        actions.append(edit);
+        row.append(copy, actions);
         return row;
       };
 
@@ -4037,24 +4007,12 @@ app.get("/control", (req, res) => {
         );
         const status = row.querySelector(".item-copy small");
         const address = row.querySelector(".source-address");
-        const toggle = row.querySelector(
-          "[data-toggle-calendar-source]"
-        );
 
         if (name) name.textContent = source.name;
         if (status) status.textContent = source.enabled
           ? "Enabled"
           : "Disabled";
         if (address) address.textContent = source.url;
-        if (toggle) toggle.textContent = source.enabled
-          ? "Disable"
-          : "Enable";
-        const confirmationName = row.querySelector(
-          "[data-calendar-source-confirmation] strong"
-        );
-        if (confirmationName) {
-          confirmationName.textContent = "Remove " + source.name + "?";
-        }
       };
 
       addButton.addEventListener("click", () => {
@@ -4107,6 +4065,7 @@ app.get("/control", (req, res) => {
           const source = {
             ...draft[sourceIndex],
             name,
+            enabled: enabledInput.checked,
             url
           };
           draft[sourceIndex] = source;
@@ -4129,17 +4088,29 @@ app.get("/control", (req, res) => {
           list.insertBefore(createSourceRow(source), emptyState);
         }
 
-        resetEditor();
-
         if (!hadSources && providerField) {
           providerField.value = "ical";
         }
 
         syncDraft();
         markUnsaved();
+        beginEdit(draft.find((source) => source.id === editingSourceId) || draft[draft.length - 1]);
       });
 
       cancelEditButton.addEventListener("click", resetEditor);
+      removeSelectedButton.addEventListener("click", () => selectedConfirmation.hidden = false);
+      cancelSelectedRemoval.addEventListener("click", () => selectedConfirmation.hidden = true);
+      confirmSelectedRemoval.addEventListener("click", () => {
+        const sourceIndex = draft.findIndex((source) => source.id === editingSourceId);
+        if (sourceIndex < 0) return resetEditor();
+        const nextSource = draft[sourceIndex + 1] || draft[sourceIndex - 1] || null;
+        Array.from(list.querySelectorAll("[data-calendar-source-row]"))
+          .find((row) => row.dataset.sourceId === editingSourceId)?.remove();
+        draft.splice(sourceIndex, 1);
+        syncDraft();
+        nextSource ? beginEdit(nextSource) : resetEditor();
+        markUnsaved();
+      });
 
       list.addEventListener("click", (event) => {
         const row = event.target.closest(
@@ -4154,41 +4125,10 @@ app.get("/control", (req, res) => {
 
         if (sourceIndex < 0) return;
 
-        const actions = row.querySelector(
-          "[data-calendar-source-actions]"
-        );
-        const confirmation = row.querySelector(
-          "[data-calendar-source-confirmation]"
-        );
-
-        if (event.target.closest("[data-toggle-calendar-source]")) {
-          draft[sourceIndex].enabled =
-            draft[sourceIndex].enabled === false;
-          updateSourceRow(row, draft[sourceIndex]);
-          syncDraft();
-          markUnsaved();
-        } else if (event.target.closest(
+        if (event.target.closest(
           "[data-edit-calendar-source]"
         )) {
           beginEdit(draft[sourceIndex]);
-        } else if (event.target.closest("[data-remove-calendar-source]")) {
-          actions.hidden = true;
-          confirmation.hidden = false;
-        } else if (event.target.closest(
-          "[data-cancel-calendar-source-removal]"
-        )) {
-          confirmation.hidden = true;
-          actions.hidden = false;
-        } else if (event.target.closest(
-          "[data-confirm-calendar-source-removal]"
-        )) {
-          if (editingSourceId === draft[sourceIndex].id) {
-            resetEditor();
-          }
-          draft.splice(sourceIndex, 1);
-          row.remove();
-          syncDraft();
-          markUnsaved();
         }
       });
 
@@ -4220,6 +4160,12 @@ app.get("/control", (req, res) => {
       const editorTitle = document.querySelector(
         "[data-discovery-source-editor-title]"
       );
+      const selectedControls = document.querySelector("[data-discovery-selected-controls]");
+      const enabledInput = document.querySelector("[data-discovery-source-enabled]");
+      const removeSelectedButton = document.querySelector("[data-remove-selected-discovery-source]");
+      const selectedConfirmation = document.querySelector("[data-discovery-selected-confirmation]");
+      const cancelSelectedRemoval = document.querySelector("[data-cancel-selected-discovery-removal]");
+      const confirmSelectedRemoval = document.querySelector("[data-confirm-selected-discovery-removal]");
       const saveStatus = document.querySelector(
         "[data-save-status]"
       );
@@ -4259,8 +4205,13 @@ app.get("/control", (req, res) => {
         nameInput.setCustomValidity("");
         urlInput.setCustomValidity("");
         editorTitle.textContent = "Add Source";
-        addButton.textContent = "Add";
+        addButton.textContent = "Add Source";
         cancelEditButton.hidden = true;
+        selectedControls.hidden = true;
+        selectedConfirmation.hidden = true;
+        list.querySelectorAll("[data-discovery-source-row]").forEach(
+          (row) => row.classList.remove("is-selected")
+        );
       };
 
       const beginEdit = (source) => {
@@ -4270,8 +4221,17 @@ app.get("/control", (req, res) => {
         nameInput.setCustomValidity("");
         urlInput.setCustomValidity("");
         editorTitle.textContent = "Edit Source";
-        addButton.textContent = "Update";
+        addButton.textContent = "Update Source";
         cancelEditButton.hidden = false;
+        enabledInput.checked = source.enabled !== false;
+        selectedControls.hidden = false;
+        const selectedRow = Array.from(list.querySelectorAll("[data-discovery-source-row]"))
+          .find((row) => row.dataset.sourceId === source.id);
+        removeSelectedButton.hidden = selectedRow?.dataset.sourceRemovable === "false";
+        selectedConfirmation.hidden = true;
+        list.querySelectorAll("[data-discovery-source-row]").forEach(
+          (row) => row.classList.toggle("is-selected", row.dataset.sourceId === source.id)
+        );
         nameInput.focus();
       };
 
@@ -4360,52 +4320,13 @@ app.get("/control", (req, res) => {
 
         const actions = document.createElement("span");
         actions.dataset.discoverySourceActions = "";
-        const toggle = document.createElement("button");
-        toggle.className = "button button-quiet";
-        toggle.type = "button";
-        toggle.dataset.toggleDiscoverySource = "";
-        toggle.textContent = "Disable";
         const edit = document.createElement("button");
         edit.className = "button button-quiet";
         edit.type = "button";
         edit.dataset.editDiscoverySource = "";
-        edit.textContent = "Edit";
-        const remove = document.createElement("button");
-        remove.className = "button button-quiet";
-        remove.type = "button";
-        remove.dataset.removeDiscoverySource = "";
-        remove.textContent = "Remove";
-        actions.append(toggle, edit, remove);
-
-        const confirmation = document.createElement("div");
-        confirmation.className = "inline-confirmation";
-        confirmation.dataset.discoverySourceConfirmation = "";
-        confirmation.hidden = true;
-        const question = document.createElement("strong");
-        question.textContent = "Remove " + source.name + "?";
-        const explanation = document.createElement("p");
-        explanation.textContent =
-          "This will stop Mosaic from displaying items from this source.";
-        const confirmationActions = document.createElement("div");
-        confirmationActions.className = "button-row";
-        const cancel = document.createElement("button");
-        cancel.className = "button button-quiet";
-        cancel.type = "button";
-        cancel.dataset.cancelDiscoverySourceRemoval = "";
-        cancel.textContent = "Cancel";
-        const confirm = document.createElement("button");
-        confirm.className = "button button-danger";
-        confirm.type = "button";
-        confirm.dataset.confirmDiscoverySourceRemoval = "";
-        confirm.textContent = "Remove Source";
-        confirmationActions.append(cancel, confirm);
-        confirmation.append(
-          question,
-          explanation,
-          confirmationActions
-        );
-
-        row.append(copy, actions, confirmation);
+        edit.textContent = "Select";
+        actions.append(edit);
+        row.append(copy, actions);
         return row;
       };
 
@@ -4419,9 +4340,6 @@ app.get("/control", (req, res) => {
         );
         const status = row.querySelector(".item-copy small");
         const address = row.querySelector(".source-address");
-        const toggle = row.querySelector(
-          "[data-toggle-discovery-source]"
-        );
 
         if (name) name.textContent = source.name;
         if (status) {
@@ -4432,15 +4350,6 @@ app.get("/control", (req, res) => {
               : " · Built-in");
         }
         if (address) address.textContent = source.config.url;
-        if (toggle) toggle.textContent = source.enabled
-          ? "Disable"
-          : "Enable";
-        const confirmationName = row.querySelector(
-          "[data-discovery-source-confirmation] strong"
-        );
-        if (confirmationName) {
-          confirmationName.textContent = "Remove " + source.name + "?";
-        }
       };
 
       addButton.addEventListener("click", () => {
@@ -4492,7 +4401,8 @@ app.get("/control", (req, res) => {
             ...draft[sourceIndex],
             name,
             type,
-            config: { url }
+            enabled: enabledInput.checked,
+            config: { ...draft[sourceIndex].config, url }
           };
           draft[sourceIndex] = source;
           const row = Array.from(list.querySelectorAll(
@@ -4515,12 +4425,25 @@ app.get("/control", (req, res) => {
           list.insertBefore(createSourceRow(source), emptyState);
         }
 
-        resetEditor();
         syncDraft();
         markUnsaved();
+        beginEdit(draft.find((source) => source.id === editingSourceId) || draft[draft.length - 1]);
       });
 
       cancelEditButton.addEventListener("click", resetEditor);
+      removeSelectedButton.addEventListener("click", () => selectedConfirmation.hidden = false);
+      cancelSelectedRemoval.addEventListener("click", () => selectedConfirmation.hidden = true);
+      confirmSelectedRemoval.addEventListener("click", () => {
+        const sourceIndex = draft.findIndex((source) => source.id === editingSourceId);
+        if (sourceIndex < 0) return resetEditor();
+        const nextSource = draft[sourceIndex + 1] || draft[sourceIndex - 1] || null;
+        Array.from(list.querySelectorAll("[data-discovery-source-row]"))
+          .find((row) => row.dataset.sourceId === editingSourceId)?.remove();
+        draft.splice(sourceIndex, 1);
+        syncDraft();
+        nextSource ? beginEdit(nextSource) : resetEditor();
+        markUnsaved();
+      });
 
       list.addEventListener("click", (event) => {
         const row = event.target.closest(
@@ -4535,47 +4458,10 @@ app.get("/control", (req, res) => {
 
         if (sourceIndex < 0) return;
 
-        const actions = row.querySelector(
-          "[data-discovery-source-actions]"
-        );
-        const confirmation = row.querySelector(
-          "[data-discovery-source-confirmation]"
-        );
-
-        if (event.target.closest("[data-toggle-discovery-source]")) {
-          draft[sourceIndex].enabled =
-            draft[sourceIndex].enabled === false;
-          updateSourceRow(row, draft[sourceIndex]);
-          syncDraft();
-          markUnsaved();
-        } else if (event.target.closest(
+        if (event.target.closest(
           "[data-edit-discovery-source]"
         )) {
           beginEdit(draft[sourceIndex]);
-        } else if (
-          row.dataset.sourceRemovable === "true" &&
-          event.target.closest("[data-remove-discovery-source]")
-        ) {
-          actions.hidden = true;
-          confirmation.hidden = false;
-        } else if (event.target.closest(
-          "[data-cancel-discovery-source-removal]"
-        )) {
-          confirmation.hidden = true;
-          actions.hidden = false;
-        } else if (
-          row.dataset.sourceRemovable === "true" &&
-          event.target.closest(
-            "[data-confirm-discovery-source-removal]"
-          )
-        ) {
-          if (editingSourceId === draft[sourceIndex].id) {
-            resetEditor();
-          }
-          draft.splice(sourceIndex, 1);
-          row.remove();
-          syncDraft();
-          markUnsaved();
         }
       });
 
@@ -4762,145 +4648,6 @@ app.post("/control/favorite-teams/remove", async (req, res) => {
     res.status(500).json({ error: "Favorite team could not be removed." });
   }
 });
-
-app.post("/control/calendar-sources/add", async (req, res) => {
-  try {
-    const name = typeof req.body.calendarSourceName === "string"
-      ? req.body.calendarSourceName.trim()
-      : "";
-    const url = typeof req.body.calendarSourceUrl === "string"
-      ? req.body.calendarSourceUrl.trim()
-      : "";
-
-    if (!name) {
-      return res.status(400).json({
-        error: "Calendar nickname must not be empty."
-      });
-    }
-
-    if (!url) {
-      return res.status(400).json({
-        error: "iCalendar URL must not be empty."
-      });
-    }
-
-    const source = normalizeCalendarSources([{
-      id: `calendar-${randomUUID()}`,
-      name,
-      enabled: true,
-      url
-    }])[0];
-
-    if (!source) {
-      return res.status(400).json({
-        error: "iCalendar URL is invalid."
-      });
-    }
-
-    const config = readConfig();
-
-    if (
-      config.calendar.sources.some(
-        (configuredSource) => configuredSource.url === source.url
-      )
-    ) {
-      return res.status(400).json({
-        error: "That Calendar source is already configured."
-      });
-    }
-
-    await writeConfig({
-      ...config,
-      calendar: {
-        ...config.calendar,
-        provider: config.calendar.sources.length === 0
-          ? icalCalendarProvider.id
-          : config.calendar.provider,
-        sources: [...config.calendar.sources, source]
-      }
-    });
-    res.redirect(303, "/control");
-  } catch (error) {
-    console.error("Unable to add Calendar source.");
-    res.status(500).json({
-      error: "Calendar source could not be added."
-    });
-  }
-});
-
-app.post("/control/calendar-sources/toggle", async (req, res) => {
-  try {
-    const config = readConfig();
-    const sourceId = normalizeCalendarSourceId(
-      req.body.calendarSourceId
-    );
-    const sourceExists = config.calendar.sources.some(
-      (source) => source.id === sourceId
-    );
-
-    if (!sourceExists) {
-      return res.status(400).json({
-        error: "Calendar source is invalid."
-      });
-    }
-
-    await writeConfig({
-      ...config,
-      calendar: {
-        ...config.calendar,
-        sources: config.calendar.sources.map((source) =>
-          source.id === sourceId
-            ? { ...source, enabled: !source.enabled }
-            : source
-        )
-      }
-    });
-    res.redirect(303, "/control");
-  } catch (error) {
-    console.error("Unable to update Calendar source.");
-    res.status(500).json({
-      error: "Calendar source could not be updated."
-    });
-  }
-});
-
-app.post("/control/calendar-sources/remove", async (req, res) => {
-  try {
-    const config = readConfig();
-    const sourceId = normalizeCalendarSourceId(
-      req.body.calendarSourceId
-    );
-    const sourceExists = config.calendar.sources.some(
-      (source) => source.id === sourceId
-    );
-
-    if (!sourceExists) {
-      return res.status(400).json({
-        error: "Calendar source is invalid."
-      });
-    }
-
-    await writeConfig({
-      ...config,
-      calendar: {
-        ...config.calendar,
-        sources: config.calendar.sources.filter(
-          (source) => source.id !== sourceId
-        )
-      }
-    });
-    res.redirect(303, "/control");
-  } catch (error) {
-    console.error("Unable to remove Calendar source.");
-    res.status(500).json({
-      error: "Calendar source could not be removed."
-    });
-  }
-});
-
-function normalizeCalendarSourceId(value) {
-  return typeof value === "string" ? value.trim() : "";
-}
 
 app.get("/api/config", (req, res) => {
   const config = readConfig();
