@@ -247,7 +247,7 @@ for (const [firstType, firstLabel, secondType, secondLabel] of [
     assert.equal(coordinator.active.label, firstLabel);
     assert.equal(popupPresentation.event.id, first.id);
 
-    clock.advance(4000);
+    clock.advance(10000);
     assert.equal(coordinator.active, null);
     assert.equal(coordinator.queue.length, 0);
     assert.equal(popupPresentation, null);
@@ -277,7 +277,7 @@ test("active preview is immediately replaced for a full fresh duration", () => {
   assert.equal(coordinator.active.event.id, replacement.id);
   assert.equal(coordinator.active.label, "RUN SCORED");
   assert.equal(coordinator.active.startedAt, 2000);
-  assert.equal(coordinator.active.endsAt, 6000);
+  assert.equal(coordinator.active.endsAt, 12000);
   assert.equal(coordinator.queue.length, 0);
 });
 
@@ -320,7 +320,7 @@ test("one persistent runtime alternates Hero identity across leagues", () => {
     assert.equal(coordinator.active.event.id, event.id);
     assert.equal(coordinator.active.label, label);
     assert.equal(heroCoordinator.activeCandidates.has(display.id), true);
-    clock.advance(4000);
+    clock.advance(10000);
     assert.equal(coordinator.active, null);
   });
 });

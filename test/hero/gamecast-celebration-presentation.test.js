@@ -276,9 +276,12 @@ test("generic celebration fallback retains its original Mosaic treatment", () =>
 });
 
 test("team treatment preserves the existing animation and reduced-motion paths", () => {
-  assert.match(css, /animation:\s*gamecast-celebration-popup 4s ease both/);
+  assert.match(css, /animation:\s*gamecast-celebration-popup 10s ease both/);
+  assert.match(css, /0%, 2\.4% \{ opacity: 0; transform: scale\(\.92\); \}/);
+  assert.match(css, /4\.8% \{ opacity: 1; transform: scale\(1\); \}/);
+  assert.match(css, /87\.2% \{ opacity: 1; transform: scale\(1\); \}/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
-  assert.match(css, /gamecast-celebration-popup-reduced 2\.5s ease both/);
+  assert.match(css, /gamecast-celebration-popup-reduced 10s ease both/);
   assert.doesNotMatch(
     css,
     /gamecast-celebration-(?:perimeter|trace|trail|discharge)/

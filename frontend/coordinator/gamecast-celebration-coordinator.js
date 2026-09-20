@@ -1,4 +1,4 @@
-const GAMECAST_CELEBRATION_DURATION_MS = 4000;
+const SCORING_NOTIFICATION_DURATION_MS = 10000;
 const GAMECAST_CELEBRATION_QUEUE_LIMIT = 3;
 const GAMECAST_CELEBRATION_QUEUE_MAX_AGE_MS = 10000;
 
@@ -7,7 +7,7 @@ class GamecastCelebrationCoordinator {
     constructor(eventBus, options = {}) {
         this.eventBus = eventBus;
         this.durationMs = options.durationMs ??
-            GAMECAST_CELEBRATION_DURATION_MS;
+            SCORING_NOTIFICATION_DURATION_MS;
         this.queueLimit = options.queueLimit ??
             GAMECAST_CELEBRATION_QUEUE_LIMIT;
         this.queueMaxAgeMs = options.queueMaxAgeMs ??
@@ -270,7 +270,7 @@ class GamecastCelebrationCoordinator {
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         GamecastCelebrationCoordinator,
-        GAMECAST_CELEBRATION_DURATION_MS,
+        SCORING_NOTIFICATION_DURATION_MS,
         GAMECAST_CELEBRATION_QUEUE_LIMIT,
         GAMECAST_CELEBRATION_QUEUE_MAX_AGE_MS
     };

@@ -1,7 +1,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
-  GamecastCelebrationCoordinator
+  GamecastCelebrationCoordinator,
+  SCORING_NOTIFICATION_DURATION_MS
 } = require(
   "../../frontend/coordinator/gamecast-celebration-coordinator"
 );
@@ -24,7 +25,6 @@ function harness(options = {}) {
   const timers = [];
   const bus = new EventBus();
   const coordinator = new GamecastCelebrationCoordinator(bus, {
-    durationMs: 4000,
     queueLimit: 2,
     queueMaxAgeMs: 5000,
     now: () => now,
@@ -81,17 +81,32 @@ function display(bus, value) {
   bus.publish({ type: "hero-display", payload: { candidate: value } });
 }
 
-test("subscribed coordinator accepts matching favorite score events", () => {
+test("subscribed coordinator keeps a matching score notification for 10 seconds", () => {
   const { bus, coordinator, timers } = harness();
   display(bus, candidate());
   bus.publish({ type: "gamecast-score-event", payload: scoreEvent() });
 
   assert.equal(coordinator.active.event.id, "score-1");
   assert.equal(coordinator.active.label, "RUN SCORED");
-  assert.equal(timers[0].delay, 4000);
+  assert.equal(SCORING_NOTIFICATION_DURATION_MS, 10000);
+  assert.equal(coordinator.active.endsAt, 11000);
+  assert.equal(timers[0].delay, 10000);
   assert.ok(bus.events.some((event) =>
     event.type === "gamecast-celebration-state"
   ));
+});
+
+test("score notification remains after the previous dwell and clears at 10 seconds", () => {
+  const { coordinator, timers, setNow } = harness();
+  coordinator.handleHeroDisplay(candidate());
+  coordinator.accept(scoreEvent());
+
+  setNow(5000);
+  assert.equal(coordinator.getCurrentPresentation()?.event.id, "score-1");
+
+  setNow(11000);
+  timers[0].callback();
+  assert.equal(coordinator.getCurrentPresentation(), null);
 });
 
 test("wrong game and production opponent scores are ignored", () => {
