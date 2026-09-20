@@ -137,6 +137,13 @@ class SportsWidget {
         this.render();
     }
 
+    setPresentationContext(context = {}) {
+        if (this.element) {
+            this.element.dataset.normalWidgetDensity =
+                context.density || "compact";
+        }
+    }
+
     unmount() {
         this.stopRotation();
 

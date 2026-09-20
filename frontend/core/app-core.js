@@ -37,12 +37,12 @@ class MosaicApp {
         );
     }
 
-    start() {
+    async start() {
         this.gamecastOwnershipCoordinator.start();
         this.gamecastOwnershipSimulationCoordinator.start();
         this.gamecastCelebrationCoordinator.start();
         registerMosaicWidgets(this.widgetRegistry);
-        initializeMosaicLayout(this);
+        await initializeMosaicLayout(this);
         this.heroCoordinator.start();
         registerMosaicProviders(this.providerRegistry);
         this.providerManager.loadFromRegistry(

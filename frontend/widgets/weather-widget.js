@@ -29,6 +29,13 @@ class WeatherWidget {
         this.render();
     }
 
+    setPresentationContext(context = {}) {
+        if (this.element) {
+            this.element.dataset.normalWidgetDensity =
+                context.density || "compact";
+        }
+    }
+
     render() {
         const payload = this.state.payload || {};
         const isLoading =

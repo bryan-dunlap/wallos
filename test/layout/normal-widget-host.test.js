@@ -42,15 +42,17 @@ test("Live Zone contains one generic host with two generic slots", () => {
   );
 });
 
-test("Phase 3 bootstrap statically assigns Weather and Sports to generic slots", () => {
+test("runtime bootstrap delegates normal widgets to the generic coordinator", () => {
   const source = read("frontend/layout/layout-bootstrap.js");
 
-  assert.match(source, /\["weather", "1"\]/);
-  assert.match(source, /\["sports", "2"\]/);
+  assert.match(source, /NormalWidgetCompositionCoordinator/);
   assert.match(source, /data-normal-widget-slot/);
-  assert.match(source, /\.normal-widget-mount/);
-  assert.doesNotMatch(source, /querySelector\(\s*"\.weather-widget"/s);
-  assert.doesNotMatch(source, /querySelector\(\s*"\.sports-widget"/s);
+  assert.doesNotMatch(source, /\["weather", "1"\]/);
+  assert.doesNotMatch(source, /\["sports", "2"\]/);
+  assert.match(
+    source,
+    /await app\.normalWidgetCompositionCoordinator\.start\(\)/
+  );
 });
 
 test("generic host and slots own all right-side grid geometry", () => {
@@ -69,6 +71,10 @@ test("generic host and slots own all right-side grid geometry", () => {
   );
   assert.match(host, /gap:\s*12px\s*;/);
   assert.match(primary, /grid-row:\s*1\s*;/);
+  assert.match(
+    ruleFor(css, ".normal-widget-slot"),
+    /grid-column:\s*1\s*;/
+  );
   assert.match(secondary, /grid-row:\s*2\s*;/);
   assert.doesNotMatch(weather, /grid-(column|row)/);
   assert.doesNotMatch(sports, /grid-(column|row)/);
@@ -81,13 +87,69 @@ test("generic surfaces overlap mounts and retain card treatment", () => {
 
   assert.match(
     css,
-    /\.normal-widget-slot > \.normal-widget-surface,\s*\.normal-widget-slot > \.normal-widget-mount\s*\{[^}]*grid-area:\s*1 \/ 1\s*;/s
+    /\.normal-widget-slot > \.normal-widget-surface\s*\{[^}]*grid-area:\s*1 \/ 1\s*;/s
   );
   assert.match(
     css,
     /\.normal-widget-surface,\s*\.discovery-zone > \.discovery-card-surface\s*\{[^}]*border-radius:\s*24px;[^}]*box-shadow:/s
   );
   assert.doesNotMatch(css, /weather-card-surface|sports-card-surface/);
+});
+
+test("persistent widget mounts remain host-attached and use generic grid positions", () => {
+  const css = read("frontend/widgets/widgets.css");
+  const coordinator = read(
+    "frontend/widgets/normal-widget-composition-coordinator.js"
+  );
+
+  assert.match(css, /\.normal-widget-host > \.normal-widget-mount\s*\{/);
+  assert.match(
+    css,
+    /\.normal-widget-host > \.normal-widget-mount\s*\{[^}]*grid-column:\s*1/s
+  );
+  assert.match(css, /\.normal-widget-mount--primary\s*\{[^}]*grid-row:\s*1/s);
+  assert.match(css, /\.normal-widget-mount--secondary\s*\{[^}]*grid-row:\s*2/s);
+  assert.match(css, /\.normal-widget-mount--expanded\s*\{[^}]*grid-row:\s*1 \/ -1/s);
+  assert.match(coordinator, /this\.host\.append\(mount\)/);
+  assert.doesNotMatch(coordinator, /createDocumentFragment|parking\.append/);
+});
+
+test("host presentation regions and persistent mounts share one grid column", () => {
+  const html = read("frontend/index.html");
+  const css = read("frontend/widgets/widgets.css");
+  const host = html.match(
+    /<div class="normal-widget-host">([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>\s*<\/section>/
+  );
+
+  assert.ok(host);
+  assert.equal(
+    [...host[1].matchAll(/data-normal-widget-slot=/g)].length,
+    2
+  );
+  assert.match(
+    css,
+    /\.normal-widget-slot\s*\{[^}]*grid-column:\s*1\s*;/s
+  );
+  assert.match(
+    css,
+    /\.normal-widget-host > \.normal-widget-mount\s*\{[^}]*grid-column:\s*1\s*;/s
+  );
+});
+
+test("composition-hidden slots cannot expose an orphan decorative surface", () => {
+  const css = read("frontend/widgets/widgets.css");
+  const coordinator = read(
+    "frontend/widgets/normal-widget-composition-coordinator.js"
+  );
+
+  assert.match(
+    css,
+    /\.normal-widget-slot\[hidden\]\s*\{[^}]*display:\s*none\s*;/s
+  );
+  assert.match(
+    coordinator,
+    /surface\.hidden\s*=\s*!isVisible/
+  );
 });
 
 test("host preserves surplus extension and can span one generic slot", () => {
@@ -118,16 +180,28 @@ test("Hero and non-Live-Zone layout ownership remains unchanged", () => {
   assert.match(mainCss, /\.discovery-card-surface\s*\{/);
 });
 
-test("Phase 2 policy remains dormant and no composition timer is introduced", () => {
+test("Phase 2 policy and runtime coordinator load before layout startup", () => {
   const html = read("frontend/index.html");
   const bootstrap = read("frontend/layout/layout-bootstrap.js");
-  const css = read("frontend/widgets/widgets.css");
-  const phaseThreeSource = `${html}\n${bootstrap}\n${css}`;
 
-  assert.doesNotMatch(html, /normal-widget-composition-policy\.js/);
-  assert.doesNotMatch(
-    bootstrap,
-    /composeNormalWidgets|reconcileNormalWidgetComposition/
+  assert.match(html, /normal-widget-composition-policy\.js/);
+  assert.match(html, /normal-widget-composition-coordinator\.js/);
+  assert.ok(
+    html.indexOf("normal-widget-composition-coordinator.js") <
+      html.indexOf("layout-bootstrap.js")
   );
-  assert.doesNotMatch(phaseThreeSource, /setTimeout|setInterval/);
+  assert.match(
+    bootstrap,
+    /await app\.normalWidgetCompositionCoordinator\.start\(\)/
+  );
+});
+
+test("providers start only after asynchronous widget composition mounts", () => {
+  const source = read("frontend/core/app-core.js");
+  const layoutIndex = source.indexOf("await initializeMosaicLayout(this)");
+  const providerIndex = source.indexOf("this.providerManager.start()");
+
+  assert.match(source, /async start\(\)/);
+  assert.ok(layoutIndex >= 0);
+  assert.ok(providerIndex > layoutIndex);
 });

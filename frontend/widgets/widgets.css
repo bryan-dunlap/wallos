@@ -146,8 +146,14 @@
 .normal-widget-slot {
     display: grid;
 
+    grid-column: 1;
+
     min-width: 0;
     min-height: 0;
+}
+
+.normal-widget-slot[hidden] {
+    display: none;
 }
 
 .normal-widget-slot--primary {
@@ -162,14 +168,33 @@
     grid-row: 1 / -1;
 }
 
-.normal-widget-slot > .normal-widget-surface,
-.normal-widget-slot > .normal-widget-mount {
+.normal-widget-slot > .normal-widget-surface {
     grid-area: 1 / 1;
 }
 
 .normal-widget-mount {
     width: 100%;
     min-width: 0;
+}
+
+.normal-widget-host > .normal-widget-mount {
+    grid-column: 1;
+}
+
+.normal-widget-mount[hidden] {
+    display: none;
+}
+
+.normal-widget-mount--primary {
+    grid-row: 1;
+}
+
+.normal-widget-mount--secondary {
+    grid-row: 2;
+}
+
+.normal-widget-mount--expanded {
+    grid-row: 1 / -1;
 }
 
 .widget-grid > .layer-3-card-surface,

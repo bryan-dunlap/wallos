@@ -1,4 +1,4 @@
-function initializeMosaicLayout(app) {
+async function initializeMosaicLayout(app) {
     const heroSlot = document.querySelector(
         ".hero-container"
     );
@@ -11,23 +11,21 @@ function initializeMosaicLayout(app) {
 
     hero.mount(heroSlot);
 
-    const normalWidgetAssignments = [
-        ["weather", "1"],
-        ["sports", "2"]
-    ];
+    const normalWidgetHost = document.querySelector(
+        ".normal-widget-host"
+    );
+    const normalWidgetSlots = document.querySelectorAll(
+        "[data-normal-widget-slot]"
+    );
 
-    for (const [widgetName, slotId] of normalWidgetAssignments) {
-        const slot = document.querySelector(
-            `[data-normal-widget-slot="${slotId}"] ` +
-            ".normal-widget-mount"
-        );
-
-        if (!slot) return;
-
-        const widget = app.widgetManager.create(widgetName);
-
-        widget.mount(slot);
-    }
+    app.normalWidgetCompositionCoordinator =
+        new NormalWidgetCompositionCoordinator({
+            widgetManager: app.widgetManager,
+            host: normalWidgetHost,
+            slots: normalWidgetSlots,
+            document
+        });
+    await app.normalWidgetCompositionCoordinator.start();
 
     const discoverySlot = document.querySelector(
         ".discovery-card"
