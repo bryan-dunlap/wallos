@@ -8,4 +8,8 @@ class WidgetRegistry {
         this.widgets.set(name, Widget);
     }
 
+    has(name) {
+        return this.widgets.has(name);
+    }
+
 }

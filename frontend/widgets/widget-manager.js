@@ -13,6 +13,10 @@ class WidgetManager {
         return this.widgets.get(name);
     }
 
+    hasRegistration(name) {
+        return this.registry?.has(name) === true;
+    }
+
     create(name) {
         const Widget =
             this.registry.widgets.get(name);

@@ -17,6 +17,9 @@ const {
 const {
   createDiscoveryEntities
 } = require("./home-assistant-discovery-normalizer");
+const {
+  resolveHomeAssistantSelectedState
+} = require("./home-assistant-selected-state");
 
 const HOME_ASSISTANT_REQUEST_LIMIT = "4kb";
 
@@ -31,6 +34,19 @@ function createHomeAssistantRouter({
     limit: HOME_ASSISTANT_REQUEST_LIMIT,
     strict: true,
     type: "application/json"
+  });
+
+  router.get("/selected-states", setNoStore, async (req, res) => {
+    if (Object.keys(req.query).length > 0) {
+      return res.status(400).json({ status: "invalid_request" });
+    }
+
+    const snapshot = await resolveHomeAssistantSelectedState(
+      getStoredConfig(),
+      { stateCache }
+    );
+
+    return res.json(snapshot);
   });
 
   router.get("/entities", setNoStore, async (req, res) => {

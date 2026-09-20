@@ -63,7 +63,8 @@ test("save contract keeps, replaces, and removes the stored token explicitly", (
     enabled: false,
     baseUrl: "https://draft.example.test",
     accessToken: STORED_TOKEN,
-    entities: []
+    entities: [],
+    widget: { enabled: false }
   });
 
   assert.deepEqual(resolveHomeAssistantConfigUpdate(current, {
@@ -126,8 +127,19 @@ test("saving an entity draft preserves the stored token and ordered IDs", () => 
     enabled: true,
     baseUrl: "https://saved.example.test",
     accessToken: STORED_TOKEN,
-    entities: ["lock.front_door", "light.bedroom"]
+    entities: ["lock.front_door", "light.bedroom"],
+    widget: { enabled: false }
   });
+});
+
+test("Home Assistant Widget Display is configured only in generic Widgets Settings", () => {
+  assert.match(serverSource, /name="homeAssistantWidgetEnabled"/);
+  assert.match(serverSource, /data-normal-widget-display="homeAssistant"/);
+  const homeAssistantPanel = serverSource.match(
+    /data-settings-panel="home-assistant"[^]*?<\/section>\s*<\/div>\s*<\/section>/
+  )?.[0] || "";
+  assert.doesNotMatch(homeAssistantPanel, /name="homeAssistantWidgetEnabled"/);
+  assert.doesNotMatch(serverSource, /homeAssistant[^\n]*hero|hero[^\n]*homeAssistant/i);
 });
 
 test("Home Assistant entity discovery lives in Settings and remains a draft", () => {

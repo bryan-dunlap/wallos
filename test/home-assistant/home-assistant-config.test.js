@@ -17,7 +17,8 @@ test("missing Home Assistant configuration uses safe defaults", () => {
     enabled: false,
     baseUrl: "",
     accessToken: "",
-    entities: []
+    entities: [],
+    widget: { enabled: false }
   });
 });
 
@@ -26,7 +27,8 @@ test("existing Mosaic configuration without Home Assistant remains compatible", 
     enabled: false,
     baseUrl: "",
     accessToken: "",
-    entities: []
+    entities: [],
+    widget: { enabled: false }
   });
 });
 
@@ -59,19 +61,27 @@ test("public configuration reports state without exposing credentials", () => {
     enabled: true,
     baseUrl: "https://ha.example.test",
     accessToken,
-    entities: ["lock.front_door", "light.bedroom"]
+    entities: ["lock.front_door", "light.bedroom"],
+    widget: { enabled: false }
   });
 
   assert.deepEqual(publicConfig, {
     enabled: true,
     baseUrl: "https://ha.example.test",
     configured: true,
-    entities: ["lock.front_door", "light.bedroom"]
+    entities: ["lock.front_door", "light.bedroom"],
+    widget: { enabled: false }
   });
   assert.equal(JSON.stringify(publicConfig).includes(accessToken), false);
   assert.deepEqual(
     createPublicHomeAssistantConfig({ enabled: true }),
-    { enabled: true, baseUrl: "", configured: false, entities: [] }
+    {
+      enabled: true,
+      baseUrl: "",
+      configured: false,
+      entities: [],
+      widget: { enabled: false }
+    }
   );
 });
 
@@ -89,7 +99,8 @@ test("sanitized example contains the current schema without private values", () 
     enabled: false,
     baseUrl: "",
     accessToken: "",
-    entities: []
+    entities: [],
+    widget: { enabled: false }
   });
   assert.deepEqual(example.calendar.sources, []);
   assert.deepEqual(example.discovery.sources, []);
@@ -153,4 +164,12 @@ test("legacy saved selections load tolerantly within the configured bound", () =
   });
 
   assert.deepEqual(normalized.entities, ["sensor.valid"]);
+  assert.deepEqual(normalized.widget, { enabled: false });
+});
+
+test("Home Assistant Widget Display is explicit and legacy-safe", () => {
+  assert.equal(normalizeHomeAssistantConfig({}).widget.enabled, false);
+  assert.equal(normalizeHomeAssistantConfig({
+    widget: { enabled: true }
+  }).widget.enabled, true);
 });

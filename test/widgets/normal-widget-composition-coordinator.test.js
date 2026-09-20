@@ -158,6 +158,7 @@ function createHarness(ids = ["A", "B", "C", "D"]) {
     scheduler,
     slots,
     surfaces,
+    widgetManager,
     widgets
   };
 }
@@ -226,6 +227,18 @@ test("Pair mode handles 0/1/2 without timers and rotates adjacent 3/4 cycles", (
     });
     assert.equal(scheduler.tasks.size, 1);
   }
+});
+
+test("configured widgets without a runtime registration do not enter composition", () => {
+  const harness = createHarness(["weather", "sports"]);
+  harness.widgetManager.hasRegistration = (id) => id !== "homeAssistant";
+  harness.coordinator.applyConfiguration(config([
+    "weather", "homeAssistant", "sports"
+  ]));
+
+  assert.deepEqual(visible(harness.coordinator), ["weather", "sports"]);
+  assert.equal(harness.widgets.has("homeAssistant"), false);
+  assert.equal(harness.scheduler.tasks.size, 0);
 });
 
 test("Expanded mode uses full geometry and rotates one widget in order", () => {

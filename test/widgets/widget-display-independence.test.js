@@ -264,10 +264,10 @@ test("Weather integration master suppresses both display projections", async () 
 test("normal Widget configuration is dormant, bounded, and deterministic", () => {
   assert.deepEqual(normalizeNormalWidgetsConfig(), {
     mode: "pair",
-    order: ["weather", "sports"],
+    order: ["weather", "sports", "homeAssistant"],
     rotationSeconds: 15,
     timingMode: "global",
-    durations: { weather: 15, sports: 15 }
+    durations: { weather: 15, sports: 15, homeAssistant: 15 }
   });
   assert.deepEqual(normalizeNormalWidgetsConfig({
     mode: "expanded",
@@ -275,10 +275,10 @@ test("normal Widget configuration is dormant, bounded, and deterministic", () =>
     rotationSeconds: 999
   }), {
     mode: "expanded",
-    order: ["sports", "weather"],
+    order: ["sports", "weather", "homeAssistant"],
     rotationSeconds: 300,
     timingMode: "global",
-    durations: { weather: 300, sports: 300 }
+    durations: { weather: 300, sports: 300, homeAssistant: 300 }
   });
   assert.deepEqual(normalizeNormalWidgetsConfig({
     mode: "invalid",
@@ -286,10 +286,10 @@ test("normal Widget configuration is dormant, bounded, and deterministic", () =>
     rotationSeconds: 1
   }), {
     mode: "pair",
-    order: ["weather", "sports"],
+    order: ["weather", "sports", "homeAssistant"],
     rotationSeconds: 5,
     timingMode: "global",
-    durations: { weather: 5, sports: 5 }
+    durations: { weather: 5, sports: 5, homeAssistant: 5 }
   });
   assert.equal(
     normalizeNormalWidgetsConfig({ rotationSeconds: null }).rotationSeconds,

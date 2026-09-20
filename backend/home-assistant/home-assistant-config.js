@@ -8,7 +8,8 @@ const DEFAULT_HOME_ASSISTANT_CONFIG = Object.freeze({
   enabled: false,
   baseUrl: "",
   accessToken: "",
-  entities: Object.freeze([])
+  entities: Object.freeze([]),
+  widget: Object.freeze({ enabled: false })
 });
 
 function normalizeHomeAssistantConfig(config) {
@@ -20,12 +21,18 @@ function normalizeHomeAssistantConfig(config) {
     config?.accessToken
   );
   const entities = normalizeHomeAssistantEntities(config?.entities);
+  const widget = {
+    enabled: typeof config?.widget?.enabled === "boolean"
+      ? config.widget.enabled
+      : DEFAULT_HOME_ASSISTANT_CONFIG.widget.enabled
+  };
 
   return {
     enabled,
     baseUrl: baseUrl || "",
     accessToken,
-    entities
+    entities,
+    widget
   };
 }
 
@@ -108,7 +115,8 @@ function createPublicHomeAssistantConfig(config) {
     enabled: normalized.enabled,
     baseUrl: normalized.baseUrl,
     configured: isHomeAssistantConfigured(normalized),
-    entities: [...normalized.entities]
+    entities: [...normalized.entities],
+    widget: { ...normalized.widget }
   };
 }
 

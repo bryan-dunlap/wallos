@@ -68,6 +68,18 @@ async function entityRequest(baseUrl, query = "") {
   };
 }
 
+async function selectedStateRequest(baseUrl, query = "") {
+  const response = await fetch(
+    `${baseUrl}/api/home-assistant/selected-states${query}`
+  );
+
+  return {
+    body: await response.json(),
+    cacheControl: response.headers.get("cache-control"),
+    status: response.status
+  };
+}
+
 function emptySnapshot(status) {
   return {
     schemaVersion: 1,
@@ -420,4 +432,111 @@ test("entities route joins sanitized registry discovery and explicitly refreshes
     stateCache, registryCache
   });
   assert.deepEqual(calls.map(([, options]) => options), [{ forceRefresh: true }, { forceRefresh: true }]);
+});
+
+test("selected-states route is ordered, selected-only, and normalized", async () => {
+  const stateCache = {
+    getSnapshot: async () => ({
+      status: "available",
+      stale: false,
+      updatedAt: "2026-09-20T12:00:00.000Z",
+      entities: [
+        {
+          entityId: "sensor.second",
+          domain: "sensor",
+          displayName: "Second",
+          state: "2",
+          unit: "°F",
+          deviceClass: "temperature",
+          stateClass: "measurement",
+          icon: null,
+          availability: "available",
+          lastChanged: null,
+          updatedAt: null,
+          attributes: { private: TOKEN },
+          context: { id: TOKEN },
+          deviceId: "registry-secret",
+          uniqueId: "unique-secret"
+        },
+        {
+          entityId: "light.first",
+          domain: "light",
+          displayName: "First",
+          state: "on",
+          unit: null,
+          deviceClass: null,
+          stateClass: null,
+          icon: "mdi:lightbulb",
+          availability: "available",
+          lastChanged: null,
+          updatedAt: null
+        },
+        {
+          entityId: "switch.unselected",
+          domain: "switch",
+          displayName: "Unselected",
+          state: "on",
+          availability: "available"
+        }
+      ]
+    })
+  };
+
+  await withTestServer(null, async (baseUrl) => {
+    const response = await selectedStateRequest(baseUrl);
+    const serialized = JSON.stringify(response.body);
+
+    assert.equal(response.status, 200);
+    assert.equal(response.cacheControl, "no-store");
+    assert.deepEqual(
+      response.body.entities.map((entity) => entity.entityId),
+      ["light.first", "sensor.second"]
+    );
+    for (const forbidden of [
+      TOKEN, "switch.unselected", "attributes", "context",
+      "deviceId", "registry-secret", "uniqueId", "unique-secret"
+    ]) {
+      assert.equal(serialized.includes(forbidden), false);
+    }
+  }, {
+    getStoredConfig: () => ({
+      enabled: true,
+      baseUrl: "https://ha.example.test",
+      accessToken: TOKEN,
+      entities: ["light.first", "sensor.second"]
+    }),
+    stateCache
+  });
+});
+
+test("selected-states route rejects all client selection and refresh queries", async () => {
+  let calls = 0;
+
+  await withTestServer(null, async (baseUrl) => {
+    for (const query of [
+      "?entityId=switch.unselected",
+      "?domain=switch",
+      "?refresh=true",
+      `?accessToken=${TOKEN}`
+    ]) {
+      const response = await selectedStateRequest(baseUrl, query);
+      assert.equal(response.status, 400);
+      assert.deepEqual(response.body, { status: "invalid_request" });
+    }
+  }, {
+    getStoredConfig: () => ({
+      enabled: true,
+      baseUrl: "https://ha.example.test",
+      accessToken: TOKEN,
+      entities: ["light.first"]
+    }),
+    stateCache: {
+      getSnapshot: async () => {
+        calls += 1;
+        return { status: "available", entities: [] };
+      }
+    }
+  });
+
+  assert.equal(calls, 0);
 });

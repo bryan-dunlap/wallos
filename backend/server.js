@@ -117,7 +117,8 @@ const sportsSimulationProfiles =
 const WEATHER_CACHE_MS = 30 * 60 * 1000;
 const NORMAL_WIDGET_CONTROL_METADATA = Object.freeze([
   Object.freeze({ id: "weather", label: "Weather" }),
-  Object.freeze({ id: "sports", label: "Sports" })
+  Object.freeze({ id: "sports", label: "Sports" }),
+  Object.freeze({ id: "homeAssistant", label: "Home Assistant" })
 ]);
 const NORMAL_WIDGET_IDS = Object.freeze(
   NORMAL_WIDGET_CONTROL_METADATA.map(({ id }) => id)
@@ -588,6 +589,10 @@ function resolveNormalWidgetControlUpdate(currentConfig, update = {}) {
     throw new Error("Sports Display enabled must be a boolean.");
   }
 
+  if (typeof update.homeAssistantWidgetEnabled !== "boolean") {
+    throw new Error("Home Assistant Display enabled must be a boolean.");
+  }
+
   const normalizedWeather = normalizeIntegrationDisplayConfig(
     {
       ...currentConfig.weather,
@@ -614,10 +619,15 @@ function resolveNormalWidgetControlUpdate(currentConfig, update = {}) {
       enabled: update.sportsWidgetEnabled
     }
   };
+  const homeAssistant = normalizeHomeAssistantConfig({
+    ...currentConfig.homeAssistant,
+    widget: { enabled: update.homeAssistantWidgetEnabled }
+  });
 
   return {
     weather,
     sports,
+    homeAssistant,
     normalWidgets: normalizeNormalWidgetsConfig({
       mode,
       order,
@@ -868,6 +878,7 @@ function validateConfigUpdate(
         },
         hero: preservedDisplayConfig.sportsHero
       },
+      homeAssistant,
       normalWidgets: preservedDisplayConfig.normalWidgets
     },
     normalWidgetUpdate
@@ -909,7 +920,7 @@ function validateConfigUpdate(
       enabled: discoveryEnabled,
       sources: normalizeDiscoverySources(discoverySources)
     },
-    homeAssistant: normalizeHomeAssistantConfig(homeAssistant),
+    homeAssistant: normalWidgetControl.homeAssistant,
     normalWidgets: normalWidgetControl.normalWidgets
   };
 }
@@ -972,7 +983,17 @@ function resolveHomeAssistantConfigUpdate(currentConfig, update) {
     accessToken = "";
   }
 
-  return { enabled, baseUrl, accessToken, entities };
+  return {
+    enabled,
+    baseUrl,
+    accessToken,
+    entities,
+    widget: {
+      enabled: typeof update?.widgetEnabled === "boolean"
+        ? update.widgetEnabled
+        : current.widget.enabled
+    }
+  };
 }
 
 function resolveDisplayPowerScheduleUpdate(currentSchedule, update) {
@@ -1744,6 +1765,7 @@ app.get("/control", (req, res) => {
                   <div class="settings-content widget-display-list">
                     <div class="widget-display-row"><span class="item-copy"><strong>Weather Display</strong><small>Show Weather in the normal-widget region.</small></span><label class="switch"><input id="weather-widget-enabled" name="weatherWidgetEnabled" type="checkbox" value="true" data-normal-widget-display="weather" aria-label="Enable Weather Display"${config.weather.widget.enabled ? " checked" : ""}><span class="switch-track"></span><span class="switch-state"></span></label></div>
                     <div class="widget-display-row"><span class="item-copy"><strong>Sports Display</strong><small>Show Sports in the normal-widget region.</small></span><label class="switch"><input id="sports-widget-enabled" name="sportsWidgetEnabled" type="checkbox" value="true" data-normal-widget-display="sports" aria-label="Enable Sports Display"${config.sports.widget.enabled ? " checked" : ""}><span class="switch-track"></span><span class="switch-state"></span></label></div>
+                    <div class="widget-display-row"><span class="item-copy"><strong>Home Assistant Display</strong><small>Include selected Home Assistant information in the normal-widget region when its widget becomes available.</small></span><label class="switch"><input id="home-assistant-widget-enabled" name="homeAssistantWidgetEnabled" type="checkbox" value="true" data-normal-widget-display="homeAssistant" aria-label="Enable Home Assistant Display"${config.homeAssistant.widget.enabled ? " checked" : ""}><span class="switch-track"></span><span class="switch-state"></span></label></div>
                   </div>
                 </section>
                 <section class="settings-card settings-card-wide">
@@ -2413,6 +2435,7 @@ app.get("/control", (req, res) => {
         "sportsEnabled",
         "weatherWidgetEnabled",
         "sportsWidgetEnabled",
+        "homeAssistantWidgetEnabled",
         "normalWidgetsMode",
         "normalWidgetsRotationSeconds",
         "normalWidgetsTimingMode",
@@ -4508,7 +4531,8 @@ app.post("/control", async (req, res) => {
         baseUrl: req.body.homeAssistantBaseUrl,
         tokenOperation: req.body.homeAssistantTokenOperation,
         accessToken: req.body.homeAssistantAccessToken,
-        entitiesDraft: req.body.homeAssistantEntitiesDraft
+        entitiesDraft: req.body.homeAssistantEntitiesDraft,
+        widgetEnabled: req.body.homeAssistantWidgetEnabled === "true"
       }),
       resolveDisplayPowerScheduleUpdate(
         currentConfig.display.powerSchedule,
@@ -4520,6 +4544,8 @@ app.post("/control", async (req, res) => {
       {
         weatherWidgetEnabled: req.body.weatherWidgetEnabled === "true",
         sportsWidgetEnabled: req.body.sportsWidgetEnabled === "true",
+        homeAssistantWidgetEnabled:
+          req.body.homeAssistantWidgetEnabled === "true",
         mode: req.body.normalWidgetsMode,
         order: Array.isArray(req.body.normalWidgetsOrder)
           ? req.body.normalWidgetsOrder
@@ -4562,6 +4588,7 @@ app.post("/control", async (req, res) => {
         error.message === "Sports Widget leagues are invalid." ||
         error.message === "Weather Display enabled must be a boolean." ||
         error.message === "Sports Display enabled must be a boolean." ||
+        error.message === "Home Assistant Display enabled must be a boolean." ||
         error.message === "Widget layout is invalid." ||
         error.message === "Widget rotation interval must be between 5 and 300 seconds." ||
         error.message === "Widget timing strategy is invalid." ||

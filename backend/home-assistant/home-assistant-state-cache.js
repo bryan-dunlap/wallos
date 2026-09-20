@@ -77,6 +77,7 @@ class HomeAssistantStateCache {
       const entry = {
         timestamp,
         updatedAt: new Date(timestamp).toISOString(),
+        allEntities,
         entities: allEntities.slice(0, this.maxEntities),
         total: allEntities.length,
         truncated: allEntities.length > this.maxEntities,
@@ -114,6 +115,15 @@ function createPublicSnapshot(entry, stale) {
 
   Object.defineProperty(snapshot, "domainTotals", {
     value: { ...entry.domainTotals },
+    enumerable: false
+  });
+
+  // The complete normalized acquisition remains backend-only. Discovery uses
+  // the bounded enumerable projection above, while production consumers can
+  // resolve an explicitly configured selection without losing entities that
+  // fall beyond the discovery cap.
+  Object.defineProperty(snapshot, "allEntities", {
+    value: entry.allEntities,
     enumerable: false
   });
 

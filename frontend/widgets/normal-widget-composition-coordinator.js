@@ -78,7 +78,11 @@ class NormalWidgetCompositionCoordinator {
             : [];
         const enabledIds = order.filter((id) =>
             config[id]?.enabled !== false &&
-            config[id]?.widget?.enabled !== false
+            config[id]?.widget?.enabled !== false &&
+            (
+                typeof this.widgetManager?.hasRegistration !== "function" ||
+                this.widgetManager.hasRegistration(id)
+            )
         );
 
         this.rotationSeconds = Number.isFinite(

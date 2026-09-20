@@ -50,12 +50,19 @@ const currentConfig = {
     hero: { enabled: false },
     favoriteTeams: [{ id: "SEA", league: "MLB" }]
   },
+  homeAssistant: {
+    enabled: true,
+    baseUrl: "https://ha.example.test",
+    accessToken: "private",
+    entities: ["light.office"],
+    widget: { enabled: false }
+  },
   normalWidgets: {
     mode: "pair",
-    order: ["weather", "sports"],
+    order: ["weather", "sports", "homeAssistant"],
     rotationSeconds: 17,
     timingMode: "global",
-    durations: { weather: 17, sports: 25, future: 35 }
+    durations: { weather: 17, sports: 25, homeAssistant: 30, future: 35 }
   }
 };
 
@@ -63,11 +70,12 @@ function update(overrides = {}) {
   return {
     weatherWidgetEnabled: false,
     sportsWidgetEnabled: true,
+    homeAssistantWidgetEnabled: true,
     mode: "expanded",
-    order: ["sports", "weather"],
+    order: ["sports", "homeAssistant", "weather"],
     rotationSeconds: 25,
     timingMode: "global",
-    durations: { weather: 5, sports: 15 },
+    durations: { weather: 5, sports: 15, homeAssistant: 25 },
     ...overrides
   };
 }
@@ -77,6 +85,7 @@ test("actual /control response renders Widgets navigation and controls", () => {
   assert.match(controlHtml, /data-settings-panel="widgets"/);
   assert.match(controlHtml, /name="weatherWidgetEnabled"/);
   assert.match(controlHtml, /name="sportsWidgetEnabled"/);
+  assert.match(controlHtml, /name="homeAssistantWidgetEnabled"/);
   assert.match(controlHtml, /name="normalWidgetsMode"/);
   assert.match(controlHtml, /value="pair"[^>]*>Pair Rotation/);
   assert.match(controlHtml, /value="expanded"[^>]*>Expanded Rotation/);
@@ -87,6 +96,7 @@ test("actual /control response renders Widgets navigation and controls", () => {
   assert.match(controlHtml, /name="normalWidgetsDurationsDraft"/);
   assert.match(controlHtml, /name="normalWidgetsOrder"[^>]*value="weather"/);
   assert.match(controlHtml, /name="normalWidgetsOrder"[^>]*value="sports"/);
+  assert.match(controlHtml, /name="normalWidgetsOrder"[^>]*value="homeAssistant"/);
   assert.match(controlHtml, /data-widget-layout-info/);
   assert.equal((controlHtml.match(/name="sportsWidgetEnabled"/g) || []).length, 1);
 });
@@ -103,6 +113,8 @@ test("Display toggles update only widget participation", () => {
   assert.equal(saved.sports.widget.enabled, true);
   assert.equal(saved.sports.enabled, false);
   assert.equal(saved.sports.hero.enabled, false);
+  assert.equal(saved.homeAssistant.enabled, true);
+  assert.equal(saved.homeAssistant.widget.enabled, true);
   assert.deepEqual(saved.sports.widget.leagues, ["MLB", "NHL"]);
   assert.deepEqual(saved.sports.favoriteTeams, [{ id: "SEA", league: "MLB" }]);
   assert.equal(saved.normalWidgets.durations.future, 35);
@@ -157,7 +169,8 @@ test("legacy timing defaults to global without changing valid odd-second values"
   assert.deepEqual(normalized.durations, {
     weather: 7,
     future: 19,
-    sports: 17
+    sports: 17,
+    homeAssistant: 17
   });
   assert.match(serverSource, /seconds % 5 !== 0[\s\S]*" \(current\)"/);
 });
@@ -177,6 +190,7 @@ test("Display Timing uses 5-second selects and progressive disclosure", () => {
   assert.match(controlHtml, /data-widget-timing-global/);
   assert.match(controlHtml, /data-normal-widget-duration="weather"/);
   assert.match(controlHtml, /data-normal-widget-duration="sports"/);
+  assert.match(controlHtml, /data-normal-widget-duration="homeAssistant"/);
   assert.doesNotMatch(controlHtml, /data-normal-widget-duration[^>]*type="number"/);
   assert.match(serverSource, /globalControls\.hidden = timingMode !== "global"/);
   assert.match(serverSource, /individualControls\.hidden = timingMode !== "perWidget"/);
@@ -184,7 +198,7 @@ test("Display Timing uses 5-second selects and progressive disclosure", () => {
 
   const base = normalizeNormalWidgetsConfig({
     rotationSeconds: 15,
-    durations: { weather: 5, sports: 15 }
+    durations: { weather: 5, sports: 15, homeAssistant: 20 }
   });
   const globalMarkup = renderNormalWidgetTimingControls(base);
   const individualMarkup = renderNormalWidgetTimingControls({
@@ -217,6 +231,7 @@ test("Display Timing visibility matches Pair and Expanded rotation thresholds", 
 test("Display Timing reacts to draft layout and display changes without resetting state", () => {
   assert.match(serverSource, /data-normal-widget-display="weather"/);
   assert.match(serverSource, /data-normal-widget-display="sports"/);
+  assert.match(serverSource, /data-normal-widget-display="homeAssistant"/);
   assert.match(serverSource, /layoutSelect\?\.addEventListener\("change", revealRelevantTiming\)/);
   assert.match(serverSource, /toggle\.addEventListener\("change", revealRelevantTiming\)/);
   assert.match(serverSource, /enabledWidgetCount < 2[\s\S]*enabledWidgetCount < 3/);
@@ -230,7 +245,7 @@ test("Display Timing reacts to draft layout and display changes without resettin
     mode: "expanded",
     rotationSeconds: 17,
     timingMode: "perWidget",
-    durations: { weather: 5, sports: 15 }
+    durations: { weather: 5, sports: 15, homeAssistant: 25 }
   });
   const visibleMarkup = renderNormalWidgetTimingControls(timing, true);
   const hiddenMarkup = renderNormalWidgetTimingControls(timing, false);
@@ -240,7 +255,8 @@ test("Display Timing reacts to draft layout and display changes without resettin
     /value="perWidget" checked/,
     /value="17" selected>17 seconds \(current\)/,
     /data-normal-widget-duration="weather"[\s\S]*value="5" selected/,
-    /data-normal-widget-duration="sports"[\s\S]*value="15" selected/
+    /data-normal-widget-duration="sports"[\s\S]*value="15" selected/,
+    /data-normal-widget-duration="homeAssistant"[\s\S]*value="25" selected/
   ]) {
     assert.match(visibleMarkup, retained);
     assert.match(hiddenMarkup, retained);
@@ -254,13 +270,14 @@ test("timing modes retain dormant global, individual, and future values", () => 
     update({
       timingMode: "perWidget",
       rotationSeconds: 17,
-      durations: { weather: 5, sports: 15 }
+      durations: { weather: 5, sports: 15, homeAssistant: 25 }
     })
   );
   assert.equal(individual.normalWidgets.rotationSeconds, 17);
   assert.deepEqual(individual.normalWidgets.durations, {
     weather: 5,
     sports: 15,
+    homeAssistant: 25,
     future: 35
   });
 
@@ -269,13 +286,14 @@ test("timing modes retain dormant global, individual, and future values", () => 
     update({
       timingMode: "global",
       rotationSeconds: 10,
-      durations: { weather: 5, sports: 15, future: 35 }
+      durations: { weather: 5, sports: 15, homeAssistant: 25, future: 35 }
     })
   );
   assert.equal(global.normalWidgets.rotationSeconds, 10);
   assert.deepEqual(global.normalWidgets.durations, {
     weather: 5,
     sports: 15,
+    homeAssistant: 25,
     future: 35
   });
 });
@@ -285,10 +303,13 @@ test("order uses stable IDs, readable metadata, and keeps disabled widgets", () 
     currentConfig,
     update({ sportsWidgetEnabled: false })
   );
-  assert.deepEqual(saved.normalWidgets.order, ["sports", "weather"]);
+  assert.deepEqual(saved.normalWidgets.order, [
+    "sports", "homeAssistant", "weather"
+  ]);
   assert.match(serverSource, /NORMAL_WIDGET_CONTROL_METADATA/);
   assert.match(serverSource, /label: "Weather"/);
   assert.match(serverSource, /label: "Sports"/);
+  assert.match(serverSource, /label: "Home Assistant"/);
   assert.match(serverSource, /name="normalWidgetsOrder"[^>]*value="\$\{widgetId\}"/);
   assert.match(serverSource, /data-move-normal-widget="up"/);
   assert.match(serverSource, /data-move-normal-widget="down"/);
@@ -299,6 +320,7 @@ test("normal-widget changes remain draft-only until the shared save", () => {
   for (const name of [
     "weatherWidgetEnabled",
     "sportsWidgetEnabled",
+    "homeAssistantWidgetEnabled",
     "normalWidgetsMode",
     "normalWidgetsRotationSeconds",
     "normalWidgetsTimingMode",
