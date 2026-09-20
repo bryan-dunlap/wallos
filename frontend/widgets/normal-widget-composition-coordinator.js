@@ -30,6 +30,8 @@ class NormalWidgetCompositionCoordinator {
             reconcileNormalWidgetComposition;
         this.composition = null;
         this.rotationSeconds = 15;
+        this.timingMode = "global";
+        this.widgetDurations = {};
         this.rotationTimer = null;
         this.lifecycleGeneration = 0;
         this.mounts = new Map();
@@ -84,6 +86,13 @@ class NormalWidgetCompositionCoordinator {
         )
             ? normalWidgets.rotationSeconds
             : 15;
+        this.timingMode = normalWidgets.timingMode === "perWidget"
+            ? "perWidget"
+            : "global";
+        this.widgetDurations = normalWidgets.durations &&
+            typeof normalWidgets.durations === "object"
+            ? { ...normalWidgets.durations }
+            : {};
 
         enabledIds.forEach((id) => this.ensureWidget(id));
 
@@ -182,6 +191,7 @@ class NormalWidgetCompositionCoordinator {
         }
 
         const generation = this.lifecycleGeneration;
+        const rotationSeconds = this.getRotationSeconds();
 
         this.rotationTimer = this.scheduleTimeout(() => {
             if (
@@ -199,7 +209,23 @@ class NormalWidgetCompositionCoordinator {
             });
             this.renderComposition();
             this.scheduleRotation();
-        }, this.rotationSeconds * 1000);
+        }, rotationSeconds * 1000);
+    }
+
+    getRotationSeconds() {
+        if (this.timingMode !== "perWidget") {
+            return this.rotationSeconds;
+        }
+
+        const visibleIds = this.composition?.visibleIds || [];
+        const controllingId = this.composition?.mode === "expanded"
+            ? visibleIds[0]
+            : visibleIds[1];
+        const duration = this.widgetDurations[controllingId];
+
+        return Number.isFinite(duration)
+            ? duration
+            : this.rotationSeconds;
     }
 
     invalidateRotation() {

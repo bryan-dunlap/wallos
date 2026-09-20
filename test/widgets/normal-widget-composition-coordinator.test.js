@@ -82,9 +82,20 @@ class FakeScheduler {
   }
 }
 
-function config(ids, mode = "pair", rotationSeconds = 15, disabled = []) {
+function config(
+  ids,
+  mode = "pair",
+  rotationSeconds = 15,
+  disabled = [],
+  timing = {}
+) {
   const result = {
-    normalWidgets: { mode, order: ids, rotationSeconds }
+    normalWidgets: {
+      mode,
+      order: ids,
+      rotationSeconds,
+      ...timing
+    }
   };
   ids.forEach((id) => {
     result[id] = {
@@ -276,6 +287,77 @@ test("rotationSeconds controls one recursive timeout at a time", () => {
   assert.equal([...scheduler.tasks.values()][0].delay, 23000);
   scheduler.runNext();
   assert.equal(scheduler.tasks.size, 1);
+});
+
+test("global timing ignores stored per-widget durations", () => {
+  const { coordinator, scheduler } = createHarness();
+  coordinator.applyConfiguration(config(
+    ["A", "B", "C"],
+    "pair",
+    15,
+    [],
+    { timingMode: "global", durations: { A: 5, B: 20, C: 10 } }
+  ));
+
+  assert.equal([...scheduler.tasks.values()][0].delay, 15000);
+  scheduler.runNext();
+  assert.equal([...scheduler.tasks.values()][0].delay, 15000);
+});
+
+test("Expanded per-widget timing follows the currently visible widget", () => {
+  const { coordinator, scheduler } = createHarness();
+  coordinator.applyConfiguration(config(
+    ["A", "B"],
+    "expanded",
+    30,
+    [],
+    { timingMode: "perWidget", durations: { A: 5, B: 15 } }
+  ));
+
+  assert.deepEqual(visible(coordinator), ["A"]);
+  assert.equal([...scheduler.tasks.values()][0].delay, 5000);
+  scheduler.runNext();
+  assert.deepEqual(visible(coordinator), ["B"]);
+  assert.equal([...scheduler.tasks.values()][0].delay, 15000);
+  scheduler.runNext();
+  assert.deepEqual(visible(coordinator), ["A"]);
+  assert.equal([...scheduler.tasks.values()][0].delay, 5000);
+});
+
+test("Pair per-widget timing follows each newly introduced widget", () => {
+  const { coordinator, scheduler } = createHarness();
+  coordinator.applyConfiguration(config(
+    ["A", "B", "C"],
+    "pair",
+    30,
+    [],
+    { timingMode: "perWidget", durations: { A: 5, B: 15, C: 10 } }
+  ));
+
+  for (const [pair, delay] of [
+    [["A", "B"], 15000],
+    [["B", "C"], 10000],
+    [["C", "A"], 5000],
+    [["A", "B"], 15000]
+  ]) {
+    assert.deepEqual(visible(coordinator), pair);
+    assert.equal([...scheduler.tasks.values()][0].delay, delay);
+    scheduler.runNext();
+  }
+});
+
+test("Pair with at most two widgets never schedules individual timing", () => {
+  for (const ids of [[], ["A"], ["A", "B"]]) {
+    const { coordinator, scheduler } = createHarness();
+    coordinator.applyConfiguration(config(
+      ids,
+      "pair",
+      30,
+      [],
+      { timingMode: "perWidget", durations: { A: 5, B: 15 } }
+    ));
+    assert.equal(scheduler.tasks.size, 0);
+  }
 });
 
 test("browser timer functions retain their required global receiver", () => {

@@ -116,7 +116,13 @@ const sportsSimulationProfiles =
 ========================== */
 
 const WEATHER_CACHE_MS = 30 * 60 * 1000;
-const NORMAL_WIDGET_IDS = ["weather", "sports"];
+const NORMAL_WIDGET_CONTROL_METADATA = Object.freeze([
+  Object.freeze({ id: "weather", label: "Weather" }),
+  Object.freeze({ id: "sports", label: "Sports" })
+]);
+const NORMAL_WIDGET_IDS = Object.freeze(
+  NORMAL_WIDGET_CONTROL_METADATA.map(({ id }) => id)
+);
 const NORMAL_WIDGET_ROTATION_SECONDS_DEFAULT = 15;
 const NORMAL_WIDGET_ROTATION_SECONDS_MIN = 5;
 const NORMAL_WIDGET_ROTATION_SECONDS_MAX = 300;
@@ -176,7 +182,14 @@ const DEFAULT_CONFIG = {
   normalWidgets: {
     mode: "pair",
     order: [...NORMAL_WIDGET_IDS],
-    rotationSeconds: NORMAL_WIDGET_ROTATION_SECONDS_DEFAULT
+    rotationSeconds: NORMAL_WIDGET_ROTATION_SECONDS_DEFAULT,
+    timingMode: "global",
+    durations: Object.fromEntries(
+      NORMAL_WIDGET_IDS.map((id) => [
+        id,
+        NORMAL_WIDGET_ROTATION_SECONDS_DEFAULT
+      ])
+    )
   }
 };
 const SUPPORTED_LEAGUES = ["MLB", "NFL", "NBA", "NHL"];
@@ -468,8 +481,172 @@ function normalizeNormalWidgetsConfig(config) {
         )
       )
     : NORMAL_WIDGET_ROTATION_SECONDS_DEFAULT;
+  const timingMode = config?.timingMode === "perWidget"
+    ? "perWidget"
+    : "global";
+  const durations = {};
 
-  return { mode, order, rotationSeconds };
+  if (
+    config?.durations &&
+    typeof config.durations === "object" &&
+    !Array.isArray(config.durations)
+  ) {
+    Object.entries(config.durations).forEach(([id, value]) => {
+      if (
+        typeof id === "string" &&
+        id.trim() &&
+        Number.isFinite(value)
+      ) {
+        durations[id] = Math.min(
+          NORMAL_WIDGET_ROTATION_SECONDS_MAX,
+          Math.max(
+            NORMAL_WIDGET_ROTATION_SECONDS_MIN,
+            Math.round(value)
+          )
+        );
+      }
+    });
+  }
+
+  NORMAL_WIDGET_IDS.forEach((id) => {
+    if (!Number.isFinite(durations[id])) {
+      durations[id] = rotationSeconds;
+    }
+  });
+
+  return { mode, order, rotationSeconds, timingMode, durations };
+}
+
+function resolveNormalWidgetControlUpdate(currentConfig, update = {}) {
+  const mode = update.mode;
+  const rotationSeconds = Number(update.rotationSeconds);
+  const timingMode = update.timingMode;
+  let order = update.order;
+
+  if (!["pair", "expanded"].includes(mode)) {
+    throw new Error("Widget layout is invalid.");
+  }
+
+  if (
+    !Number.isInteger(rotationSeconds) ||
+    rotationSeconds < NORMAL_WIDGET_ROTATION_SECONDS_MIN ||
+    rotationSeconds > NORMAL_WIDGET_ROTATION_SECONDS_MAX
+  ) {
+    throw new Error(
+      `Widget rotation interval must be between ${NORMAL_WIDGET_ROTATION_SECONDS_MIN} and ${NORMAL_WIDGET_ROTATION_SECONDS_MAX} seconds.`
+    );
+  }
+
+  if (!["global", "perWidget"].includes(timingMode)) {
+    throw new Error("Widget timing strategy is invalid.");
+  }
+
+  if (
+    !update.durations ||
+    typeof update.durations !== "object" ||
+    Array.isArray(update.durations)
+  ) {
+    throw new Error("Widget durations are invalid.");
+  }
+
+  const currentNormalWidgets = normalizeNormalWidgetsConfig(
+    currentConfig.normalWidgets
+  );
+  const durations = {
+    ...currentNormalWidgets.durations
+  };
+
+  Object.entries(update.durations).forEach(([id, value]) => {
+    const duration = Number(value);
+    if (
+      typeof id !== "string" ||
+      !id.trim() ||
+      !Number.isInteger(duration) ||
+      duration < NORMAL_WIDGET_ROTATION_SECONDS_MIN ||
+      duration > NORMAL_WIDGET_ROTATION_SECONDS_MAX
+    ) {
+      throw new Error("Widget durations are invalid.");
+    }
+    durations[id] = duration;
+  });
+
+  if (typeof order === "string") order = [order];
+
+  if (
+    !Array.isArray(order) ||
+    order.length !== NORMAL_WIDGET_IDS.length ||
+    new Set(order).size !== NORMAL_WIDGET_IDS.length ||
+    order.some((id) => !NORMAL_WIDGET_IDS.includes(id))
+  ) {
+    throw new Error("Widget order is invalid.");
+  }
+
+  if (typeof update.weatherWidgetEnabled !== "boolean") {
+    throw new Error("Weather Display enabled must be a boolean.");
+  }
+
+  if (typeof update.sportsWidgetEnabled !== "boolean") {
+    throw new Error("Sports Display enabled must be a boolean.");
+  }
+
+  const normalizedWeather = normalizeIntegrationDisplayConfig(
+    {
+      ...currentConfig.weather,
+      widget: { enabled: update.weatherWidgetEnabled }
+    },
+    DEFAULT_CONFIG.weather
+  );
+  const weather = {
+    ...currentConfig.weather,
+    ...normalizedWeather,
+    widget: {
+      ...currentConfig.weather?.widget,
+      ...normalizedWeather.widget
+    },
+    hero: {
+      ...currentConfig.weather?.hero,
+      ...normalizedWeather.hero
+    }
+  };
+  const sports = {
+    ...currentConfig.sports,
+    widget: {
+      ...currentConfig.sports.widget,
+      enabled: update.sportsWidgetEnabled
+    }
+  };
+
+  return {
+    weather,
+    sports,
+    normalWidgets: normalizeNormalWidgetsConfig({
+      mode,
+      order,
+      rotationSeconds,
+      timingMode,
+      durations
+    })
+  };
+}
+
+function resolveNormalWidgetDurationsDraft(value) {
+  if (typeof value !== "string") {
+    throw new Error("Widget durations are invalid.");
+  }
+
+  try {
+    const durations = JSON.parse(value);
+    if (
+      !durations ||
+      typeof durations !== "object" ||
+      Array.isArray(durations)
+    ) {
+      throw new Error("Widget durations are invalid.");
+    }
+    return durations;
+  } catch (error) {
+    throw new Error("Widget durations are invalid.");
+  }
 }
 
 function resolveCalendarSourceDraft(value, configuredSources) {
@@ -623,6 +800,7 @@ function validateConfigUpdate(
   discoverySources,
   homeAssistant,
   powerSchedule,
+  normalWidgetUpdate,
   preservedDisplayConfig = {}
 ) {
   if (
@@ -681,19 +859,31 @@ function validateConfigUpdate(
     throw new Error("Discovery sources must be an array.");
   }
 
+  const normalWidgetControl = resolveNormalWidgetControlUpdate(
+    {
+      weather: preservedDisplayConfig.weather,
+      sports: {
+        widget: {
+          enabled: sportsWidgetEnabled,
+          leagues: sportsWidgetLeagues
+        },
+        hero: preservedDisplayConfig.sportsHero
+      },
+      normalWidgets: preservedDisplayConfig.normalWidgets
+    },
+    normalWidgetUpdate
+  );
+
   return {
     location: {
       query: locationQuery
     },
-    weather: normalizeIntegrationDisplayConfig(
-      preservedDisplayConfig.weather,
-      DEFAULT_CONFIG.weather
-    ),
+    weather: normalWidgetControl.weather,
     sports: {
       primaryLeague,
       enabled: sportsEnabled,
       widget: normalizeSportsWidget({
-        enabled: sportsWidgetEnabled,
+        enabled: normalWidgetControl.sports.widget.enabled,
         leagues: sportsWidgetLeagues
       }),
       hero: normalizeDisplayToggle(
@@ -721,9 +911,7 @@ function validateConfigUpdate(
       sources: normalizeDiscoverySources(discoverySources)
     },
     homeAssistant: normalizeHomeAssistantConfig(homeAssistant),
-    normalWidgets: normalizeNormalWidgetsConfig(
-      preservedDisplayConfig.normalWidgets
-    )
+    normalWidgets: normalWidgetControl.normalWidgets
   };
 }
 
@@ -837,6 +1025,57 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function createNormalWidgetDurationOptions(selectedValue) {
+  const values = Array.from({ length: 60 }, (_, index) =>
+    (index + 1) * 5
+  );
+  if (!values.includes(selectedValue)) {
+    values.push(selectedValue);
+    values.sort((left, right) => left - right);
+  }
+  return values.map((seconds) =>
+    `<option value="${seconds}"${
+      seconds === selectedValue ? " selected" : ""
+    }>${seconds} seconds${
+      seconds === selectedValue && seconds % 5 !== 0
+        ? " (current)"
+        : ""
+    }</option>`
+  ).join("");
+}
+
+function isNormalWidgetTimingRelevant(mode, enabledWidgetCount) {
+  return mode === "expanded"
+    ? enabledWidgetCount >= 2
+    : enabledWidgetCount >= 3;
+}
+
+function renderNormalWidgetTimingControls(
+  normalWidgets,
+  timingRelevant = true
+) {
+  const labels = new Map(
+    NORMAL_WIDGET_CONTROL_METADATA.map(({ id, label }) => [id, label])
+  );
+  const durationRows = normalWidgets.order.map((widgetId) => `
+    <div class="widget-duration-row" data-widget-duration-row data-widget-id="${widgetId}">
+      <label for="normal-widget-duration-${widgetId}">${escapeHtml(labels.get(widgetId) || widgetId)}</label>
+      <select id="normal-widget-duration-${widgetId}" data-normal-widget-duration="${widgetId}">${createNormalWidgetDurationOptions(normalWidgets.durations[widgetId])}</select>
+    </div>`).join("");
+  const durationsJson = JSON.stringify(normalWidgets.durations)
+    .replace(/</g, "\\u003c");
+
+  return `<fieldset class="widget-timing-fieldset" data-widget-timing-controls${timingRelevant ? "" : " hidden"}>
+    <legend>Display Timing</legend>
+    <label class="widget-timing-choice"><input name="normalWidgetsTimingMode" type="radio" value="global"${normalWidgets.timingMode === "global" ? " checked" : ""}>Set all to</label>
+    <div class="widget-timing-global" data-widget-timing-global${normalWidgets.timingMode === "global" ? "" : " hidden"}><select id="normal-widgets-rotation-seconds" name="normalWidgetsRotationSeconds" aria-label="Global display duration">${createNormalWidgetDurationOptions(normalWidgets.rotationSeconds)}</select></div>
+    <label class="widget-timing-choice"><input name="normalWidgetsTimingMode" type="radio" value="perWidget"${normalWidgets.timingMode === "perWidget" ? " checked" : ""}>Set each individually</label>
+    <div class="widget-duration-list" data-widget-timing-individual${normalWidgets.timingMode === "perWidget" ? "" : " hidden"}>${durationRows}</div>
+    <input name="normalWidgetsDurationsDraft" type="hidden" value="${escapeHtml(durationsJson)}">
+    <p class="field-helper">Controls cross-widget display timing only. Sports game rotation remains separate.</p>
+  </fieldset>`;
 }
 
 function formatDisplayScheduleBoundary(value, timeZone) {
@@ -1024,6 +1263,29 @@ app.get("/control", (req, res) => {
   const supportedSportsWidgetLeaguesJson = JSON.stringify(
     SUPPORTED_LEAGUES
   );
+  const normalWidgetLabels = new Map(
+    NORMAL_WIDGET_CONTROL_METADATA.map(({ id, label }) => [id, label])
+  );
+  const normalWidgetTimingControls = renderNormalWidgetTimingControls(
+    config.normalWidgets,
+    isNormalWidgetTimingRelevant(
+      config.normalWidgets.mode,
+      NORMAL_WIDGET_IDS.filter((id) =>
+        config[id]?.widget?.enabled !== false
+      ).length
+    )
+  );
+  const normalWidgetOrderRows = config.normalWidgets.order
+    .map((widgetId, index, order) => `
+      <li class="item-row normal-widget-order-row" data-normal-widget-order-row data-widget-id="${widgetId}">
+        <span class="item-copy"><strong>${escapeHtml(normalWidgetLabels.get(widgetId) || widgetId)}</strong><small>Widget ID: ${escapeHtml(widgetId)}</small></span>
+        <span class="normal-widget-order-actions">
+          <button class="button button-quiet normal-widget-order-move" type="button" data-move-normal-widget="up" aria-label="Move ${escapeHtml(normalWidgetLabels.get(widgetId) || widgetId)} up"${index === 0 ? " disabled" : ""}>↑</button>
+          <button class="button button-quiet normal-widget-order-move" type="button" data-move-normal-widget="down" aria-label="Move ${escapeHtml(normalWidgetLabels.get(widgetId) || widgetId)} down"${index === order.length - 1 ? " disabled" : ""}>↓</button>
+        </span>
+        <input name="normalWidgetsOrder" type="hidden" value="${widgetId}">
+      </li>`)
+    .join("");
   const themeLabels = {
     mosaic: "Mosaic",
     terminal: "Terminal",
@@ -1220,6 +1482,37 @@ app.get("/control", (req, res) => {
     .favorite-team-actions { display: flex; align-items: center; gap: 2px; }
     .favorite-team-move { width: 36px; padding-inline: 6px; }
     .favorite-team-row.is-drag-target { border-color: rgba(37, 99, 235, .55); }
+    .widget-display-list { display: grid; gap: 12px; }
+    .widget-display-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 13px 14px; border: 1px solid rgba(239, 246, 250, .42); border-radius: 11px; background: rgba(203, 218, 230, .5); }
+    .normal-widget-order-row { grid-template-columns: minmax(0, 1fr) auto; }
+    .normal-widget-order-actions { display: flex; gap: 2px; }
+    .normal-widget-order-move { width: 36px; padding-inline: 6px; }
+    .field-label-with-info { display: flex; align-items: center; gap: 7px; }
+    .info-control { position: relative; display: inline-flex; }
+    .info-button { width: 26px; min-height: 26px; padding: 0; color: #475569; border: 1px solid rgba(91, 115, 139, .3); border-radius: 50%; background: rgba(229, 238, 245, .8); font-weight: 800; }
+    .info-popover { position: absolute; z-index: 5; top: calc(100% + 8px); left: 0; width: min(360px, calc(100vw - 56px)); padding: 14px; color: #334155; border: 1px solid rgba(91, 115, 139, .22); border-radius: 12px; background: #e5eef5; box-shadow: 0 16px 36px rgba(43, 58, 76, .22); font-size: .8rem; line-height: 1.45; }
+    .info-popover p { margin: 0 0 9px; }
+    .info-popover p:last-child { margin-bottom: 0; }
+    .layout-schematic { margin: 7px 0 12px; }
+    .layout-widget-stack { display: grid; gap: 3px; }
+    .layout-widget-block { display: grid; place-items: center; min-height: 25px; border: 1px solid rgba(91, 115, 139, .3); border-radius: 5px; background: rgba(255,255,255,.45); font-size: .7rem; font-weight: 750; }
+    .layout-schematic-pair > .layout-widget-stack { width: 100%; }
+    .layout-pair-sequence, .layout-expanded-sequence { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; align-items: center; gap: 5px; }
+    .layout-pair-sequence .layout-widget-block { min-height: 20px; }
+    .layout-sequence-arrow { color: #64748b; font-size: .75rem; font-weight: 800; }
+    .layout-expanded-sequence { grid-template-columns: 1fr auto 1fr; }
+    .layout-expanded-state { display: grid; place-items: center; min-height: 62px; border: 1px solid rgba(91, 115, 139, .3); border-radius: 5px; background: rgba(255,255,255,.45); font-size: .7rem; font-weight: 750; }
+    .field-helper { margin: 2px 0 0; color: #64748b; font-size: .78rem; line-height: 1.45; }
+    .widget-timing-fieldset { display: grid; gap: 10px; margin: 22px 0 0; padding: 20px 0 0; border: 0; border-top: 1px solid rgba(100, 116, 139, .14); }
+    .widget-timing-fieldset legend { padding: 0; color: #64748b; font-size: .86rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+    .widget-timing-choice { display: flex; align-items: center; gap: 9px; min-height: 38px; color: #334155; font-size: .88rem; font-weight: 650; }
+    .widget-timing-choice input { width: 18px; height: 18px; margin: 0; accent-color: #2563eb; }
+    .widget-timing-global { margin: 0 0 2px 27px; }
+    .widget-timing-global select { width: var(--control-selector-width); max-width: 100%; }
+    .widget-duration-list { display: grid; gap: 8px; margin: 2px 0 2px 27px; }
+    .widget-duration-row { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(150px, var(--control-selector-width)); align-items: center; gap: 14px; }
+    .widget-duration-row label { color: #334155; font-size: .84rem; font-weight: 650; }
+    .widget-duration-row select { width: 100%; }
     .source-address { min-width: 0; color: #526174; font-size: .78rem; line-height: 1.4; overflow-wrap: anywhere; }
     [data-calendar-source-actions], [data-discovery-source-actions] { display: flex; gap: 6px; }
     .status-dot { display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: #94a3b8; }
@@ -1411,6 +1704,7 @@ app.get("/control", (req, res) => {
           <nav class="control-nav">
             <button class="control-nav-button" type="button" data-control-nav="settings" data-settings-target="personalization" title="Personalization"><span class="nav-glyph">PE</span><span class="nav-text">Personalization</span></button>
             <button class="control-nav-button" type="button" data-control-nav="settings" data-settings-target="appearance" title="Appearance"><span class="nav-glyph">AP</span><span class="nav-text">Appearance</span></button>
+            <button class="control-nav-button" type="button" data-control-nav="settings" data-settings-target="widgets" title="Widgets"><span class="nav-glyph">WI</span><span class="nav-text">Widgets</span></button>
             <button class="control-nav-button" type="button" data-control-nav="settings" data-settings-target="display-schedule" title="Display Schedule"><span class="nav-glyph">DS</span><span class="nav-text">Display Schedule</span></button>
             <button class="control-nav-button" type="button" data-control-nav="settings" data-settings-target="sports" title="Sports"><span class="nav-glyph">SP</span><span class="nav-text">Sports</span></button>
             <button class="control-nav-button" type="button" data-control-nav="settings" data-settings-target="calendar" title="Calendar"><span class="nav-glyph">CA</span><span class="nav-text">Calendar</span></button>
@@ -1460,6 +1754,32 @@ app.get("/control", (req, res) => {
             <section class="settings-category-panel" data-settings-panel="appearance" hidden>
               <h3 class="overview-section-title">Appearance</h3>
               <div class="card-grid"><section class="settings-card settings-card-wide"><div class="field control-selection-row"><label for="display-theme">Theme</label><select id="display-theme" name="theme">${themeOptions}</select></div></section></div>
+            </section>
+
+            <section class="settings-category-panel" data-settings-panel="widgets" hidden>
+              <h3 class="overview-section-title">Widgets</h3>
+              <div class="card-grid">
+                <section class="settings-card settings-card-wide">
+                  <div class="card-header"><div><h3>Widget Display</h3><p class="card-description">Choose which normal widgets participate on the display. These controls do not change integrations or Hero behavior.</p></div></div>
+                  <div class="settings-content widget-display-list">
+                    <div class="widget-display-row"><span class="item-copy"><strong>Weather Display</strong><small>Show Weather in the normal-widget region.</small></span><label class="switch"><input id="weather-widget-enabled" name="weatherWidgetEnabled" type="checkbox" value="true" data-normal-widget-display="weather" aria-label="Enable Weather Display"${config.weather.widget.enabled ? " checked" : ""}><span class="switch-track"></span><span class="switch-state"></span></label></div>
+                    <div class="widget-display-row"><span class="item-copy"><strong>Sports Display</strong><small>Show Sports in the normal-widget region.</small></span><label class="switch"><input id="sports-widget-enabled" name="sportsWidgetEnabled" type="checkbox" value="true" data-normal-widget-display="sports" aria-label="Enable Sports Display"${config.sports.widget.enabled ? " checked" : ""}><span class="switch-track"></span><span class="switch-state"></span></label></div>
+                  </div>
+                </section>
+                <section class="settings-card settings-card-wide">
+                  <div class="card-header"><div><h3>Presentation</h3><p class="card-description">Control how enabled normal widgets share their region.</p></div></div>
+                  <div class="settings-content">
+                    <div class="field control-selection-row">
+                      <span class="field-label-with-info"><label for="normal-widgets-mode">Widget layout</label><span class="info-control" data-widget-layout-info><button class="info-button" type="button" aria-label="Explain widget layouts" aria-expanded="false" aria-controls="widget-layout-popover">i</button><span class="info-popover" id="widget-layout-popover" role="tooltip" hidden><p><strong>Pair Rotation</strong> shows up to two widgets at once. With three or more, pairs rotate while one widget remains continuous.</p><span class="layout-schematic layout-schematic-pair" data-pair-layout-schematic aria-hidden="true"><span class="layout-widget-stack"><span class="layout-widget-block">A</span><span class="layout-widget-block">B</span></span></span><span class="layout-schematic layout-pair-sequence" data-pair-rotation-schematic aria-hidden="true"><span class="layout-widget-stack"><span class="layout-widget-block">A</span><span class="layout-widget-block">B</span></span><span class="layout-sequence-arrow">→</span><span class="layout-widget-stack"><span class="layout-widget-block">B</span><span class="layout-widget-block">C</span></span><span class="layout-sequence-arrow">→</span><span class="layout-widget-stack"><span class="layout-widget-block">C</span><span class="layout-widget-block">A</span></span></span><p><strong>Expanded Rotation</strong> shows one expanded widget at a time and rotates through enabled widgets.</p><span class="layout-schematic layout-expanded-sequence" data-expanded-layout-schematic aria-hidden="true"><span class="layout-expanded-state">A</span><span class="layout-sequence-arrow">→</span><span class="layout-expanded-state">B</span></span></span></span></span>
+                      <select id="normal-widgets-mode" name="normalWidgetsMode"><option value="pair"${config.normalWidgets.mode === "pair" ? " selected" : ""}>Pair Rotation</option><option value="expanded"${config.normalWidgets.mode === "expanded" ? " selected" : ""}>Expanded Rotation</option></select>
+                    </div>
+                    ${normalWidgetTimingControls}
+                    <h4 class="subsection-title">Widget order</h4>
+                    <p class="field-helper">Order is retained for disabled widgets so it is restored if they are enabled later.</p>
+                    <ul class="item-list" data-normal-widget-order-list>${normalWidgetOrderRows}</ul>
+                  </div>
+                </section>
+              </div>
             </section>
 
             <section class="settings-category-panel" data-settings-panel="display-schedule" hidden>
@@ -1535,8 +1855,7 @@ app.get("/control", (req, res) => {
         </section>
         <section class="settings-card settings-card-wide">
           <div class="card-header">
-            <div><h3>Sports Widget</h3><p class="card-description">Choose the professional leagues included in the universal Sports Widget feed.</p></div>
-            <label class="switch"><input name="sportsWidgetEnabled" type="checkbox" value="true" aria-label="Enable Sports Widget"${config.sports.widget.enabled ? " checked" : ""}><span class="switch-track"></span><span class="switch-state"></span></label>
+            <div><h3>Sports Display Feed</h3><p class="card-description">Choose the professional leagues included in the Sports normal-widget feed.</p></div>
           </div>
           <div class="control-selection-row control-selection-row-with-action">
             <div class="selection-control">
@@ -2102,7 +2421,13 @@ app.get("/control", (req, res) => {
         "discoveryEnabled",
         "discoverySourcesDraft",
         "sportsEnabled",
+        "weatherWidgetEnabled",
         "sportsWidgetEnabled",
+        "normalWidgetsMode",
+        "normalWidgetsRotationSeconds",
+        "normalWidgetsTimingMode",
+        "normalWidgetsDurationsDraft",
+        "normalWidgetsOrder",
         "sportsWidgetLeagues",
         "favoriteTeams",
         "primaryLeague",
@@ -2133,6 +2458,111 @@ app.get("/control", (req, res) => {
           settingsPanel.dataset.settingsPanel
         );
       }, true);
+    })();
+
+    (() => {
+      const controls = document.querySelector("[data-widget-timing-controls]");
+      const globalControls = controls?.querySelector("[data-widget-timing-global]");
+      const individualControls = controls?.querySelector("[data-widget-timing-individual]");
+      const durationsDraft = controls?.querySelector("[name=normalWidgetsDurationsDraft]");
+      const layoutSelect = document.querySelector("[name=normalWidgetsMode]");
+      const displayToggles = [...document.querySelectorAll(
+        "[data-normal-widget-display]"
+      )];
+      const timingChoices = [...(controls?.querySelectorAll(
+        '[name="normalWidgetsTimingMode"]'
+      ) || [])];
+      const durationSelects = [...(controls?.querySelectorAll(
+        "[data-normal-widget-duration]"
+      ) || [])];
+      if (!controls || !globalControls || !individualControls || !durationsDraft) return;
+
+      let durations = {};
+      try {
+        durations = JSON.parse(durationsDraft.value);
+      } catch (error) {}
+
+      const revealSelectedTiming = () => {
+        const timingMode = timingChoices.find((choice) => choice.checked)?.value;
+        globalControls.hidden = timingMode !== "global";
+        individualControls.hidden = timingMode !== "perWidget";
+      };
+      const revealRelevantTiming = () => {
+        const enabledWidgetCount = displayToggles.filter(
+          (toggle) => toggle.checked
+        ).length;
+        controls.hidden = layoutSelect?.value === "expanded"
+          ? enabledWidgetCount < 2
+          : enabledWidgetCount < 3;
+      };
+
+      timingChoices.forEach((choice) => {
+        choice.addEventListener("change", revealSelectedTiming);
+      });
+      layoutSelect?.addEventListener("change", revealRelevantTiming);
+      displayToggles.forEach((toggle) => {
+        toggle.addEventListener("change", revealRelevantTiming);
+      });
+      durationSelects.forEach((select) => {
+        select.addEventListener("change", () => {
+          durations[select.dataset.normalWidgetDuration] = Number(select.value);
+          durationsDraft.value = JSON.stringify(durations);
+          durationsDraft.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+      });
+      revealSelectedTiming();
+      revealRelevantTiming();
+    })();
+
+    (() => {
+      const list = document.querySelector("[data-normal-widget-order-list]");
+      if (!list) return;
+
+      const updateMoveButtons = () => {
+        const rows = [...list.querySelectorAll("[data-normal-widget-order-row]")];
+        rows.forEach((row, index) => {
+          row.querySelector('[data-move-normal-widget="up"]').disabled = index === 0;
+          row.querySelector('[data-move-normal-widget="down"]').disabled = index === rows.length - 1;
+        });
+      };
+
+      list.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-move-normal-widget]");
+        const row = button?.closest("[data-normal-widget-order-row]");
+        if (!button || !row) return;
+        const sibling = button.dataset.moveNormalWidget === "up"
+          ? row.previousElementSibling
+          : row.nextElementSibling;
+        if (!sibling) return;
+        if (button.dataset.moveNormalWidget === "up") {
+          list.insertBefore(row, sibling);
+        } else {
+          list.insertBefore(sibling, row);
+        }
+        updateMoveButtons();
+        row.querySelector('[name="normalWidgetsOrder"]').dispatchEvent(
+          new Event("input", { bubbles: true })
+        );
+      });
+      updateMoveButtons();
+    })();
+
+    (() => {
+      const control = document.querySelector("[data-widget-layout-info]");
+      const button = control?.querySelector(".info-button");
+      const popover = control?.querySelector(".info-popover");
+      if (!control || !button || !popover) return;
+      let pinned = false;
+      const show = () => { popover.hidden = false; button.setAttribute("aria-expanded", "true"); };
+      const hide = () => { if (pinned || control.matches(":hover") || control.contains(document.activeElement)) return; popover.hidden = true; button.setAttribute("aria-expanded", "false"); };
+      const close = () => { pinned = false; popover.hidden = true; button.setAttribute("aria-expanded", "false"); };
+      control.addEventListener("mouseenter", show);
+      control.addEventListener("mouseleave", hide);
+      control.addEventListener("focusin", show);
+      control.addEventListener("focusout", () => requestAnimationFrame(hide));
+      button.addEventListener("click", () => { pinned = !pinned; pinned ? show() : close(); });
+      document.addEventListener("click", (event) => { if (pinned && !control.contains(event.target)) close(); });
+      document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !popover.hidden) { close(); button.focus(); } });
     })();
 
     (() => {
@@ -4202,6 +4632,21 @@ app.post("/control", async (req, res) => {
         }
       ),
       {
+        weatherWidgetEnabled: req.body.weatherWidgetEnabled === "true",
+        sportsWidgetEnabled: req.body.sportsWidgetEnabled === "true",
+        mode: req.body.normalWidgetsMode,
+        order: Array.isArray(req.body.normalWidgetsOrder)
+          ? req.body.normalWidgetsOrder
+          : typeof req.body.normalWidgetsOrder === "string"
+            ? [req.body.normalWidgetsOrder]
+            : [],
+        rotationSeconds: req.body.normalWidgetsRotationSeconds,
+        timingMode: req.body.normalWidgetsTimingMode,
+        durations: resolveNormalWidgetDurationsDraft(
+          req.body.normalWidgetsDurationsDraft
+        )
+      },
+      {
         weather: currentConfig.weather,
         sportsHero: currentConfig.sports.hero,
         normalWidgets: currentConfig.normalWidgets
@@ -4229,6 +4674,13 @@ app.post("/control", async (req, res) => {
         error.message === "Sports enabled must be a boolean." ||
         error.message === "Sports Widget enabled must be a boolean." ||
         error.message === "Sports Widget leagues are invalid." ||
+        error.message === "Weather Display enabled must be a boolean." ||
+        error.message === "Sports Display enabled must be a boolean." ||
+        error.message === "Widget layout is invalid." ||
+        error.message === "Widget rotation interval must be between 5 and 300 seconds." ||
+        error.message === "Widget timing strategy is invalid." ||
+        error.message === "Widget durations are invalid." ||
+        error.message === "Widget order is invalid." ||
         error.message === "Favorite teams must be an array." ||
         error.message === "Discovery enabled must be a boolean." ||
         error.message === "Discovery sources must be an array." ||
@@ -5686,6 +6138,9 @@ module.exports = {
   displayPowerRuntime,
   resolveDisplayPowerScheduleUpdate,
   resolveHomeAssistantConfigUpdate,
+  resolveNormalWidgetControlUpdate,
+  isNormalWidgetTimingRelevant,
+  renderNormalWidgetTimingControls,
   resolveCalendarSourceDraft,
   resolveDiscoverySourceDraft,
   resolveNflEventId,

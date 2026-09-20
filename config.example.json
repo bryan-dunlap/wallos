@@ -31,7 +31,12 @@
       "weather",
       "sports"
     ],
-    "rotationSeconds": 15
+    "rotationSeconds": 15,
+    "timingMode": "global",
+    "durations": {
+      "weather": 15,
+      "sports": 15
+    }
   },
   "display": {
     "theme": "mosaic",

@@ -265,7 +265,9 @@ test("normal Widget configuration is dormant, bounded, and deterministic", () =>
   assert.deepEqual(normalizeNormalWidgetsConfig(), {
     mode: "pair",
     order: ["weather", "sports"],
-    rotationSeconds: 15
+    rotationSeconds: 15,
+    timingMode: "global",
+    durations: { weather: 15, sports: 15 }
   });
   assert.deepEqual(normalizeNormalWidgetsConfig({
     mode: "expanded",
@@ -274,7 +276,9 @@ test("normal Widget configuration is dormant, bounded, and deterministic", () =>
   }), {
     mode: "expanded",
     order: ["sports", "weather"],
-    rotationSeconds: 300
+    rotationSeconds: 300,
+    timingMode: "global",
+    durations: { weather: 300, sports: 300 }
   });
   assert.deepEqual(normalizeNormalWidgetsConfig({
     mode: "invalid",
@@ -283,7 +287,9 @@ test("normal Widget configuration is dormant, bounded, and deterministic", () =>
   }), {
     mode: "pair",
     order: ["weather", "sports"],
-    rotationSeconds: 5
+    rotationSeconds: 5,
+    timingMode: "global",
+    durations: { weather: 5, sports: 5 }
   });
   assert.equal(
     normalizeNormalWidgetsConfig({ rotationSeconds: null }).rotationSeconds,
