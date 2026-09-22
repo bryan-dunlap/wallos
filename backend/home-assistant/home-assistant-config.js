@@ -3,12 +3,14 @@ const {
 } = require("./home-assistant-entity-normalizer");
 
 const MAX_HOME_ASSISTANT_SELECTED_ENTITIES = 32;
+const MAX_HOME_ASSISTANT_DISPLAY_NAME_LENGTH = 80;
 
 const DEFAULT_HOME_ASSISTANT_CONFIG = Object.freeze({
   enabled: false,
   baseUrl: "",
   accessToken: "",
   entities: Object.freeze([]),
+  entityAliases: Object.freeze({}),
   widget: Object.freeze({ enabled: false })
 });
 
@@ -21,6 +23,10 @@ function normalizeHomeAssistantConfig(config) {
     config?.accessToken
   );
   const entities = normalizeHomeAssistantEntities(config?.entities);
+  const entityAliases = normalizeHomeAssistantEntityAliases(
+    config?.entityAliases,
+    entities
+  );
   const widget = {
     enabled: typeof config?.widget?.enabled === "boolean"
       ? config.widget.enabled
@@ -32,6 +38,7 @@ function normalizeHomeAssistantConfig(config) {
     baseUrl: baseUrl || "",
     accessToken,
     entities,
+    entityAliases,
     widget
   };
 }
@@ -102,6 +109,96 @@ function normalizeHomeAssistantEntities(value, { strict = false } = {}) {
   return entities;
 }
 
+function normalizeHomeAssistantEntityAliases(
+  value,
+  selectedEntityIds,
+  { strict = false } = {}
+) {
+  if (typeof value === "undefined") return {};
+
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    if (strict) {
+      throw new Error("Home Assistant entity aliases must be an object.");
+    }
+    return {};
+  }
+
+  const aliases = {};
+  const selected = new Set(selectedEntityIds);
+
+  for (const [candidateId, candidateAlias] of Object.entries(value)) {
+    const entityId = normalizeEntityId(candidateId);
+
+    if (!entityId || !selected.has(entityId)) continue;
+
+    if (typeof candidateAlias !== "string") {
+      if (strict) {
+        throw new Error("Home Assistant Display Name must be a string.");
+      }
+      continue;
+    }
+
+    const alias = candidateAlias.trim();
+    if (!alias) continue;
+
+    if (alias.length > MAX_HOME_ASSISTANT_DISPLAY_NAME_LENGTH) {
+      if (strict) {
+        throw new Error(
+          `Home Assistant Display Name must be at most ${MAX_HOME_ASSISTANT_DISPLAY_NAME_LENGTH} characters.`
+        );
+      }
+      continue;
+    }
+
+    aliases[entityId] = alias;
+  }
+
+  return aliases;
+}
+
+function normalizeHomeAssistantSelection(value, { strict = false } = {}) {
+  if (typeof value === "undefined") {
+    return { entities: [], entityAliases: {} };
+  }
+
+  if (!Array.isArray(value)) {
+    if (strict) throw new Error("Home Assistant entities must be an array.");
+    return { entities: [], entityAliases: {} };
+  }
+
+  const entityCandidates = [];
+  const aliasCandidates = {};
+
+  value.forEach((candidate) => {
+    if (typeof candidate === "string") {
+      entityCandidates.push(candidate);
+      return;
+    }
+
+    if (!candidate || typeof candidate !== "object") {
+      entityCandidates.push(candidate);
+      return;
+    }
+
+    entityCandidates.push(candidate.entityId);
+    if (Object.hasOwn(candidate, "displayName")) {
+      aliasCandidates[candidate.entityId] = candidate.displayName;
+    }
+  });
+
+  const entities = normalizeHomeAssistantEntities(
+    entityCandidates,
+    { strict }
+  );
+  const entityAliases = normalizeHomeAssistantEntityAliases(
+    aliasCandidates,
+    entities,
+    { strict }
+  );
+
+  return { entities, entityAliases };
+}
+
 function isHomeAssistantConfigured(config) {
   const normalized = normalizeHomeAssistantConfig(config);
 
@@ -122,11 +219,14 @@ function createPublicHomeAssistantConfig(config) {
 
 module.exports = {
   DEFAULT_HOME_ASSISTANT_CONFIG,
+  MAX_HOME_ASSISTANT_DISPLAY_NAME_LENGTH,
   MAX_HOME_ASSISTANT_SELECTED_ENTITIES,
   createPublicHomeAssistantConfig,
   isHomeAssistantConfigured,
   normalizeHomeAssistantAccessToken,
   normalizeHomeAssistantBaseUrl,
   normalizeHomeAssistantConfig,
+  normalizeHomeAssistantEntityAliases,
+  normalizeHomeAssistantSelection,
   normalizeHomeAssistantEntities
 };

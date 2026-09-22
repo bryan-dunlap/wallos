@@ -64,6 +64,7 @@ test("save contract keeps, replaces, and removes the stored token explicitly", (
     baseUrl: "https://draft.example.test",
     accessToken: STORED_TOKEN,
     entities: [],
+    entityAliases: {},
     widget: { enabled: false }
   });
 
@@ -128,6 +129,7 @@ test("saving an entity draft preserves the stored token and ordered IDs", () => 
     baseUrl: "https://saved.example.test",
     accessToken: STORED_TOKEN,
     entities: ["lock.front_door", "light.bedroom"],
+    entityAliases: {},
     widget: { enabled: false }
   });
 });
@@ -181,7 +183,7 @@ test("discovery groups by authoritative area and device with Standard and Advanc
 
 test("selection supports add, remove, missing metadata, and accessible ordering", () => {
   assert.match(serverSource, /data-add-home-assistant-entity/);
-  assert.match(serverSource, /selectedIds\.includes\(entityId\)/);
+  assert.match(serverSource, /selectedIds\(\)\.includes\(entityId\)/);
   assert.match(serverSource, /data-remove-home-assistant-entity/);
   assert.match(serverSource, /Missing \/ Not currently reported/);
   assert.match(serverSource, /data-move-home-assistant-entity/);
@@ -191,6 +193,55 @@ test("selection supports add, remove, missing metadata, and accessible ordering"
     /maximumSelections = \$\{MAX_HOME_ASSISTANT_SELECTED_ENTITIES\}/
   );
   assert.match(serverSource, /Selection limit reached/);
+});
+
+test("Display Name aliases remain local drafts in the selected-entity workflow", () => {
+  assert.match(serverSource, /Display Name \(optional\)/);
+  assert.match(serverSource, /Uses Home Assistant name when blank/);
+  assert.match(serverSource, /aliasInput\.dataset\.homeAssistantDisplayName = entityId/);
+  assert.match(serverSource, /selectedList\.addEventListener\("input"/);
+  assert.match(serverSource, /displayName: entry\.displayName\.trim\(\)/);
+  assert.match(serverSource, /draftField\.dispatchEvent\(new Event\("input"/);
+});
+
+test("save preserves aliases through reorder and clearing/removal drops them", () => {
+  const current = {
+    enabled: true,
+    baseUrl: "https://saved.example.test",
+    accessToken: STORED_TOKEN,
+    entities: ["light.demo_lamp", "sensor.demo_temperature"],
+    entityAliases: {
+      "light.demo_lamp": "Studio Lamp",
+      "sensor.demo_temperature": "Studio"
+    }
+  };
+  const reordered = resolveHomeAssistantConfigUpdate(current, {
+    enabled: true,
+    baseUrl: current.baseUrl,
+    tokenOperation: "keep",
+    entitiesDraft: JSON.stringify([
+      { entityId: "sensor.demo_temperature", displayName: "Studio" },
+      { entityId: "light.demo_lamp", displayName: "Studio Lamp" }
+    ])
+  });
+  assert.deepEqual(reordered.entities, [
+    "sensor.demo_temperature", "light.demo_lamp"
+  ]);
+  assert.deepEqual(reordered.entityAliases, {
+    "sensor.demo_temperature": "Studio",
+    "light.demo_lamp": "Studio Lamp"
+  });
+
+  const clearedAndRemoved = resolveHomeAssistantConfigUpdate(reordered, {
+    enabled: true,
+    baseUrl: current.baseUrl,
+    tokenOperation: "keep",
+    entitiesDraft: JSON.stringify([
+      { entityId: "sensor.demo_temperature", displayName: "" }
+    ])
+  });
+  assert.deepEqual(clearedAndRemoved.entities, ["sensor.demo_temperature"]);
+  assert.deepEqual(clearedAndRemoved.entityAliases, {});
 });
 
 test("discovery covers loading, unavailable, stale, empty, and refresh states", () => {

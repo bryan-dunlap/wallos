@@ -54,10 +54,11 @@ async function resolveHomeAssistantSelectedState(
   );
   const entities = selectedIds.map((entityId) => {
     const entity = entityById.get(entityId);
+    const mosaicDisplayName = normalized.entityAliases[entityId] || null;
 
     return entity
-      ? createResolvedEntity(entity)
-      : createMissingEntity(entityId);
+      ? createResolvedEntity(entity, mosaicDisplayName)
+      : createMissingEntity(entityId, mosaicDisplayName);
   });
 
   return {
@@ -83,11 +84,12 @@ function createSourceSnapshot(status, selectedCount) {
   };
 }
 
-function createResolvedEntity(entity) {
+function createResolvedEntity(entity, mosaicDisplayName = null) {
   return {
     entityId: entity.entityId,
     domain: entity.domain,
     displayName: entity.displayName,
+    mosaicDisplayName,
     state: entity.state,
     unit: entity.unit ?? null,
     deviceClass: entity.deviceClass ?? null,
@@ -99,13 +101,14 @@ function createResolvedEntity(entity) {
   };
 }
 
-function createMissingEntity(entityId) {
+function createMissingEntity(entityId, mosaicDisplayName = null) {
   const [domain, objectId] = entityId.split(".");
 
   return {
     entityId,
     domain,
     displayName: humanizeObjectId(objectId),
+    mosaicDisplayName,
     state: null,
     unit: null,
     deviceClass: null,

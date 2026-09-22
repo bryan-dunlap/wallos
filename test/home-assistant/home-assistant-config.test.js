@@ -7,6 +7,8 @@ const {
   createPublicHomeAssistantConfig,
   normalizeHomeAssistantBaseUrl,
   normalizeHomeAssistantConfig,
+  normalizeHomeAssistantEntityAliases,
+  normalizeHomeAssistantSelection,
   normalizeHomeAssistantEntities
 } = require(
   "../../backend/home-assistant/home-assistant-config"
@@ -18,6 +20,7 @@ test("missing Home Assistant configuration uses safe defaults", () => {
     baseUrl: "",
     accessToken: "",
     entities: [],
+    entityAliases: {},
     widget: { enabled: false }
   });
 });
@@ -28,6 +31,7 @@ test("existing Mosaic configuration without Home Assistant remains compatible", 
     baseUrl: "",
     accessToken: "",
     entities: [],
+    entityAliases: {},
     widget: { enabled: false }
   });
 });
@@ -100,6 +104,7 @@ test("sanitized example contains the current schema without private values", () 
     baseUrl: "",
     accessToken: "",
     entities: [],
+    entityAliases: {},
     widget: { enabled: false }
   });
   assert.deepEqual(example.calendar.sources, []);
@@ -164,7 +169,57 @@ test("legacy saved selections load tolerantly within the configured bound", () =
   });
 
   assert.deepEqual(normalized.entities, ["sensor.valid"]);
+  assert.deepEqual(normalized.entityAliases, {});
   assert.deepEqual(normalized.widget, { enabled: false });
+});
+
+test("legacy, mixed, and aliased selections normalize without losing order", () => {
+  assert.deepEqual(normalizeHomeAssistantSelection([
+    "light.demo_lamp",
+    { entityId: "binary_sensor.patio_entry", displayName: " Patio " },
+    { entityId: "sensor.demo_temperature", displayName: "" }
+  ], { strict: true }), {
+    entities: [
+      "light.demo_lamp",
+      "binary_sensor.patio_entry",
+      "sensor.demo_temperature"
+    ],
+    entityAliases: {
+      "binary_sensor.patio_entry": "Patio"
+    }
+  });
+});
+
+test("aliases are bounded and retained only for selected stable IDs", () => {
+  assert.deepEqual(normalizeHomeAssistantEntityAliases({
+    "light.demo_lamp": " Studio Lamp ",
+    "sensor.orphan": "Orphan",
+    "bad": "Bad"
+  }, ["light.demo_lamp"], { strict: true }), {
+    "light.demo_lamp": "Studio Lamp"
+  });
+  assert.throws(() => normalizeHomeAssistantSelection([{
+    entityId: "light.demo_lamp",
+    displayName: "x".repeat(81)
+  }], { strict: true }), /at most 80 characters/);
+});
+
+test("saved alias maps survive normalization and blank aliases are removed", () => {
+  const normalized = normalizeHomeAssistantConfig({
+    entities: ["light.demo_lamp", "binary_sensor.patio_entry"],
+    entityAliases: {
+      "light.demo_lamp": "Studio Lamp",
+      "binary_sensor.patio_entry": "   ",
+      "sensor.removed": "Removed"
+    }
+  });
+
+  assert.deepEqual(normalized.entities, [
+    "light.demo_lamp", "binary_sensor.patio_entry"
+  ]);
+  assert.deepEqual(normalized.entityAliases, {
+    "light.demo_lamp": "Studio Lamp"
+  });
 });
 
 test("Home Assistant Widget Display is explicit and legacy-safe", () => {

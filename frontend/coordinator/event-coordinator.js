@@ -10,6 +10,7 @@ class EventCoordinator {
             "default",
             "weather",
             "sports",
+            "home-assistant",
             "calendar",
             "hero-display",
             "gamecast-celebration-state"

@@ -241,6 +241,37 @@ test("configured widgets without a runtime registration do not enter composition
   assert.equal(harness.scheduler.tasks.size, 0);
 });
 
+test("registered Home Assistant participates in generic Pair and Expanded composition", () => {
+  const pair = createHarness(["weather", "sports", "homeAssistant"]);
+  pair.widgetManager.hasRegistration = () => true;
+  pair.coordinator.applyConfiguration(config([
+    "weather", "sports", "homeAssistant"
+  ]));
+  assert.deepEqual(visible(pair.coordinator), ["weather", "sports"]);
+  pair.scheduler.runNext();
+  assert.deepEqual(visible(pair.coordinator), ["sports", "homeAssistant"]);
+  pair.scheduler.runNext();
+  assert.deepEqual(visible(pair.coordinator), ["homeAssistant", "weather"]);
+
+  const expanded = createHarness(["weather", "sports", "homeAssistant"]);
+  expanded.widgetManager.hasRegistration = () => true;
+  expanded.coordinator.applyConfiguration(config([
+    "weather", "sports", "homeAssistant"
+  ], "expanded"));
+  assert.deepEqual(visible(expanded.coordinator), ["weather"]);
+  expanded.scheduler.runNext();
+  assert.deepEqual(visible(expanded.coordinator), ["sports"]);
+  expanded.scheduler.runNext();
+  assert.deepEqual(visible(expanded.coordinator), ["homeAssistant"]);
+
+  const single = createHarness(["homeAssistant"]);
+  single.widgetManager.hasRegistration = () => true;
+  single.coordinator.applyConfiguration(config(["homeAssistant"]));
+  assert.deepEqual(visible(single.coordinator), ["homeAssistant"]);
+  assert.equal(single.coordinator.composition.density, "expanded");
+  assert.equal(single.scheduler.tasks.size, 0);
+});
+
 test("Expanded mode uses full geometry and rotates one widget in order", () => {
   for (const ids of [[], ["A"], ["A", "B"], ["A", "B", "C"]]) {
     const harness = createHarness();

@@ -18,4 +18,9 @@ function registerMosaicWidgets(registry) {
         "sports",
         SportsWidget
     );
+
+    registry.register(
+        "homeAssistant",
+        HomeAssistantWidget
+    );
 }

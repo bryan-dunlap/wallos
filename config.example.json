@@ -71,6 +71,7 @@
     "baseUrl": "",
     "accessToken": "",
     "entities": [],
+    "entityAliases": {},
     "widget": {
       "enabled": false
     }

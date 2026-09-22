@@ -49,12 +49,13 @@ const {
 } = require("./discovery/discovery-aggregator");
 const {
   DEFAULT_HOME_ASSISTANT_CONFIG,
+  MAX_HOME_ASSISTANT_DISPLAY_NAME_LENGTH,
   MAX_HOME_ASSISTANT_SELECTED_ENTITIES,
   createPublicHomeAssistantConfig,
   normalizeHomeAssistantAccessToken,
   normalizeHomeAssistantBaseUrl,
   normalizeHomeAssistantConfig,
-  normalizeHomeAssistantEntities
+  normalizeHomeAssistantSelection
 } = require("./home-assistant/home-assistant-config");
 const {
   createHomeAssistantRouter
@@ -86,10 +87,12 @@ const {
 } = require("./display-power/display-power-runtime");
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.MOSAIC_PORT) || 3000;
 
 const frontendPath = path.join(__dirname, "..", "frontend");
-const configPath = path.join(__dirname, "..", "config.json");
+const configPath = process.env.MOSAIC_CONFIG_PATH
+  ? path.resolve(process.env.MOSAIC_CONFIG_PATH)
+  : path.join(__dirname, "..", "config.json");
 const teamPaletteCachePath = path.join(
   __dirname,
   "..",
@@ -930,7 +933,7 @@ function resolveHomeAssistantConfigUpdate(currentConfig, update) {
   const enabled = update?.enabled;
   const baseUrlDraft = update?.baseUrl;
   const tokenOperation = update?.tokenOperation;
-  let entities;
+  let selection;
 
   if (typeof enabled !== "boolean") {
     throw new Error("Home Assistant enabled must be a boolean.");
@@ -955,8 +958,13 @@ function resolveHomeAssistantConfigUpdate(currentConfig, update) {
   try {
     const entitiesDraft = typeof update?.entitiesDraft === "string"
       ? update.entitiesDraft
-      : JSON.stringify(current.entities);
-    entities = normalizeHomeAssistantEntities(
+      : JSON.stringify(current.entities.map((entityId) => ({
+        entityId,
+        ...(current.entityAliases[entityId]
+          ? { displayName: current.entityAliases[entityId] }
+          : {})
+      })));
+    selection = normalizeHomeAssistantSelection(
       JSON.parse(entitiesDraft),
       { strict: true }
     );
@@ -964,6 +972,9 @@ function resolveHomeAssistantConfigUpdate(currentConfig, update) {
     if (
       error?.message === "Home Assistant entities must be an array." ||
       error?.message === "Home Assistant entity ID is invalid." ||
+      error?.message === "Home Assistant entity aliases must be an object." ||
+      error?.message === "Home Assistant Display Name must be a string." ||
+      error?.message === `Home Assistant Display Name must be at most ${MAX_HOME_ASSISTANT_DISPLAY_NAME_LENGTH} characters.` ||
       error?.message === `Home Assistant supports at most ${MAX_HOME_ASSISTANT_SELECTED_ENTITIES} selected entities.`
     ) {
       throw error;
@@ -987,7 +998,8 @@ function resolveHomeAssistantConfigUpdate(currentConfig, update) {
     enabled,
     baseUrl,
     accessToken,
-    entities,
+    entities: selection.entities,
+    entityAliases: selection.entityAliases,
     widget: {
       enabled: typeof update?.widgetEnabled === "boolean"
         ? update.widgetEnabled
@@ -1414,7 +1426,12 @@ app.get("/control", (req, res) => {
         </li>`;
       }).join("");
   const homeAssistantEntitiesDraft = JSON.stringify(
-    config.homeAssistant.entities
+    config.homeAssistant.entities.map((entityId) => ({
+      entityId,
+      ...(config.homeAssistant.entityAliases[entityId]
+        ? { displayName: config.homeAssistant.entityAliases[entityId] }
+        : {})
+    }))
   );
 
   res.type("html").send(`<!doctype html>
@@ -2929,13 +2946,23 @@ app.get("/control", (req, res) => {
         !refreshButton || !feedback
       ) return;
 
-      let selectedIds;
+      let selectedEntries;
       try {
-        selectedIds = JSON.parse(draftField.value);
+        selectedEntries = JSON.parse(draftField.value);
       } catch {
-        selectedIds = [];
+        selectedEntries = [];
       }
-      if (!Array.isArray(selectedIds)) selectedIds = [];
+      if (!Array.isArray(selectedEntries)) selectedEntries = [];
+      selectedEntries = selectedEntries.map((entry) =>
+        typeof entry === "string"
+          ? { entityId: entry }
+          : {
+            entityId: entry?.entityId,
+            ...(typeof entry?.displayName === "string" && entry.displayName
+              ? { displayName: entry.displayName }
+              : {})
+          }
+      ).filter((entry) => typeof entry.entityId === "string");
 
       let discoveredEntities = [];
       let discoveryLoaded = false;
@@ -2975,23 +3002,50 @@ app.get("/control", (req, res) => {
         return copy;
       };
 
-      const syncDraft = () => {
-        draftField.value = JSON.stringify(selectedIds);
+      const selectedIds = () => selectedEntries.map(
+        (entry) => entry.entityId
+      );
+
+      const writeDraft = () => {
+        draftField.value = JSON.stringify(selectedEntries.map((entry) => ({
+          entityId: entry.entityId,
+          ...(entry.displayName?.trim()
+            ? { displayName: entry.displayName.trim() }
+            : {})
+        })));
         draftField.dispatchEvent(new Event("input", { bubbles: true }));
         feedback.textContent = "";
+      };
+
+      const syncDraft = () => {
+        writeDraft();
         renderSelected();
         renderResults();
       };
 
       const renderSelected = () => {
         selectedList.replaceChildren();
-        selectedIds.forEach((entityId, index) => {
+        selectedEntries.forEach((selection, index) => {
+          const entityId = selection.entityId;
           const entity = metadataById.get(entityId) || { entityId };
           const missing = discoveryLoaded && !metadataById.has(entityId);
           const row = document.createElement("li");
           row.className = "ha-selected-row" + (missing ? " is-missing" : "");
           row.dataset.homeAssistantSelectedEntity = entityId;
           row.append(createCopy(entity, missing));
+
+          const aliasField = document.createElement("label");
+          aliasField.className = "field ha-display-name-field";
+          const aliasLabel = document.createElement("span");
+          aliasLabel.textContent = "Display Name (optional)";
+          const aliasInput = document.createElement("input");
+          aliasInput.type = "text";
+          aliasInput.maxLength = ${MAX_HOME_ASSISTANT_DISPLAY_NAME_LENGTH};
+          aliasInput.value = selection.displayName || "";
+          aliasInput.placeholder = "Uses Home Assistant name when blank";
+          aliasInput.dataset.homeAssistantDisplayName = entityId;
+          aliasField.append(aliasLabel, aliasInput);
+          row.append(aliasField);
 
           const actions = document.createElement("span");
           actions.className = "ha-selected-actions";
@@ -3007,7 +3061,7 @@ app.get("/control", (req, res) => {
             );
             button.disabled = direction === "up"
               ? index === 0
-              : index === selectedIds.length - 1;
+              : index === selectedEntries.length - 1;
             actions.append(button);
           });
           const remove = document.createElement("button");
@@ -3020,8 +3074,8 @@ app.get("/control", (req, res) => {
           row.append(actions);
           selectedList.append(row);
         });
-        selectedEmpty.hidden = selectedIds.length > 0;
-        selectedCount.textContent = String(selectedIds.length);
+        selectedEmpty.hidden = selectedEntries.length > 0;
+        selectedCount.textContent = String(selectedEntries.length);
       };
 
       const renderDomainFilters = () => {
@@ -3069,7 +3123,7 @@ app.get("/control", (req, res) => {
       };
 
       const createDiscoveryRow = (entity) => {
-        const selected = selectedIds.includes(entity.entityId);
+        const selected = selectedIds().includes(entity.entityId);
         const advanced = entity.hidden === true ||
           entity.entityCategory === "diagnostic" ||
           entity.entityCategory === "config";
@@ -3090,7 +3144,7 @@ app.get("/control", (req, res) => {
         add.type = "button";
         add.dataset.addHomeAssistantEntity = entity.entityId;
         add.textContent = selected ? "Selected" : "Add";
-        add.disabled = selected || selectedIds.length >= maximumSelections;
+        add.disabled = selected || selectedEntries.length >= maximumSelections;
         add.setAttribute("aria-label", "Add " + entity.entityId);
         row.append(add);
         return row;
@@ -3220,8 +3274,8 @@ app.get("/control", (req, res) => {
           "[data-remove-home-assistant-entity]"
         );
         if (remove) {
-          selectedIds = selectedIds.filter(
-            (entityId) => entityId !== remove.dataset.removeHomeAssistantEntity
+          selectedEntries = selectedEntries.filter(
+            (entry) => entry.entityId !== remove.dataset.removeHomeAssistantEntity
           );
           syncDraft();
           return;
@@ -3232,31 +3286,44 @@ app.get("/control", (req, res) => {
         );
         const row = move?.closest("[data-home-assistant-selected-entity]");
         const index = row
-          ? selectedIds.indexOf(row.dataset.homeAssistantSelectedEntity)
+          ? selectedIds().indexOf(row.dataset.homeAssistantSelectedEntity)
           : -1;
         const destination = move?.dataset.moveHomeAssistantEntity === "up"
           ? index - 1
           : index + 1;
         if (
           index < 0 || destination < 0 ||
-          destination >= selectedIds.length
+          destination >= selectedEntries.length
         ) return;
-        [selectedIds[index], selectedIds[destination]] =
-          [selectedIds[destination], selectedIds[index]];
+        [selectedEntries[index], selectedEntries[destination]] =
+          [selectedEntries[destination], selectedEntries[index]];
         syncDraft();
+      });
+
+      selectedList.addEventListener("input", (event) => {
+        const input = event.target.closest(
+          "[data-home-assistant-display-name]"
+        );
+        if (!input) return;
+        const selection = selectedEntries.find(
+          (entry) => entry.entityId === input.dataset.homeAssistantDisplayName
+        );
+        if (!selection) return;
+        selection.displayName = input.value;
+        writeDraft();
       });
 
       results.addEventListener("click", (event) => {
         const add = event.target.closest("[data-add-home-assistant-entity]");
         const entityId = add?.dataset.addHomeAssistantEntity;
-        if (!entityId || selectedIds.includes(entityId)) return;
-        if (selectedIds.length >= maximumSelections) {
+        if (!entityId || selectedIds().includes(entityId)) return;
+        if (selectedEntries.length >= maximumSelections) {
           feedback.textContent = "Remove an entity before adding another. The limit is " + maximumSelections + ".";
           return;
         }
-        selectedIds.push(entityId);
+        selectedEntries.push({ entityId });
         syncDraft();
-        if (selectedIds.length >= maximumSelections) {
+        if (selectedEntries.length >= maximumSelections) {
           feedback.textContent = "Selection limit reached (" + maximumSelections + ").";
         }
       });

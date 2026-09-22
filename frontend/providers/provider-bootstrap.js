@@ -41,6 +41,11 @@ function registerMosaicProviders(registry) {
     );
 
     registry.register(
+        "home-assistant",
+        HomeAssistantProvider
+    );
+
+    registry.register(
         "mlb-gamecast",
         MlbGamecastProvider
     );

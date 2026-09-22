@@ -95,6 +95,7 @@ test("missing selections remain ordered deliberate placeholders", async () => {
     entityId: "light.kitchen",
     domain: "light",
     displayName: "Kitchen",
+    mosaicDisplayName: null,
     state: null,
     unit: null,
     deviceClass: null,
@@ -105,6 +106,38 @@ test("missing selections remain ordered deliberate placeholders", async () => {
     updatedAt: null
   });
   assert.equal(snapshot.entities[1].entityId, "sensor.temperature");
+});
+
+test("projects Mosaic aliases without changing acquisition identity", async () => {
+  const snapshot = await resolveHomeAssistantSelectedState(config({
+    entityAliases: {
+      "light.kitchen": "Kitchen Light",
+      "sensor.temperature": "Studio"
+    }
+  }), {
+    stateCache: cacheSnapshot([
+      entity("sensor.temperature", "69.35"),
+      entity("light.kitchen", "off")
+    ])
+  });
+
+  assert.deepEqual(snapshot.entities.map((item) => ({
+    entityId: item.entityId,
+    mosaicDisplayName: item.mosaicDisplayName
+  })), [
+    { entityId: "light.kitchen", mosaicDisplayName: "Kitchen Light" },
+    { entityId: "sensor.temperature", mosaicDisplayName: "Studio" }
+  ]);
+});
+
+test("missing selections retain their configured Mosaic alias", async () => {
+  const snapshot = await resolveHomeAssistantSelectedState(config({
+    entities: ["binary_sensor.missing"],
+    entityAliases: { "binary_sensor.missing": "Patio" }
+  }), { stateCache: cacheSnapshot([]) });
+
+  assert.equal(snapshot.entities[0].availability, "missing");
+  assert.equal(snapshot.entities[0].mosaicDisplayName, "Patio");
 });
 
 test("preserves unknown, unavailable, and stale as separate semantics", async () => {
