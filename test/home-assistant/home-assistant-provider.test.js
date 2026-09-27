@@ -238,11 +238,13 @@ test("normalizer preserves only the explicit Mosaic display alias", () => {
     entities: [{
       ...availableSnapshot().entities[0],
       mosaicDisplayName: "Living Room",
+      icon: "mdi:lightbulb",
       unrelatedName: "must not cross"
     }]
   }));
 
   assert.equal(normalized.entities[0].displayName, "Studio Lamp");
   assert.equal(normalized.entities[0].mosaicDisplayName, "Living Room");
+  assert.equal(normalized.entities[0].icon, "mdi:lightbulb");
   assert.equal("unrelatedName" in normalized.entities[0], false);
 });

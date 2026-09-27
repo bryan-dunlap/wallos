@@ -244,7 +244,7 @@ test("production-order dashboard runtime renders available Home Assistant state"
   assert.equal(result.providerTimerActive, true);
   assert.equal(result.activeStatus, "available");
   assert.equal(result.widgetStatus, "available");
-  assert.deepEqual(result.widgetRows, [
+  assert.deepEqual(result.widgetRows.map(({ name, value }) => ({ name, value })), [
     { name: "Studio Lamp", value: "Off" },
     { name: "Patio Entry Door", value: "Closed" },
     { name: "Patio", value: "Closed" },

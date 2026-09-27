@@ -3,6 +3,7 @@ const test = require("node:test");
 const {
   formatHomeAssistantState,
   humanizeHomeAssistantState,
+  projectHomeAssistantEntity,
   projectHomeAssistantPresentation,
   resolveHomeAssistantPresentationName
 } = require("../../frontend/widgets/home-assistant-presentation");
@@ -47,6 +48,18 @@ test("exceptional entity states override ordinary semantics", () => {
   assert.equal(formatHomeAssistantState(entity({ state: "unavailable" })), "Unavailable");
   assert.equal(formatHomeAssistantState(entity({ availability: "unknown" })), "Unknown");
   assert.equal(formatHomeAssistantState(entity({ state: "unknown" })), "Unknown");
+});
+
+test("semantic tones distinguish secure, attention, active, inactive, and unavailable", () => {
+  const tone = (overrides) => projectHomeAssistantEntity(entity(overrides)).tone;
+  assert.equal(tone({ domain: "binary_sensor", deviceClass: "door", state: "off" }), "secure");
+  assert.equal(tone({ domain: "binary_sensor", deviceClass: "door", state: "on" }), "attention");
+  assert.equal(tone({ domain: "lock", state: "locked" }), "secure");
+  assert.equal(tone({ domain: "lock", state: "unlocked" }), "attention");
+  assert.equal(tone({ domain: "light", state: "on" }), "active");
+  assert.equal(tone({ domain: "light", state: "off" }), "inactive");
+  assert.equal(tone({ domain: "light", state: "unknown", availability: "unknown" }), "muted");
+  assert.equal(tone({ domain: "light", state: "unavailable", availability: "unavailable" }), "muted");
 });
 
 test("unknown semantics use safe state humanization without guessing", () => {
@@ -94,8 +107,14 @@ test("projection preserves selected order and stale source state", () => {
 
   assert.equal(presentation.stale, true);
   assert.deepEqual(presentation.rows, [
-    { name: "Studio Lamp", value: "Off" },
-    { name: "Patio Entry Door", value: "Closed" }
+    {
+      name: "Studio Lamp", value: "Off", semantic: "light",
+      glyph: "✦", tone: "inactive", valueKind: "state"
+    },
+    {
+      name: "Patio Entry Door", value: "Closed", semantic: "door",
+      glyph: "▯", tone: "secure", valueKind: "state"
+    }
   ]);
 });
 
@@ -108,5 +127,8 @@ test("explicit aliases override identity without changing state semantics", () =
       mosaicDisplayName: "Patio",
       deviceClass: "door"
     })]
-  }).rows, [{ name: "Patio", value: "Closed" }]);
+  }).rows, [{
+    name: "Patio", value: "Closed", semantic: "door",
+    glyph: "▯", tone: "secure", valueKind: "state"
+  }]);
 });

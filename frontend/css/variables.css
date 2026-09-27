@@ -57,6 +57,17 @@
     --color-text-muted: #8fa6c1;
 
     /* ==========================
+       Semantic State Colors
+       Theme-independent meaning
+    ========================== */
+
+    --color-state-secure: #3c9b68;
+    --color-state-attention: #c9832d;
+    --color-state-active: #2b91ad;
+    --color-state-inactive: #8d989f;
+    --color-state-unavailable: #707b83;
+
+    /* ==========================
        Accent
     ========================== */
 

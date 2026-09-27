@@ -15,6 +15,7 @@ const {
   acquireSportsWidgetLeagues,
   buildSportsWidgetAcquisitionResponse,
   mlbDailyScheduleCache,
+  mlbGameDetailCache,
   mlbGamecastScheduleCache,
   normalizeMlbEvent,
   sportsWidgetAcquisitionRegistry
@@ -349,6 +350,7 @@ test("MLB Gamecast acquisition remains on StatsAPI live detail", async (t) => {
   const requests = [];
 
   mlbGamecastScheduleCache.delete(requestedDate);
+  mlbGameDetailCache.cache.delete("9001");
   installProductionSportsFetch(t, async (url) => {
     requests.push(url);
 
@@ -399,7 +401,10 @@ test("MLB Gamecast acquisition remains on StatsAPI live detail", async (t) => {
 
     throw new Error(`Unexpected Gamecast URL: ${url}`);
   });
-  t.after(() => mlbGamecastScheduleCache.delete(requestedDate));
+  t.after(() => {
+    mlbGamecastScheduleCache.delete(requestedDate);
+    mlbGameDetailCache.cache.delete("9001");
+  });
 
   const result = await acquireMlbGamecastSchedule(requestedDate);
   const [game] = result.sportsEvents;

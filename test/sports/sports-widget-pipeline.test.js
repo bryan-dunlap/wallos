@@ -30,6 +30,7 @@ const {
   NflSportsWidgetRenderer
 } = require("../../frontend/sports/nfl-sports-widget-renderer");
 const {
+  SportsProvider,
   normalizeSportsProviderTeam,
   normalizeSportsScheduleLeagues
 } = require("../../frontend/providers/sports-provider");
@@ -337,6 +338,36 @@ test("SportsProvider maps aggregate MLB payloads and preserves metadata", () => 
   assert.equal(leagues[0].availability, "available");
   assert.equal(leagues[0].updatedAt, "2026-08-22T12:00:00.000Z");
   assert.equal(leagues[0].stale, true);
+});
+
+test("SportsProvider preserves MLB performer lookup identity through adaptation", () => {
+  const source = createLegacyMlbGame({
+    date: "2026-09-26",
+    eventId: "401817101",
+    awayTeam: {
+      name: "Los Angeles Dodgers",
+      shortName: "Dodgers",
+      abbreviation: "LAD",
+      providerId: 119,
+      runs: 4
+    },
+    homeTeam: {
+      name: "San Francisco Giants",
+      shortName: "Giants",
+      abbreviation: "SF",
+      providerId: 137,
+      runs: 3
+    },
+    status: { state: "Final", detail: "Final" }
+  });
+  const normalized = Object.create(SportsProvider.prototype)
+    .normalizeGame(source);
+  const event = new MlbSportsEventAdapter().adaptGame(normalized);
+
+  assert.equal(event.id, "401817101");
+  assert.equal(event.state.date, "2026-09-26");
+  assert.equal(event.participants.away.providerId, 119);
+  assert.equal(event.participants.home.providerId, 137);
 });
 
 test("MLB provider path preserves compact nicknames through every widget state", () => {

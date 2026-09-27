@@ -35,6 +35,7 @@ class MlbSportsEventAdapter {
                 home: homeTeam.score
             },
             state: {
+                date: game.date || null,
                 scheduledAt: game.scheduledAt || null,
                 scheduledTime: game.scheduledTime || null,
                 statusDetail: game.status?.detail || ""
@@ -73,7 +74,8 @@ class MlbSportsEventAdapter {
                 wins: null,
                 losses: null
             },
-            score: team.runs ?? null
+            score: team.runs ?? null,
+            providerId: team.providerId ?? team.id ?? null
         };
     }
 

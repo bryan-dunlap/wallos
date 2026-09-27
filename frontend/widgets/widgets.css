@@ -273,6 +273,15 @@
     line-height: 1.15;
 }
 
+.home-assistant-status-glyph {
+    display: none;
+}
+
+.home-assistant-status-copy {
+    min-width: 0;
+    display: contents;
+}
+
 .home-assistant-status-name {
     min-width: 0;
     overflow: hidden;
@@ -310,19 +319,141 @@
     padding: 18px 22px;
 }
 
+[data-normal-widget-density="expanded"] > .widget-header,
+[data-normal-widget-density="expanded"] .home-assistant-content > .widget-header {
+    margin-bottom: 10px;
+}
+
+.normal-widget-expanded-content {
+    min-height: 0;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.normal-widget-expanded-primary {
+    min-height: 0;
+}
+
+.normal-widget-expanded-secondary {
+    border-top: 1px solid var(--border-subtle);
+}
+
 .homeAssistant-widget[data-normal-widget-density="expanded"]
     .home-assistant-status-list {
-    gap: 13px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: minmax(0, 1fr);
+    gap: 0 18px;
+    align-content: stretch;
+}
+
+.homeAssistant-widget[data-normal-widget-density="expanded"]
+    .home-assistant-status-row {
+    min-height: 0;
+    grid-template-columns: 34px minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    padding-block: 7px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.homeAssistant-widget[data-normal-widget-density="expanded"]
+    .home-assistant-status-row:nth-last-child(-n + 2) {
+    border-bottom: 0;
+}
+
+.homeAssistant-widget[data-normal-widget-density="expanded"]
+    .home-assistant-status-glyph {
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+    border-radius: 50%;
+    background: color-mix(in srgb, currentColor 13%, transparent);
+    color: var(--color-text-secondary);
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.homeAssistant-widget[data-normal-widget-density="expanded"]
+    .home-assistant-status-copy {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
 }
 
 .homeAssistant-widget[data-normal-widget-density="expanded"]
     .home-assistant-status-name {
-    font-size: 1rem;
+    color: var(--color-text-muted);
+    font-size: .68rem;
+    font-weight: 500;
+    line-height: 1.1;
 }
 
 .homeAssistant-widget[data-normal-widget-density="expanded"]
     .home-assistant-status-value {
-    font-size: 1.08rem;
+    overflow: hidden;
+    color: var(--color-text);
+    font-size: 1.14rem;
+    font-weight: 700;
+    line-height: 1.05;
+    text-overflow: ellipsis;
+}
+
+.homeAssistant-widget[data-normal-widget-density="expanded"]
+    .home-assistant-status-row[data-value-kind="numeric"]
+    .home-assistant-status-value {
+    font-size: 1.38rem;
+    font-weight: 700;
+    letter-spacing: -.025em;
+}
+
+.homeAssistant-widget[data-normal-widget-density="expanded"]
+    .home-assistant-status-row[data-tone="active"]
+    .home-assistant-status-glyph,
+.homeAssistant-widget[data-normal-widget-density="expanded"]
+    .home-assistant-status-row[data-tone="active"]
+    .home-assistant-status-value {
+    color: var(--color-state-active);
+}
+
+.homeAssistant-widget[data-normal-widget-density="expanded"]
+    .home-assistant-status-row[data-tone="secure"]
+    .home-assistant-status-glyph,
+.homeAssistant-widget[data-normal-widget-density="expanded"]
+    .home-assistant-status-row[data-tone="secure"]
+    .home-assistant-status-value {
+    color: var(--color-state-secure);
+}
+
+.homeAssistant-widget[data-normal-widget-density="expanded"]
+    .home-assistant-status-row[data-tone="attention"]
+    .home-assistant-status-glyph,
+.homeAssistant-widget[data-normal-widget-density="expanded"]
+    .home-assistant-status-row[data-tone="attention"]
+    .home-assistant-status-value {
+    color: var(--color-state-attention);
+}
+
+.homeAssistant-widget[data-normal-widget-density="expanded"]
+    .home-assistant-status-row[data-tone="inactive"]
+    .home-assistant-status-glyph,
+.homeAssistant-widget[data-normal-widget-density="expanded"]
+    .home-assistant-status-row[data-tone="inactive"]
+    .home-assistant-status-value {
+    color: var(--color-state-inactive);
+}
+
+.homeAssistant-widget[data-normal-widget-density="expanded"]
+    .home-assistant-status-row[data-tone="muted"]
+    .home-assistant-status-glyph,
+.homeAssistant-widget[data-normal-widget-density="expanded"]
+    .home-assistant-status-row[data-tone="muted"]
+    .home-assistant-status-value {
+    color: var(--color-state-unavailable);
 }
 
 
@@ -356,6 +487,107 @@
 
 }
 
+.sports-widget[data-normal-widget-density="expanded"] {
+    padding: 18px 22px;
+    overflow: hidden;
+}
+
+.sports-expanded {
+    gap: 10px;
+}
+
+.sports-expanded-primary {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.sports-expanded-meta {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+    color: var(--color-text-secondary);
+    font-size: .68rem;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+}
+
+.sports-expanded-scoreboard {
+    display: flex;
+    min-height: 82px;
+    align-items: center;
+    justify-content: center;
+}
+
+.sports-performers {
+    padding-top: 7px;
+}
+
+.sports-performers-title {
+    margin-bottom: 5px;
+    color: var(--color-text-muted);
+    font-size: .58rem;
+    font-weight: 600;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+.sports-performer-teams {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.sports-performer-team {
+    min-width: 0;
+}
+
+.sports-performer-team-name {
+    overflow: hidden;
+    margin-bottom: 2px;
+    color: var(--color-text-secondary);
+    font-size: .65rem;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.sports-performer-row {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 12px minmax(0, .8fr) minmax(0, 1.25fr);
+    align-items: baseline;
+    gap: 4px;
+    padding-block: 2px;
+    font-size: .65rem;
+}
+
+.sports-performer-role {
+    color: var(--color-accent);
+    font-size: .58rem;
+    font-weight: 600;
+}
+
+.sports-performer-name,
+.sports-performer-line {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sports-performer-name {
+    color: var(--color-text);
+    font-weight: 600;
+}
+
+.sports-performer-line {
+    color: var(--color-text-muted);
+    text-align: right;
+}
 
 /* ==========================
    Sports Widget
@@ -805,6 +1037,103 @@
 
     margin-bottom: 4px;
 
+}
+
+.weather-widget[data-normal-widget-density="expanded"] {
+    padding: 18px 22px;
+}
+
+.weather-expanded {
+    gap: 12px;
+}
+
+.weather-expanded-primary {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.weather-expanded-location {
+    color: var(--color-text-secondary);
+    font-size: .68rem;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+}
+
+.weather-expanded-current {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.weather-expanded-icon {
+    font-size: 2.1rem;
+    line-height: 1;
+}
+
+.weather-expanded-temperature {
+    color: var(--color-text);
+    font-family: "Outfit", sans-serif;
+    font-size: 3.65rem;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.weather-expanded-condition {
+    max-width: 130px;
+    color: var(--color-text-secondary);
+    font-size: .88rem;
+    line-height: 1.15;
+}
+
+.weather-expanded-support {
+    display: flex;
+    justify-content: center;
+    gap: 13px;
+    color: var(--color-text-muted);
+    font-size: .72rem;
+}
+
+.weather-hourly {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    padding-top: 9px;
+}
+
+.weather-hourly-entry {
+    min-width: 0;
+    display: grid;
+    justify-items: center;
+    gap: 2px;
+    border-right: 1px solid var(--border-subtle);
+}
+
+.weather-hourly-entry:last-child {
+    border-right: 0;
+}
+
+.weather-hourly-time,
+.weather-hourly-precipitation {
+    min-height: 1em;
+    color: var(--color-text-muted);
+    font-size: .62rem;
+}
+
+.weather-hourly-icon {
+    font-size: 1rem;
+    line-height: 1.1;
+}
+
+.weather-hourly-temperature {
+    font-family: "Outfit", sans-serif;
+    font-size: .9rem;
+    font-weight: 600;
+}
+
+.weather-hourly-precipitation {
+    color: var(--color-accent);
 }
 
 

@@ -117,6 +117,20 @@ class WeatherProvider {
                 low: today.low,
                 precipitation:
                     today.precipitationChance,
+                apparentTemperature:
+                    weatherData.current.apparentTemperature,
+                hourly: selectUpcomingWeatherHours(
+                    weatherData.hourly,
+                    weatherData.location.timezone
+                ).map((hour) => ({
+                    at: hour.time,
+                    temperature: hour.temperature,
+                    precipitationChance: hour.precipitationChance,
+                    condition: this.getCondition(hour.weatherCode),
+                    icon: this.getIcon(hour.weatherCode)
+                })),
+                updatedAt: weatherData.updatedAt || null,
+                stale: weatherData.stale === true,
                 status: "available"
             }
         });
@@ -271,6 +285,33 @@ class WeatherProvider {
 
 }
 
+function selectUpcomingWeatherHours(hours, timeZone, now = new Date()) {
+    if (!Array.isArray(hours)) return [];
+
+    const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        hourCycle: "h23"
+    }).formatToParts(now).reduce((result, part) => {
+        result[part.type] = part.value;
+        return result;
+    }, {});
+    const currentHour = [
+        `${parts.year}-${parts.month}-${parts.day}`,
+        `${parts.hour}:00`
+    ].join("T");
+
+    return hours
+        .filter((hour) =>
+            typeof hour?.time === "string" &&
+            hour.time > currentHour
+        )
+        .slice(0, 5);
+}
+
 function normalizeWeatherDisplayConfig(config) {
     return {
         enabled: config?.enabled !== false,
@@ -280,5 +321,8 @@ function normalizeWeatherDisplayConfig(config) {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-    module.exports = { normalizeWeatherDisplayConfig };
+    module.exports = {
+        normalizeWeatherDisplayConfig,
+        selectUpcomingWeatherHours
+    };
 }

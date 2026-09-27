@@ -16,6 +16,13 @@ const {
   mlbDailyScheduleCache
 } = require("./sports/mlb-espn-acquirer");
 const {
+  MlbGameDetailCache,
+  MlbGameIdResolver
+} = require("./sports/mlb-game-detail-cache");
+const {
+  createMlbFeaturedPerformers
+} = require("./sports/mlb-performer-summary");
+const {
   sportsSimulationProfileRegistry,
   teamPalettePreviewTeams
 } = require(
@@ -112,6 +119,8 @@ const defaultCalendarProvider =
   calendarProviderRegistry.getDefault().id;
 const sportsSimulationProfiles =
   sportsSimulationProfileRegistry.getMetadata();
+const mlbGameDetailCache = new MlbGameDetailCache();
+const mlbGameIdResolver = new MlbGameIdResolver();
 
 /* ==========================
    Configuration
@@ -4968,17 +4977,11 @@ async function getMlbLiveDetails(game) {
   }
 
   try {
-    const response = await fetch(
-      `https://statsapi.mlb.com/api/v1.1/game/${game.gamePk}/feed/live`
+    const detail = await mlbGameDetailCache.acquire(
+      game.gamePk,
+      { status: "live" }
     );
-
-    if (!response.ok) {
-      throw new Error(
-        `MLB live feed request failed: ${response.status}`
-      );
-    }
-
-    const feed = await response.json();
+    const feed = detail.data;
     const liveData = feed.liveData || {};
     const detailedLinescore = liveData.linescore || null;
     const currentPlay = liveData.plays?.currentPlay || null;
@@ -5758,6 +5761,37 @@ app.get("/api/sports", async (req, res) => {
 
 app.get("/api/sports/mlb", handleMlbDailySchedule);
 app.get("/api/sports/mlb/gamecast", handleMlbGamecastSchedule);
+app.get("/api/sports/mlb/performers", async (req, res) => {
+  const status = req.query.status === "final" ? "final" :
+    req.query.status === "live" ? "live" : null;
+  const date = typeof req.query.date === "string" ? req.query.date : "";
+  const awayTeamId = String(req.query.awayTeamId || "");
+  const homeTeamId = String(req.query.homeTeamId || "");
+
+  if (!isValidDateKey(date) || !/^\d+$/.test(awayTeamId) ||
+      !/^\d+$/.test(homeTeamId) || !status) {
+    return res.status(400).json({
+      error: "A date, team IDs, and live or final status are required."
+    });
+  }
+
+  try {
+    const gameId = await mlbGameIdResolver.resolve({
+      date, awayTeamId, homeTeamId
+    });
+    if (!gameId) return res.status(404).json({ error: "MLB game not found." });
+    const detail = await mlbGameDetailCache.acquire(gameId, { status });
+    return res.json(createMlbFeaturedPerformers(
+      detail.data,
+      req.query.eventId,
+      detail.stale
+    ));
+  } catch (error) {
+    return res.status(503).json({
+      error: "MLB performer detail is temporarily unavailable."
+    });
+  }
+});
 app.get("/api/sports/nfl", handleNflDailySchedule);
 app.get("/api/sports/nfl/gamecast", handleNflGamecast);
 
@@ -5970,6 +6004,8 @@ module.exports = {
   createNflDailyScheduleHandler,
   createNflGamecastHandler,
   mlbDailyScheduleCache,
+  mlbGameDetailCache,
+  mlbGameIdResolver,
   mlbGamecastScheduleCache,
   normalizeMlbEvent,
   normalizeFavoriteTeams,

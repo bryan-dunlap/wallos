@@ -111,13 +111,23 @@ class HomeAssistantWidget {
     createStatusRow(row) {
         const item = document.createElement("div");
         item.className = "home-assistant-status-row";
+        item.dataset.semantic = row.semantic;
+        item.dataset.tone = row.tone;
+        item.dataset.valueKind = row.valueKind;
+        const glyph = document.createElement("span");
+        glyph.className = "home-assistant-status-glyph";
+        glyph.setAttribute("aria-hidden", "true");
+        glyph.textContent = row.glyph;
+        const copy = document.createElement("span");
+        copy.className = "home-assistant-status-copy";
         const name = document.createElement("span");
         name.className = "home-assistant-status-name";
         name.textContent = row.name;
         const value = document.createElement("span");
         value.className = "home-assistant-status-value";
         value.textContent = row.value;
-        item.append(name, value);
+        copy.append(name, value);
+        item.append(glyph, copy);
         return item;
     }
 }

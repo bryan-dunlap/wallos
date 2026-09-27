@@ -229,6 +229,12 @@ for (const widgetEnabled of [true, false]) {
         widgetEvent.payload.status,
         widgetEnabled ? "available" : "unavailable"
       );
+      if (widgetEnabled) {
+        assert.equal(widgetEvent.payload.apparentTemperature, 64);
+        assert.deepEqual(widgetEvent.payload.hourly, []);
+        assert.equal(widgetEvent.payload.stale, false);
+        assert.match(widgetEvent.payload.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
+      }
       assert.equal(
         heroEvent.payload.status,
         heroEnabled ? "available" : "unavailable"

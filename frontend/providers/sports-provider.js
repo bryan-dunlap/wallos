@@ -274,6 +274,7 @@ class SportsProvider {
     normalizeGame(game) {
         return {
             eventId: game.eventId,
+            date: game.date || null,
             scheduledAt: game.scheduledAt,
             scheduledTime: game.scheduledTime,
             status: {
@@ -312,6 +313,8 @@ class SportsProvider {
 
 function normalizeSportsProviderTeam(team = {}) {
     return {
+        id: team.id ?? null,
+        providerId: team.providerId ?? team.id ?? null,
         name: team.name || "Team TBD",
         shortName: team.shortName || "",
         abbreviation: team.abbreviation || "",
@@ -366,6 +369,7 @@ function normalizeSportsScheduleLeagues(
 
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
+        SportsProvider,
         normalizeSportsProviderTeam,
         normalizeSportsScheduleLeagues
     };

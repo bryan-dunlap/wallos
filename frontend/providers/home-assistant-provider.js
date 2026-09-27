@@ -6,7 +6,7 @@ const HOME_ASSISTANT_REFRESH_INTERVAL_MS = 30 * 1000;
  *   status: available|disabled|unconfigured|empty|unavailable,
  *   stale, updatedAt, selectedCount,
  *   entities: [{ domain, displayName, mosaicDisplayName, state, unit,
- *     deviceClass, availability }]
+ *     deviceClass, icon, availability }]
  * }
  * Entity order is the saved selection order. HTTP details, entity IDs,
  * attributes, registry metadata, and credentials do not cross this boundary.
@@ -219,8 +219,14 @@ function normalizeHomeAssistantEntity(entity) {
         state: normalizeHomeAssistantText(entity?.state),
         unit: normalizeHomeAssistantText(entity?.unit),
         deviceClass: normalizeHomeAssistantToken(entity?.deviceClass),
+        icon: normalizeHomeAssistantIcon(entity?.icon),
         availability
     };
+}
+
+function normalizeHomeAssistantIcon(value) {
+    const icon = normalizeHomeAssistantText(value);
+    return icon && /^mdi:[a-z0-9-]+$/.test(icon) ? icon : null;
 }
 
 function normalizeHomeAssistantText(value) {
